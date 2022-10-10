@@ -1991,22 +1991,23 @@ class Typer(@constructorOnly nestingLevel: Int = 0) extends Namer
   }
 
   def typedAppliedTypeTree(tree: untpd.AppliedTypeTree)(using Context): Tree = {
-    tree.args match
-      case arg :: _ if arg.isTerm =>
-        if Feature.dependentEnabled then
-          return errorTree(tree, i"Not yet implemented: T(...)")
-        else
-          return errorTree(tree, dependentStr)
-      case _ =>
-
     val tpt1 = withoutMode(Mode.Pattern) {
       typed(tree.tpt, AnyTypeConstructorProto)
     }
+
+    if Feature.dependentEnabled && tree.isInstanceOf[untpd.AppliedTermTree] then
+      tpt1.tpe.typeSymbol.primaryConstructor.typeRef.underlying match
+        case tp: MethodType =>
+          // TODO(mbovel): what pre-processessing should be run on args? Desugaring as below? Other things?
+          // TODO(mbovel): set correct span
+          return TypeTree(tp.instantiate(tree.args.map((typedType(_).tpe))))
+        // TODO(mbovel): error if not a dependent class of if there is no constructor
+
     val tparams = tpt1.tpe.typeParams
-     if tpt1.tpe.isError then
-       val args1 = tree.args.mapconserve(typedType(_))
-       assignType(cpy.AppliedTypeTree(tree)(tpt1, args1), tpt1, args1)
-     else if (tparams.isEmpty) {
+    if tpt1.tpe.isError then
+      val args1 = tree.args.mapconserve(typedType(_))
+      assignType(cpy.AppliedTypeTree(tree)(tpt1, args1), tpt1, args1)
+    else if (tparams.isEmpty) {
       report.error(TypeDoesNotTakeParameters(tpt1.tpe, tree.args), tree.srcPos)
       tpt1
     }
@@ -4031,7 +4032,7 @@ class Typer(@constructorOnly nestingLevel: Int = 0) extends Namer
           cpy.Ident(qual)(qual.symbol.name.sourceModuleName.toTypeName)
         case _ =>
           errorTree(tree, em"cannot convert from $tree to an instance creation expression")
-      val tycon = tree.tpe.widen.finalResultType.underlyingClassRef(refinementOK = false)
+      val tycon = tree.tpe.widen.finalResultType.underlyingClassRef(refinementOK = true)
       typed(
         untpd.Select(
           untpd.New(untpd.TypedSplice(tpt.withType(tycon))),
