@@ -1371,6 +1371,7 @@ object Types {
           tp.superType.atoms match
             case Atoms.Range(_, hi) => Atoms.Range(Set.empty, hi)
             case Atoms.Unknown => Atoms.Unknown
+        case tp if tp.isStable => single(tp)
         case _ => Atoms.Unknown
 
     private def dealias1(keep: AnnotatedType => Context ?=> Boolean, keepOpaques: Boolean)(using Context): Type = this match {
@@ -2075,6 +2076,10 @@ object Types {
    */
   trait SingletonType extends TypeProxy with ValueType {
     def isOverloaded(using Context): Boolean = false
+
+    override def tryNormalize(using Context): Type =
+      if underlying.isStable then underlying.normalized
+      else NoType
   }
 
   /** A trait for references in CaptureSets. These can be NamedTypes, ThisTypes or ParamRefs */

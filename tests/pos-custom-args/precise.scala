@@ -19,11 +19,11 @@ def vecSipExample =
   val vThree = vOneT ++ vTwoT
   val vThreeT: Vec = vThree
 
-
 def letAbstractionNormal =
   val n: Int = ???
   val nPlus1 /*: Int*/ = n + 1
-  Vec(n + 1).zip(Vec(nPlus1))
+  val vNPlus1 = Vec(nPlus1)
+  vNPlus1.zip(Vec(n + 1))
   //             ^^^^^^^^^^^
   //             Found:    Vec((nPlus1 : Int))
   //             Required: Vec((?1 : Int))
@@ -31,5 +31,6 @@ def letAbstractionNormal =
 
 dependent def letAbstractionDependent =
   val n: Int = ???
-  val nPlus1 /*: n + 1*/ = n + 1
-  Vec(n + 1).zip(Vec(nPlus1))
+  val nPlus1 /*: n.type + 1*/ = n + 1
+  val vNPlus1 = Vec(nPlus1)
+  vNPlus1.zip(Vec(n + 1))
