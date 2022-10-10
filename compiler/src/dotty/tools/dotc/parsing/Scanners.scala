@@ -201,6 +201,7 @@ object Scanners {
 
     def featureEnabled(name: TermName) = Feature.enabled(name)(using languageImportContext)
     def erasedEnabled = featureEnabled(Feature.erasedDefinitions)
+    def dependentEnabled = featureEnabled(Feature.dependent)
 
     private inline val fewerBracesByDefault = false
       // turn on to study impact on codebase if `fewerBraces` was the default
@@ -1196,7 +1197,7 @@ object Scanners {
 
     def isSoftModifier: Boolean =
       token == IDENTIFIER
-      && (softModifierNames.contains(name) || name == nme.erased && erasedEnabled)
+      && (softModifierNames.contains(name) || name == nme.erased && erasedEnabled || name == nme.dependent && dependentEnabled)
 
     def isSoftModifierInModifierPosition: Boolean =
       isSoftModifier && inModifierPosition()

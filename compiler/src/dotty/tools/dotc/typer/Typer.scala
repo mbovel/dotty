@@ -1613,6 +1613,8 @@ class Typer(@constructorOnly nestingLevel: Int = 0) extends Namer
             typedDependentMatchFinish(tree, sel1, selType, tree.cases, mt)
           case MatchType.InDisguise(mt) if isMatchTypeShaped(mt) =>
             typedDependentMatchFinish(tree, sel1, selType, tree.cases, mt)
+          case _ if ctx.mode.is(Mode.Dependent) =>
+            typedInferredDependentMatchFinish(tree, sel1, selType, tree.cases)
           case _ =>
             typedMatchFinish(tree, sel1, selType, tree.cases, pt)
         }
@@ -1677,6 +1679,14 @@ class Typer(@constructorOnly nestingLevel: Int = 0) extends Namer
       .asInstanceOf[List[CaseDef]]
     assignType(cpy.Match(tree)(sel, cases1), sel, cases1).cast(pt)
   }
+
+   /** Special typing of Match tree when the expected type is a MatchType,
+   *  and the patterns of the Match tree and the MatchType correspond.
+   */
+  def typedInferredDependentMatchFinish(tree: untpd.Match, sel: Tree, wideSelType: Type, cases: List[untpd.CaseDef])(using Context): Tree =
+    val cases1 = typedCases(cases, sel, wideSelType, WildcardType)
+    val casesTypes = cases1.map(cas => defn.MatchCase(cas.pat.tpe, cas.tpe))
+    assignType(cpy.Match(tree)(sel, cases1), sel, cases1).cast(MatchType(defn.AnyType, sel.tpe, casesTypes))
 
   // Overridden in InlineTyper for inline matches
   def typedMatchFinish(tree: untpd.Match, sel: Tree, wideSelType: Type, cases: List[untpd.CaseDef], pt: Type)(using Context): Tree = {
@@ -2292,12 +2302,14 @@ class Typer(@constructorOnly nestingLevel: Int = 0) extends Namer
   def typedValDef(vdef: untpd.ValDef, sym: Symbol)(using Context): Tree = {
     val ValDef(name, tpt, _) = vdef
     completeAnnotations(vdef, sym)
+    val rhsCtx = ctx.fresh
+    if sym.is(Dependent) then rhsCtx.addMode(Mode.Dependent)
     if (sym.isOneOf(GivenOrImplicit)) checkImplicitConversionDefOK(sym)
     if sym.is(Module) then checkNoModuleClash(sym)
     val tpt1 = checkSimpleKinded(typedType(tpt))
     val rhs1 = vdef.rhs match {
       case rhs @ Ident(nme.WILDCARD) => rhs withType tpt1.tpe
-      case rhs => typedExpr(rhs, tpt1.tpe.widenExpr)
+      case rhs => typedExpr(rhs, tpt1.tpe.widenExpr)(using rhsCtx)
     }
     val vdef1 = assignType(cpy.ValDef(vdef)(name, tpt1, rhs1), sym)
     postProcessInfo(sym)
@@ -2351,6 +2363,7 @@ class Typer(@constructorOnly nestingLevel: Int = 0) extends Namer
 
     if sym.isInlineMethod then rhsCtx.addMode(Mode.InlineableBody)
     if sym.is(ExtensionMethod) then rhsCtx.addMode(Mode.InExtensionMethod)
+    if sym.is(Dependent) then rhsCtx.addMode(Mode.Dependent)
     val rhs1 = PrepareInlineable.dropInlineIfError(sym,
       if sym.isScala2Macro then typedScala2MacroBody(ddef.rhs)(using rhsCtx)
       else typedExpr(ddef.rhs, tpt1.tpe.widenExpr)(using rhsCtx))

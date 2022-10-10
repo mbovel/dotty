@@ -219,6 +219,8 @@ object untpd extends Trees.Instance[Untyped] with UntypedTreeInfo {
 
     /** Used under -Ycc to mark impure function types `A => B` in `FunctionWithMods` */
     case class Impure()(implicit @constructorOnly src: SourceFile) extends Mod(Flags.Impure)
+
+    case class Dependent()(implicit @constructorOnly src: SourceFile) extends Mod(Flags.Dependent)
   }
 
   /** Modifiers and annotations for definitions
