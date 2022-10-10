@@ -647,7 +647,7 @@ trait ConstraintHandling {
       case _ => isSubTypeWhenFrozen(tp, defn.SingletonType)
 
     val wideInst =
-      if isSingleton(bound) then inst
+      if isSingleton(bound) || ctx.mode.is(Mode.Dependent)  then inst
       else dropTransparentTraits(widenIrreducible(widenOr(widenSingle(inst))), bound)
     wideInst match
       case wideInst: TypeRef if wideInst.symbol.is(Module) =>
@@ -684,7 +684,10 @@ trait ConstraintHandling {
   def instanceType(param: TypeParamRef, fromBelow: Boolean, widenUnions: Boolean, maxLevel: Int)(using Context): Type = {
     val approx = approximation(param, fromBelow, maxLevel).simplified
     if fromBelow then
-      val widened = widenInferred(approx, param, widenUnions)
+      val widened = if ctx.mode.is(Mode.Dependent) || param.termSymbol.enclosingMethod.flagsUNSAFE.is(Flags.Dependent) then
+        approx
+      else
+        widenInferred(approx, param, widenUnions)
       // Widening can add extra constraints, in particular the widened type might
       // be a type variable which is now instantiated to `param`, and therefore
       // cannot be used as an instantiation of `param` without creating a loop.
