@@ -7,7 +7,7 @@ import Types.*, Symbols.*, Contexts.*
 
 /** A (possibly boxed) capturing type. This is internally represented as an annotated type with a @retains
  *  or @retainsByName annotation, but the extractor will succeed only at phase CheckCaptures.
- *  That way, we can ignore caturing information until phase CheckCaptures since it is
+ *  That way, we can ignore capturing information until phase CheckCaptures since it is
  *  wrapped in a plain annotation.
  *
  *  The same trick does not work for the boxing information. Boxing is context dependent, so
@@ -20,12 +20,12 @@ import Types.*, Symbols.*, Contexts.*
  *  But this would have to be done for all possibly accessibly types from the compiled units
  *  as well as their dependencies. It's difficult to do this in a DenotationTransformer without
  *  accidentally forcing symbol infos. That's why this alternative was not implemented.
- *  If we would go back on this it would make sense to also treat captuyring types different
+ *  If we would go back on this it would make sense to also treat capturing types different
  *  from annotations and to generate them all during Setup and in DenotationTransformers.
  */
 object CapturingType:
 
-  /** Smart constructor that drops empty capture sets and fuses compatible capturiong types.
+  /** Smart constructor that drops empty capture sets and fuses compatible capturing types.
    *  An outer type capturing type A can be fused with an inner capturing type B if their
    *  boxing status is the same or if A is boxed.
    */
@@ -37,7 +37,7 @@ object CapturingType:
       case _ =>
         AnnotatedType(parent, CaptureAnnotation(refs, boxed)(defn.RetainsAnnot))
 
-  /** An extractor that succeeds only during CheckCapturingPhase. Boxing statis is
+  /** An extractor that succeeds only during CheckCapturingPhase. Boxing status is
    *  returned separately by CaptureOps.isBoxed.
    */
   def unapply(tp: AnnotatedType)(using Context): Option[(Type, CaptureSet)] =

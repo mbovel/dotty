@@ -47,7 +47,7 @@ object CheckCaptures:
    *  @param owner         the current owner
    *  @param nestedInOwner true if the environment is a temporary one nested in the owner's environment,
    *                       and does not have a different actual owner symbol (this happens when doing box adaptation).
-   *  @param captured      the caputure set containing all references to tracked free variables outside of boxes
+   *  @param captured      the capture set containing all references to tracked free variables outside of boxes
    *  @param isBoxed       true if the environment is inside a box (in which case references are not counted)
    *  @param outer0        the next enclosing environment
    */
@@ -283,8 +283,8 @@ class CheckCaptures extends Recheck, SymTransformer:
         case MultiDenotation(denot1, denot2) =>
           // This case can arise when we try to merge multiple types that have different
           // capture sets on some part. For instance an asSeenFrom might produce
-          // a bi-mapped capture set arising from a substition. Applying the same substitution
-          // to the same type twice will nevertheless produce different capture setsw which can
+          // a bi-mapped capture set arising from a substitution. Applying the same substitution
+          // to the same type twice will nevertheless produce different capture sets which can
           // lead to a failure in disambiguation since neither alternative is better than the
           // other in a frozen constraint. An example test case is disambiguate-select.scala.
           // We address the problem by disambiguating while ignoring all capture sets as a fallback.

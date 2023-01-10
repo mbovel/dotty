@@ -473,7 +473,7 @@ abstract class Recheck extends Phase, SymTransformer:
 
     /** Finish rechecking a tree node: check rechecked type against expected type
      *  and remember rechecked type in a tree attachment if required.
-     *  @param tpe   the recheched type of `tree`
+     *  @param tpe   the rechecked type of `tree`
      *  @param tree  the rechecked tree
      *  @param pt    the expected type
      */
@@ -490,7 +490,7 @@ abstract class Recheck extends Phase, SymTransformer:
           throw ex
       }
 
-    /** Typing and previous transforms sometiems leaves skolem types in prefixes of
+    /** Typing and previous transforms sometimes leaves skolem types in prefixes of
      *  NamedTypes in `expected` that do not match the `actual` Type. -Ycheck does
      *  not complain (need to find out why), but a full recheck does. We compensate
      *  by de-skolemizing everywhere in `expected` except when variance is negative.

@@ -30,7 +30,7 @@ extension (tree: Tree)
     case tpe => throw IllegalCaptureRef(tpe)
 
   /** Convert a @retains or @retainsByName annotation tree to the capture set it represents.
-   *  For efficience, the result is cached as an Attachment on the tree.
+   *  For efficiency, the result is cached as an Attachment on the tree.
    */
   def toCaptureSet(using Context): CaptureSet =
     tree.getAttachment(Captures) match

@@ -30,7 +30,7 @@ import config.Config.ccAllowUnsoundMaps
  *    cs1 <:< cs2
  *    cs1 = ∪ {f(x) | x ∈ cs2}     where f is a function from capture references to capture sets.
  *    cs1 = ∪ {x | x ∈ cs2, p(x)}  where p is a predicate on capture references
- *    cs1 = cs2 ∩ cs2
+ *    cs1 = cs2 ∩ cs3
  *
  *  We call the resulting constraint system "monadic set constraints".
  *  To support capture propagation across maps, mappings are supported only
@@ -285,7 +285,7 @@ sealed abstract class CaptureSet extends Showable:
    */
   protected def upperApprox(origin: CaptureSet)(using Context): CaptureSet
 
-  /** Assuming set this set dependds on was just solved to be constant, propagate this info
+  /** Assuming set this set depends on was just solved to be constant, propagate this info
    *  to this set. This might result in the set being solved to be constant
    *  itself.
    */
@@ -358,7 +358,7 @@ object CaptureSet:
       varId += 1
       varId
 
-    /** A variable is solved if it is aproximated to a from-then-on constant set. */
+    /** A variable is solved if it is approximated to a from-then-on constant set. */
     private var isSolved: Boolean = false
 
     /** The elements currently known to be in the set */
@@ -728,7 +728,7 @@ object CaptureSet:
   /** The result of subcapturing comparisons is an opaque type CompareResult.TYPE.
    *  This is either OK, indicating success, or
    *  another capture set, indicating failure. The failure capture set
-   *  is the one that did not allow propagaton of elements into it.
+   *  is the one that did not allow propagation of elements into it.
    */
   object CompareResult:
     opaque type TYPE = CaptureSet
