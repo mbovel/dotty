@@ -31,6 +31,7 @@ object Feature:
   val clauseInterleaving = experimental("clauseInterleaving")
   val pureFunctions = experimental("pureFunctions")
   val captureChecking = experimental("captureChecking")
+  val refinements = experimental("refinements")
   val into = experimental("into")
 
   val globalOnlyImports: Set[TermName] = Set(pureFunctions, captureChecking)
@@ -93,6 +94,10 @@ object Feature:
   def ccEnabled(using Context) =
     enabledBySetting(captureChecking)
     || ctx.compilationUnit.needsCaptureChecking
+
+  /** Is refinementsChecking enabled for this compilation unit? */
+  def refinementsEnabled(using Context) =
+    enabledBySetting(refinements)
 
   /** Is pureFunctions enabled for any of the currently compiled compilation units? */
   def pureFunsEnabledSomewhere(using Context) =

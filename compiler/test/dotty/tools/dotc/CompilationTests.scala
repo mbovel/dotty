@@ -42,6 +42,7 @@ class CompilationTests {
       compileFilesInDir("tests/new", defaultOptions.and("-source", "3.2")), // just to see whether 3.2 works
       compileFilesInDir("tests/pos-scala2", scala2CompatMode),
       compileFilesInDir("tests/pos-custom-args/captures", defaultOptions.and("-language:experimental.captureChecking")),
+      compileFilesInDir("tests/pos-custom-args/refinements", defaultOptions.and("-language:experimental.refinements")),
       compileFilesInDir("tests/pos-custom-args/erased", defaultOptions.and("-language:experimental.erasedDefinitions")),
       compileFilesInDir("tests/pos", defaultOptions.and("-Ysafe-init")),
       // Run tests for legacy lazy vals
@@ -143,6 +144,7 @@ class CompilationTests {
       compileFilesInDir("tests/neg-custom-args/feature", defaultOptions.and("-Xfatal-warnings", "-feature")),
       compileFilesInDir("tests/neg-custom-args/no-experimental", defaultOptions.and("-Yno-experimental")),
       compileFilesInDir("tests/neg-custom-args/captures", defaultOptions.and("-language:experimental.captureChecking")),
+      compileFilesInDir("tests/neg-custom-args/refinements", defaultOptions.and("-language:experimental.refinements")),
       compileFile("tests/neg-custom-args/avoid-warn-deprecation.scala", defaultOptions.and("-Xfatal-warnings", "-feature")),
       compileFile("tests/neg-custom-args/i3246.scala", scala2CompatMode),
       compileFile("tests/neg-custom-args/overrideClass.scala", scala2CompatMode),

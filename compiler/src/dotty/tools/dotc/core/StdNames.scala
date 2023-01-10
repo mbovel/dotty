@@ -568,6 +568,7 @@ object StdNames {
     val productPrefix: N        = "productPrefix"
     val quotes : N              = "quotes"
     val raw_ : N                = "raw"
+    val refined: N              = "refined"
     val refl: N                 = "refl"
     val reflect: N              = "reflect"
     val reflectiveSelectable: N = "reflectiveSelectable"
