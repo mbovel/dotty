@@ -90,6 +90,11 @@ object language:
      */
     @compileTimeOnly("`into` can only be used at compile time in import statements")
     object into
+
+    /** Experimental support for predicate refinement types
+      */
+    @compileTimeOnly("`refinements` can only be used at compile time in import statements")
+    object refinements
   end experimental
 
   /** The deprecated object contains features that are no longer officially suypported in Scala.

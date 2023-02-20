@@ -84,6 +84,8 @@ object Feature:
 
   def scala2ExperimentalMacroEnabled(using Context) = enabled(scala2macros)
 
+  def refinementsEnabled(using Context) = enabled(refinements)
+
   /** Is pureFunctions enabled for this compilation unit? */
   def pureFunsEnabled(using Context) =
     enabledBySetting(pureFunctions)
@@ -94,10 +96,6 @@ object Feature:
   def ccEnabled(using Context) =
     enabledBySetting(captureChecking)
     || ctx.compilationUnit.needsCaptureChecking
-
-  /** Is refinementsChecking enabled for this compilation unit? */
-  def refinementsEnabled(using Context) =
-    enabledBySetting(refinements)
 
   /** Is pureFunctions enabled for any of the currently compiled compilation units? */
   def pureFunsEnabledSomewhere(using Context) =
