@@ -191,7 +191,33 @@ class ImportInfo(symf: Context ?=> Symbol,
    *          None        if `feature` is not mentioned, or this is not a language import
    */
   def mentionsFeature(feature: TermName)(using Context): Option[Boolean] =
+    if(feature.toString != "unsafeNulls") then
+      println(s"""
+              |
+              |this:
+              |${this.show}
+              |feature:
+              |$feature
+              |""".stripMargin)
+    
     def test(prefix: TermName, feature: TermName): Option[Boolean] =
+      
+      
+      //if(feature.toString != "unsafeNulls") then
+        
+        /* println(s"""
+               |
+               |this:
+               |${this.show}
+               |prefix:
+               |$prefix
+               |feature:
+               |$feature
+               |qualifier:
+               |${qualifier.show}
+               |untpd.languageImport(qualifier):
+               |${untpd.languageImport(qualifier)}
+               |""".stripMargin) */
       untpd.languageImport(qualifier) match
         case Some(`prefix`) =>
           if forwardMapping.contains(feature) then Some(true)
@@ -215,7 +241,8 @@ class ImportInfo(symf: Context ?=> Symbol,
     if !featureCache.contains(feature) then
       featureCache = featureCache.updated(feature,
         mentionsFeature(feature) match
-          case Some(bv) => bv
+          case Some(bv) =>
+            bv
           case None =>
             var c = ctx.outer
             while c.importInfo eqn ctx.importInfo do c = c.outer

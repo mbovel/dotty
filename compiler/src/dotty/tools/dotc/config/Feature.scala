@@ -84,7 +84,11 @@ object Feature:
 
   def scala2ExperimentalMacroEnabled(using Context) = enabled(scala2macros)
 
-  def refinementsEnabled(using Context) = enabled(refinements)
+  def refinementsEnabled(using Context) = 
+    println(s"import: ${enabledByImport(refinements)}")
+    println(s"setting: ${enabledBySetting(refinements)}")
+    println(s"any: ${enabled(refinements)}")
+    enabled(refinements)
 
   /** Is pureFunctions enabled for this compilation unit? */
   def pureFunsEnabled(using Context) =
