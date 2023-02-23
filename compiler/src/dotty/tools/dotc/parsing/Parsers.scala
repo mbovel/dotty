@@ -33,6 +33,7 @@ import config.Feature
 import config.Feature.{sourceVersion, migrateTo3, globalOnlyImports}
 import config.SourceVersion._
 import config.SourceVersion
+import dotty.tools.dotc.core.Annotations.Annotation
 
 object Parsers {
 
@@ -1569,6 +1570,8 @@ object Parsers {
         }
         else if in.token == LBRACE && followingIsCaptureSet() then
           CapturingTypeTree(captureSet(), typ())
+        else if in.token == LBRACE then // TODO: implement followingIsQualifiedType ?
+          qualifiedType()
         else if (in.token == INDENT) enclosed(INDENT, typ())
         else infixType()
 
@@ -1657,12 +1660,71 @@ object Parsers {
       else t
     }
 
-    /** WithType ::= AnnotType {`with' AnnotType}    (deprecated)
+
+    def qualifiedType(): Tree = 
+      // parses `{` identifier `:` beingQualified `with` qualifier `}`
+      accept(LBRACE)
+      val identifier = ident()
+      accept(COLONfollow)
+      val beingQualified = typ()
+      accept(WITH)
+      val qualifier = expr()
+      accept(RBRACE)
+
+      if false then
+        println(s"""
+          |Identifier
+          |${identifier.show}
+          |beingQualified
+          |${beingQualified.show}
+          |${beingQualified}
+          |qualifier
+          |${qualifier.show}
+          |$qualifier
+          |""".stripMargin)
+
+
+      // identifier: beingQualified
+      val paramPred = makeParameter(identifier, beingQualified.withSpan(NoSpan), EmptyModifiers) // modifier Param is already added by makeParameter
+
+      // (identifier: beingQualified) => qualifier
+      val pred: Tree = Function(List(paramPred), qualifier)//.withSpan(qualifier.span)
+
+      // @refined[beingQualified](pred)
+      val annot = Apply( // fully qualified
+        // TODO: test with RefinedAnnot
+        TypeApply(Select(Ident(nme.annotation), nme.refined), List(beingQualified.withSpan(NoSpan))),  // Should we use the position of `with` as the span for the `@refined` ?
+        pred
+      )
+
+      // beingQualified @refined[beingQualified](pred)
+      val res = Annotated(beingQualified, annot)
+
+      if false then
+        println(s"""
+          |Type
+          |${beingQualified.show}
+          |With
+          |${pred.show}
+          |${pred}
+          |Res
+          |${res.show}
+          |$res
+          |""".stripMargin)
+
+      res
+
+    /** 
+     * Without refinementsEnabled:
+     * WithType ::= AnnotType {`with' AnnotType}    (deprecated)
+     * 
+     * With refinementsEnabled:
+     * WithType ::= AnnotType {`with' InfixExpr}
      */
     def withType(): Tree = withTypeRest(annotType())
 
     def withTypeRest(t: Tree): Tree =
-      if in.token == WITH then
+      if in.token == WITH && !Feature.refinementsEnabled then
         val withOffset = in.offset
         in.nextToken()
         if in.token == LBRACE || in.token == INDENT then
