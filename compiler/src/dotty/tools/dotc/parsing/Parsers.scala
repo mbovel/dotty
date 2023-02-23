@@ -33,6 +33,7 @@ import config.Feature
 import config.Feature.{sourceVersion, migrateTo3, globalOnlyImports}
 import config.SourceVersion._
 import config.SourceVersion
+import dotty.tools.dotc.core.Annotations.Annotation
 
 object Parsers {
 
@@ -1657,7 +1658,12 @@ object Parsers {
       else t
     }
 
-    /** WithType ::= AnnotType {`with' AnnotType}    (deprecated)
+    /** 
+     * Without refinementsEnabled:
+     * WithType ::= AnnotType {`with' AnnotType}    (deprecated)
+     * 
+     * With refinementsEnabled:
+     * WithType ::= AnnotType {`with' InfixExpr}
      */
     def withType(): Tree = withTypeRest(annotType())
 
@@ -1665,12 +1671,58 @@ object Parsers {
       if in.token == WITH then
         val withOffset = in.offset
         in.nextToken()
-        if in.token == LBRACE || in.token == INDENT then
-          t
+
+        if Feature.refinementsEnabled then
+          // Stolen from expr()
+          val saved = placeholderParams
+          placeholderParams = Nil
+
+          def wrapPlaceholders(t: Tree) = try
+            if (placeholderParams.isEmpty) t
+            else new WildcardFunction(placeholderParams.reverse, t)
+          finally placeholderParams = saved
+          // end Stolen from expr()
+
+          // parses t with rhs
+          // TODO: Restrict parser to forbid things like matches
+          val rhs = postfixExpr()
+          
+          // Insert smart conversion logic here
+
+
+          val pred = wrapPlaceholders(rhs)
+          
+          // @refined[t](pred)
+          val annot = Apply( // fully qualified
+            // TODO: test with RefinedAnnot
+            TypeApply(Select(Ident(nme.annotation), nme.refined), List(t.withSpan(NoSpan))).withSpan(NoSpan),  // Should we use the position of `with` as the span for the `@refined` ?
+            pred
+          ).withSpan(rhs.span)
+
+          // t @refined[t](pred)
+          val res = Annotated(t, annot)//.withSpan(Span(t.span.start, pred.span.end))
+
+          if false then
+            println(s"""
+              |Type
+              |${t.show}
+              |With
+              |${pred.show}
+              |${pred}
+              |Res
+              |${res.show}
+              |$res
+              |""".stripMargin)
+
+          res
+
         else
-          if sourceVersion.isAtLeast(future) then
-            deprecationWarning(DeprecatedWithOperator(), withOffset)
-          atSpan(startOffset(t)) { makeAndType(t, withType()) }
+          if in.token == LBRACE || in.token == INDENT then
+            t
+          else
+            if sourceVersion.isAtLeast(future) then
+              deprecationWarning(DeprecatedWithOperator(), withOffset)
+            atSpan(startOffset(t)) { makeAndType(t, withType()) }
       else t
 
     /** AnnotType ::= SimpleType {Annotation}
