@@ -1663,7 +1663,7 @@ object Parsers {
      * WithType ::= AnnotType {`with' AnnotType}    (deprecated)
      * 
      * With refinementsEnabled:
-     * WithType ::= AnnotType {`with' SimpleExpr}
+     * WithType ::= AnnotType {`with' InfixExpr}
      */
     def withType(): Tree = withTypeRest(annotType())
 
@@ -1673,12 +1673,24 @@ object Parsers {
         in.nextToken()
 
         if Feature.refinementsEnabled then
+          // Stolen from expr()
+          val saved = placeholderParams
+          placeholderParams = Nil
+
+          def wrapPlaceholders(t: Tree) = try
+            if (placeholderParams.isEmpty) t
+            else new WildcardFunction(placeholderParams.reverse, t)
+          finally placeholderParams = saved
+          // end Stolen from expr()
+
           // parses t with rhs
-          val rhs = simpleExpr()
+          // TODO: Restrict parser to forbid things like matches
+          val rhs = postfixExpr()
           
           // Insert smart conversion logic here
 
-          val pred = rhs
+
+          val pred = wrapPlaceholders(rhs)
           
           // @refined[t](pred)
           val annot = Apply( // fully qualified
@@ -1690,17 +1702,17 @@ object Parsers {
           // t @refined[t](pred)
           val res = Annotated(t, annot)//.withSpan(Span(t.span.start, pred.span.end))
 
-
-          println(s"""
-            |Type
-            |${t.show}
-            |With
-            |${pred.show}
-            |${pred}
-            |Res
-            |${res.show}
-            |$res
-            |""".stripMargin)
+          if false then
+            println(s"""
+              |Type
+              |${t.show}
+              |With
+              |${pred.show}
+              |${pred}
+              |Res
+              |${res.show}
+              |$res
+              |""".stripMargin)
 
           res
 
