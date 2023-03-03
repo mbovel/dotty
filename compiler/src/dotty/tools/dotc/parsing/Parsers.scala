@@ -1663,7 +1663,7 @@ object Parsers {
      * WithType ::= AnnotType {`with' AnnotType}    (deprecated)
      * 
      * With refinementsEnabled:
-     * WithType ::= AnnotType {`with' expr}
+     * WithType ::= AnnotType {`with' SimpleExpr}
      */
     def withType(): Tree = withTypeRest(annotType())
 
@@ -1674,15 +1674,16 @@ object Parsers {
 
         if Feature.refinementsEnabled then
           // parses t with rhs
-          val rhs = expr()
+          val rhs = simpleExpr()
           
           // Insert smart conversion logic here
 
           val pred = rhs
           
           // @refined[t](pred)
-          val annot = Apply(
-            TypeApply(Ident(StdNames.nme.refined), List(t.withSpan(NoSpan))).withSpan(NoSpan),  // Should we use the position of `with` as the span for the `@refined` ?
+          val annot = Apply( // fully qualified
+            // TODO: test with RefinedAnnot
+            TypeApply(Select(Ident(nme.annotation), nme.refined), List(t.withSpan(NoSpan))).withSpan(NoSpan),  // Should we use the position of `with` as the span for the `@refined` ?
             pred
           ).withSpan(rhs.span)
 
