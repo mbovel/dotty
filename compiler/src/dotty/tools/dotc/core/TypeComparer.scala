@@ -1578,7 +1578,10 @@ class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling
               Some(verified(false))
             else
               None
-          case _ => Some(verified(recur(tp1, NothingType)))
+          case _ if knownSingletons =>
+            Some(verified(recur(tp1, NothingType)))
+          case _ =>
+            None
       case _ => None
 
   /** Subtype test for corresponding arguments in `args1`, `args2` according to
