@@ -140,7 +140,7 @@ object TypeApplications {
         t.derivedRefinedType(apply(parent), name, applyArg(info).bounds)
       case p: TypeParamRef if p.binder == tycon =>
         args(p.paramNum) match {
-          case TypeBounds(lo, hi) =>
+          case TypeBounds(lo, hi) if variance != 0 =>
             if (ctx.mode.is(Mode.AllowLambdaWildcardApply)) { allReplaced = false; p }
             else if (variance < 0) lo
             else hi
