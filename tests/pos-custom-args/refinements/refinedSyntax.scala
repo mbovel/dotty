@@ -1,28 +1,41 @@
 
-type Useless1 = Int with (_ => true)
+type Useless = {x: Int with true}
+/*
+type Pos = {x: Int with x > 0}
 
-type Useless2 = Int with true
+type Neg = {x: Int with x < 0}
 
 
-type Pos = Int with _ > 0
-
-type Neg = Int with (_ < 0)
-
-def secondGreater(x: Int, z: Int, y: Int with x > z) = ???
+def secondGreater1(x: Int, z: Int, y: {w: Int with x > z}) = ???
 
 def id[T](x: T): T = x
 
 def test() =
   val x1: Pos = 1
-  val x2: Int with _ > 0 = 1
-  val x3: Int = id[Int with _ < 0](1) + id[Neg](-1)
+  val x2: {x: Int with x > 0} = 1
+  val x3: Int = id[{x: Int with x < 0}](1) + id[Neg](-1)
 
   def f: Pos => Int = ???
   val g: Int => Pos = f
 
-type Nesting = Int with { val y: Int with _ > 0 = ??? ; _ > y }
+type Nesting = {x: Int with { val y: {y: Int with z > 0} = ??? ; _ > y }}
 
+
+// Shortcuts:
+
+
+type Pos2 =
+  x: Int with x > 0
+
+def foo(x: Int):
+  res: Int with res > 0
+= ???
+
+def secondGreater2(x: Int, z: Int, y: Int with x > z) = ???
+
+// id[x: Int with x < 0](1)
 
 
 // Shouldn't work:
-type Pos2 = Int with _ + 1 match { case x => true }
+type Pos100 = Int with _ + 1 match { case x => true }
+*/

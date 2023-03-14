@@ -1570,6 +1570,8 @@ object Parsers {
         }
         else if in.token == LBRACE && followingIsCaptureSet() then
           CapturingTypeTree(captureSet(), typ())
+        else if in.token == LBRACE then // TODO: implement followingIsQualifiedType ?
+          qualifiedType()
         else if (in.token == INDENT) enclosed(INDENT, typ())
         else infixType()
 
@@ -1658,6 +1660,62 @@ object Parsers {
       else t
     }
 
+
+    def qualifiedType(): Tree = 
+      // parses t with rhs
+      // TODO: Restrict parser to forbid things like matches
+      accept(LBRACE)
+      val identifier = ident()
+      accept(COLONfollow)
+      val beingQualified = typ()
+      accept(WITH)
+      val qualifier = expr()
+      accept(RBRACE)
+
+      val rhs = postfixExpr()
+      if true then
+        println(s"""
+          |Identifier
+          |${identifier.show}
+          |beingQualified
+          |${beingQualified.show}
+          |${beingQualified}
+          |qualifier
+          |${qualifier.show}
+          |$qualifier
+          |""".stripMargin)
+
+      // Insert smart conversion logic here
+
+      
+      val paramPred = makeParameter(identifier, beingQualified, EmptyModifiers) // modifier Param is already added by makeParameter
+      val pred: Tree = Function(List(paramPred), qualifier)
+      val t: Tree = beingQualified
+
+      // @refined[t](pred)
+      val annot = Apply( // fully qualified
+        // TODO: test with RefinedAnnot
+        TypeApply(Select(Ident(nme.annotation), nme.refined).withSpan(NoSpan), List(t.withSpan(NoSpan))).withSpan(NoSpan),  // Should we use the position of `with` as the span for the `@refined` ?
+        pred
+      ).withSpan(rhs.span)
+
+      // t @refined[t](pred)
+      val res = Annotated(t, annot).withSpan(NoSpan)//.withSpan(Span(t.span.start, pred.span.end))
+
+      if false then
+        println(s"""
+          |Type
+          |${t.show}
+          |With
+          |${pred.show}
+          |${pred}
+          |Res
+          |${res.show}
+          |$res
+          |""".stripMargin)
+
+      res
+
     /** 
      * Without refinementsEnabled:
      * WithType ::= AnnotType {`with' AnnotType}    (deprecated)
@@ -1668,61 +1726,15 @@ object Parsers {
     def withType(): Tree = withTypeRest(annotType())
 
     def withTypeRest(t: Tree): Tree =
-      if in.token == WITH then
+      if in.token == WITH && !Feature.refinementsEnabled then
         val withOffset = in.offset
         in.nextToken()
-
-        if Feature.refinementsEnabled then
-          // Stolen from expr()
-          val saved = placeholderParams
-          placeholderParams = Nil
-
-          def wrapPlaceholders(t: Tree) = try
-            if (placeholderParams.isEmpty) t
-            else new WildcardFunction(placeholderParams.reverse, t)
-          finally placeholderParams = saved
-          // end Stolen from expr()
-
-          // parses t with rhs
-          // TODO: Restrict parser to forbid things like matches
-          val rhs = postfixExpr()
-          
-          // Insert smart conversion logic here
-
-
-          val pred = wrapPlaceholders(rhs)
-          
-          // @refined[t](pred)
-          val annot = Apply( // fully qualified
-            // TODO: test with RefinedAnnot
-            TypeApply(Select(Ident(nme.annotation), nme.refined), List(t.withSpan(NoSpan))).withSpan(NoSpan),  // Should we use the position of `with` as the span for the `@refined` ?
-            pred
-          ).withSpan(rhs.span)
-
-          // t @refined[t](pred)
-          val res = Annotated(t, annot)//.withSpan(Span(t.span.start, pred.span.end))
-
-          if false then
-            println(s"""
-              |Type
-              |${t.show}
-              |With
-              |${pred.show}
-              |${pred}
-              |Res
-              |${res.show}
-              |$res
-              |""".stripMargin)
-
-          res
-
+        if in.token == LBRACE || in.token == INDENT then
+          t
         else
-          if in.token == LBRACE || in.token == INDENT then
-            t
-          else
-            if sourceVersion.isAtLeast(future) then
-              deprecationWarning(DeprecatedWithOperator(), withOffset)
-            atSpan(startOffset(t)) { makeAndType(t, withType()) }
+          if sourceVersion.isAtLeast(future) then
+            deprecationWarning(DeprecatedWithOperator(), withOffset)
+          atSpan(startOffset(t)) { makeAndType(t, withType()) }
       else t
 
     /** AnnotType ::= SimpleType {Annotation}
