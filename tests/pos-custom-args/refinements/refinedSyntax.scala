@@ -25,4 +25,4 @@ type Nesting = Int with { val y: Int with _ > 0 = ??? ; _ > y }
 
 
 // Shouldn't work:
-type Pos = Int with _ + 1 match { case x => true }
+type Pos2 = Int with _ + 1 match { case x => true }
