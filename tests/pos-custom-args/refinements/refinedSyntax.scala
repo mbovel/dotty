@@ -1,6 +1,6 @@
 
 type Useless = {x: Int with true}
-/*
+
 type Pos = {x: Int with x > 0}
 
 type Neg = {x: Int with x < 0}
@@ -18,12 +18,13 @@ def test() =
   def f: Pos => Int = ???
   val g: Int => Pos = f
 
-type Nesting = {x: Int with { val y: {y: Int with z > 0} = ??? ; _ > y }}
+type Nesting = {x: Int with { val y: {z: Int with z > 0} = ??? ; x > y }}
 
 
 // Shortcuts:
 
 
+/*
 type Pos2 =
   x: Int with x > 0
 
@@ -33,9 +34,5 @@ def foo(x: Int):
 
 def secondGreater2(x: Int, z: Int, y: Int with x > z) = ???
 
-// id[x: Int with x < 0](1)
-
-
-// Shouldn't work:
-type Pos100 = Int with _ + 1 match { case x => true }
-*/
+id[x: Int with x < 0](1)
+ */

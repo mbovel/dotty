@@ -1662,8 +1662,7 @@ object Parsers {
 
 
     def qualifiedType(): Tree = 
-      // parses t with rhs
-      // TODO: Restrict parser to forbid things like matches
+      // parses `{` identifier `:` beingQualified `with` qualifier `}`
       accept(LBRACE)
       val identifier = ident()
       accept(COLONfollow)
@@ -1672,8 +1671,7 @@ object Parsers {
       val qualifier = expr()
       accept(RBRACE)
 
-      val rhs = postfixExpr()
-      if true then
+      if false then
         println(s"""
           |Identifier
           |${identifier.show}
@@ -1685,27 +1683,27 @@ object Parsers {
           |$qualifier
           |""".stripMargin)
 
-      // Insert smart conversion logic here
 
-      
-      val paramPred = makeParameter(identifier, beingQualified, EmptyModifiers) // modifier Param is already added by makeParameter
-      val pred: Tree = Function(List(paramPred), qualifier)
-      val t: Tree = beingQualified
+      // identifier: beingQualified
+      val paramPred = makeParameter(identifier, beingQualified.withSpan(NoSpan), EmptyModifiers) // modifier Param is already added by makeParameter
 
-      // @refined[t](pred)
+      // (identifier: beingQualified) => qualifier
+      val pred: Tree = Function(List(paramPred), qualifier)//.withSpan(qualifier.span)
+
+      // @refined[beingQualified](pred)
       val annot = Apply( // fully qualified
         // TODO: test with RefinedAnnot
-        TypeApply(Select(Ident(nme.annotation), nme.refined).withSpan(NoSpan), List(t.withSpan(NoSpan))).withSpan(NoSpan),  // Should we use the position of `with` as the span for the `@refined` ?
+        TypeApply(Select(Ident(nme.annotation), nme.refined), List(beingQualified.withSpan(NoSpan))),  // Should we use the position of `with` as the span for the `@refined` ?
         pred
-      ).withSpan(rhs.span)
+      )
 
-      // t @refined[t](pred)
-      val res = Annotated(t, annot).withSpan(NoSpan)//.withSpan(Span(t.span.start, pred.span.end))
+      // beingQualified @refined[beingQualified](pred)
+      val res = Annotated(beingQualified, annot)
 
       if false then
         println(s"""
           |Type
-          |${t.show}
+          |${beingQualified.show}
           |With
           |${pred.show}
           |${pred}
