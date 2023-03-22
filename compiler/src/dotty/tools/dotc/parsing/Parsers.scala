@@ -978,7 +978,36 @@ object Parsers {
         lookahead.nextToken()
         if lookahead.token == RBRACE then followingIsTypeStart() else recur()
       }
+    
+    /** Under refinements language import: is the following token sequence a
+     *  qualified type `<<< id: type with boolean >>>` ?
+     * 
+     * Checks for the `with` keyword in the upcoming section
+     */
+    def followingIsQualifiedType(): Boolean =
+      val res = Feature.refinementsEnabled && {
+        val lookahead = in.LookaheadScanner(allowIndent = true) // if replaced by `in`, the regions are updated correctly
 
+        if in.token == INDENT then
+          ()
+        else
+          lookahead.nextToken()
+
+        val startingRegion = lookahead.currentRegion
+        val outerRegion = startingRegion.outer
+        
+        def recur(): Boolean =
+          if lookahead.currentRegion == outerRegion then
+            false
+          else if lookahead.currentRegion == startingRegion && lookahead.token == WITH then
+            true
+          else
+            lookahead.nextToken()
+            recur()
+        recur()
+      }
+      //println(s"result of followingIsQualifiedType at ${in.token} (brace: $LBRACE, indent: $INDENT) was $res")
+      res
   /* --------- OPERAND/OPERATOR STACK --------------------------------------- */
 
     var opStack: List[OpInfo] = Nil
@@ -1570,7 +1599,7 @@ object Parsers {
         }
         else if in.token == LBRACE && followingIsCaptureSet() then
           CapturingTypeTree(captureSet(), typ())
-        else if in.token == LBRACE then // TODO: implement followingIsQualifiedType ?
+        else if in.isNestedStart && followingIsQualifiedType() then
           qualifiedType()
         else if (in.token == INDENT) enclosed(INDENT, typ())
         else infixType()
@@ -1663,13 +1692,14 @@ object Parsers {
 
     def qualifiedType(): Tree = 
       // parses `{` identifier `:` beingQualified `with` qualifier `}`
-      accept(LBRACE)
-      val identifier = ident()
-      accept(COLONfollow)
-      val beingQualified = typ()
-      accept(WITH)
-      val qualifier = expr()
-      accept(RBRACE)
+      val (identifier, beingQualified, qualifier) = inBracesOrIndented{
+        val id = ident()
+        accept(COLONfollow)
+        val t = typ()
+        accept(WITH)
+        val qual = expr()
+        (id, t, qual)
+      }
 
       if false then
         println(s"""

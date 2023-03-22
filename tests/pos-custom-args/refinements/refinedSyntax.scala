@@ -24,10 +24,10 @@ type Nesting = {x: Int with { val y: {z: Int with z > 0} = ??? ; x > y }}
 // Shortcuts:
 
 
-/*
 type Pos2 =
   x: Int with x > 0
 
+/*
 def foo(x: Int):
   res: Int with res > 0
 = ???
