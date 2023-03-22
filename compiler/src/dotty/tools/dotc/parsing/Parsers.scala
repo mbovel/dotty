@@ -1862,6 +1862,8 @@ object Parsers {
         atSpan(in.offset) {
           makeTupleOrParens(inParens(argTypes(namedOK = false, wildOK = true)))
         }
+      else if in.isNestedStart && followingIsQualifiedType() then
+        qualifiedType()
       else if in.token == LBRACE then
         atSpan(in.offset) { RefinedTypeTree(EmptyTree, refinement(indentOK = false)) }
       else if (isSplice)
