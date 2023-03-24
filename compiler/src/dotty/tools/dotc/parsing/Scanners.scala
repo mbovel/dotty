@@ -1080,7 +1080,15 @@ object Scanners {
         reset()
       next
 
-    class LookaheadScanner(val allowIndent: Boolean = false) extends Scanner(source, offset, allowIndent = allowIndent) {
+    /**
+      * A new scanner starting at the same position as this scanner, do not think of it as a copy!
+      * Concretely, this means it has no knowledge of what happened before.
+      * In particular its region is wrong, and it does not know about indents preceding it.
+      * Therefore if `this.token == INDENT` then `this.LookaheadScanner().token != this.token`!
+      *
+      * @param allowIndent
+      */
+    class LookaheadScanner(val allowIndent: Boolean = false) extends Scanner(source, startFrom = offset, allowIndent = allowIndent) {
       override protected def initialCharBufferSize = 8
       override def languageImportContext = Scanner.this.languageImportContext
 
