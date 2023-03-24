@@ -1091,10 +1091,6 @@ object Scanners {
     class LookaheadScanner(val allowIndent: Boolean = false) extends Scanner(source, startFrom = offset, allowIndent = allowIndent) {
       override protected def initialCharBufferSize = 8
       override def languageImportContext = Scanner.this.languageImportContext
-
-      // Note: Region has mutable fields (but outer is immutable), therefore a shallow copy is potentially not enough !
-      
-      currentRegion = Scanner.this.currentRegion
     }
 
     /** Skip matching pairs of `(...)` or `[...]` parentheses.
