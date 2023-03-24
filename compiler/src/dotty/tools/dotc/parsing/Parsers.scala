@@ -991,7 +991,7 @@ object Parsers {
         if in.token == INDENT then
           () // The LookaheadScanner doesn't see previous indents, so no need to skip it
         else
-          lookahead.nextToken()
+          lookahead.nextToken() // skips the opening brace, enters into brace-enclosed region
 
         val startingRegion = lookahead.currentRegion
         
@@ -1703,6 +1703,10 @@ object Parsers {
         val qual = expr()
         (offset, id, t, qual)
       }
+
+      buildQualifiedType(startingOffset, identifier, beingQualified, qualifier)
+
+    def buildQualifiedType(startingOffset: Offset, identifier: TermName, beingQualified: Tree, qualifier: Tree) =
 
       val fullSpan = Span(startingOffset, qualifier.span.end)
 
