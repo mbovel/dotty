@@ -1692,14 +1692,17 @@ object Parsers {
 
     def qualifiedType(): Tree = 
       // parses `{` identifier `:` beingQualified `with` qualifier `}`
-      val (identifier, beingQualified, qualifier) = inBracesOrIndented{
+      val (startingOffset, identifier, beingQualified, qualifier) = inBracesOrIndented{
+        val offset = in.offset
         val id = ident()
         accept(COLONfollow)
         val t = typ()
         accept(WITH)
         val qual = expr()
-        (id, t, qual)
+        (offset, id, t, qual)
       }
+
+      val fullSpan = Span(startingOffset, qualifier.span.end)
 
       if false then
         println(s"""
@@ -1715,20 +1718,25 @@ object Parsers {
 
 
       // identifier: beingQualified
-      val paramPred = makeParameter(identifier, beingQualified.withSpan(NoSpan), EmptyModifiers) // modifier Param is already added by makeParameter
+      val paramPred = makeParameter(identifier, beingQualified, EmptyModifiers) // modifier Param is already added by makeParameter
 
       // (identifier: beingQualified) => qualifier
       val pred: Tree = Function(List(paramPred), qualifier)//.withSpan(qualifier.span)
 
+      // @refined[beingQualified]
+      // TODO: test with RefinedAnnot
+      // Should we use the position of `with` as the span for the `@refined` ?
+      // ref(ctx.definitions.RefinedAnnot)
+      val typeApplied = TypeApply(Select(Ident(nme.annotation), nme.refined), List(beingQualified))
+
       // @refined[beingQualified](pred)
-      val annot = Apply( // fully qualified
-        // TODO: test with RefinedAnnot
-        TypeApply(Select(Ident(nme.annotation), nme.refined), List(beingQualified.withSpan(NoSpan))),  // Should we use the position of `with` as the span for the `@refined` ?
+      val annot = Apply(
+        typeApplied,
         pred
-      )
+      ).withSpan(fullSpan)
 
       // beingQualified @refined[beingQualified](pred)
-      val res = Annotated(beingQualified, annot)
+      val res = Annotated(beingQualified, annot).withSpan(fullSpan)
 
       if false then
         println(s"""
