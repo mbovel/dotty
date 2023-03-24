@@ -15,3 +15,7 @@ def test() =
 
   def f: Pos => Int = ???
   val g: Int => Pos = f
+
+/* TODO: FIXME
+type LeftNested = (Int @refined[Int](y => y > 0)) @refined[(Int @refined[Int](y => y > 0))](x => x < 10)
+*/

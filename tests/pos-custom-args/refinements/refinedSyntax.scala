@@ -20,20 +20,32 @@ def test() =
 
 type Nesting = {x: Int with { val y: {z: Int with z > 0} = ??? ; x > y }}
 
+type Pos3 =
+  Int & {x: Int with x > 0}
 
-// Shortcuts:
-
+// Brace ellison
 
 type Pos2 =
   x: Int with x > 0
 
-type Pos3 =
-  Int & {x: Int with x > 0}
-  
+type Pos5 =
+  x: Int with
+    val y = x*x
+    y > 0
+
+/* Doesn't work because of bug with CheckRefinements, see refined.scala
+type Pos4 =
+  x: {y: Int with y > 0} with x < 10
+*/
+
 /*
 def foo(x: Int):
   res: Int with res > 0
 = ???
+
+// Shortcuts:
+
+def foo(x: Int with x > 0 )
 
 def secondGreater2(x: Int, z: Int, y: Int with x > z) = ???
 
