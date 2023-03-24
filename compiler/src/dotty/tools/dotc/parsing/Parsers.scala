@@ -989,15 +989,17 @@ object Parsers {
         val lookahead = in.LookaheadScanner(allowIndent = true) // if replaced by `in`, the regions are updated correctly
 
         if in.token == INDENT then
-          ()
+          () // The LookaheadScanner doesn't see previous indents, so no need to skip it
         else
           lookahead.nextToken()
 
         val startingRegion = lookahead.currentRegion
-        val outerRegion = startingRegion.outer
         
         def recur(): Boolean =
-          if lookahead.currentRegion == outerRegion then
+          if lookahead.currentRegion.isOutermost && lookahead.currentRegion != startingRegion then
+            // Should be `lookahead.currentRegion == startingRegion.outer`
+            // But `startingRegion.outer` is `null`, while `lookahead.currentRegion` cannot be `null`,
+            // it is instead instantiated to some new outermost region
             false
           else if lookahead.currentRegion == startingRegion && lookahead.token == WITH then
             true
