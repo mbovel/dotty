@@ -393,6 +393,23 @@ object Parsers {
       finally inFunReturnType = saved
     }
 
+    private var inQualifiedType = false
+    private def fromWithinQualifiedType[T](body: => T): T = {
+      val saved = inQualifiedType
+      try {
+        inQualifiedType = true
+        body
+      }
+      finally inQualifiedType = saved
+    }
+    private def fromWithoutQualifiedType[T](body: => T): T = {
+      val saved = inQualifiedType
+      try {
+        inQualifiedType = false
+        body
+      }
+      finally inQualifiedType = saved
+    }
     /** A flag indicating we are parsing in the annotations of a primary
      *  class constructor
      */
@@ -545,7 +562,11 @@ object Parsers {
       accept(tok)
       try body finally accept(tok + 1)
 
-    def inParens[T](body: => T): T = enclosed(LPAREN, body)
+    def inParens[T](body: => T): T = 
+      if Feature.refinementsEnabled then
+        fromWithoutQualifiedType(enclosed(LPAREN, body))
+      else
+        enclosed(LPAREN, body)
     def inBraces[T](body: => T): T = enclosed(LBRACE, body)
     def inBrackets[T](body: => T): T = enclosed(LBRACKET, body)
 
@@ -1548,6 +1569,8 @@ object Parsers {
             functionRest(Nil)
           }
           else {
+            val saved = inQualifiedType
+            inQualifiedType = false
             if isErased then imods = addModifier(imods)
             val paramStart = in.offset
             val ts = in.currentRegion.withCommasExpected {
@@ -1561,6 +1584,8 @@ object Parsers {
                   commaSeparatedRest(t, funArgType)
             }
             accept(RPAREN)
+            inQualifiedType = saved
+            
             if isValParamList || in.isArrow || isPureArrow then
               functionRest(ts)
             else {
@@ -1698,7 +1723,7 @@ object Parsers {
         val offset = in.offset
         val id = ident()
         accept(COLONfollow)
-        val t = typ()
+        val t = fromWithinQualifiedType(typ())
         accept(WITH)
         val qual = expr()
         (offset, id, t, qual)
@@ -1768,15 +1793,27 @@ object Parsers {
     def withType(): Tree = withTypeRest(annotType())
 
     def withTypeRest(t: Tree): Tree =
-      if in.token == WITH && !Feature.refinementsEnabled then
-        val withOffset = in.offset
-        in.nextToken()
-        if in.token == LBRACE || in.token == INDENT then
-          t
+      if in.token == WITH then
+        if Feature.refinementsEnabled then
+          if inQualifiedType then
+            t
+          else
+            val withOffset = in.offset
+            in.nextToken()
+            // parses t with rhs
+            // TODO: Restrict parser to forbid things like matches
+            val rhs = postfixExpr()
+
+            ???
         else
-          if sourceVersion.isAtLeast(future) then
-            deprecationWarning(DeprecatedWithOperator(), withOffset)
-          atSpan(startOffset(t)) { makeAndType(t, withType()) }
+          val withOffset = in.offset
+          in.nextToken()
+          if in.token == LBRACE || in.token == INDENT then
+            t
+          else
+            if sourceVersion.isAtLeast(future) then
+              deprecationWarning(DeprecatedWithOperator(), withOffset)
+            atSpan(startOffset(t)) { makeAndType(t, withType()) }
       else t
 
     /** AnnotType ::= SimpleType {Annotation}
