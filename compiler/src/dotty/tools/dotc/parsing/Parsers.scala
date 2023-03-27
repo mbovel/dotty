@@ -1802,9 +1802,12 @@ object Parsers {
             in.nextToken()
             // parses t with rhs
             // TODO: Restrict parser to forbid things like matches
-            val rhs = postfixExpr()
+            val qualifier = postfixExpr()
 
-            ???
+            val startingOffset = t.span.start
+            val identifier = WildcardParamName.fresh()
+
+            buildQualifiedType(startingOffset, identifier, beingQualified = t, qualifier)
         else
           val withOffset = in.offset
           in.nextToken()

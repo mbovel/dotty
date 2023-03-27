@@ -39,15 +39,26 @@ type Pos4 =
 */
 
 /*
-def foo(x: Int):
+def foo:
   res: Int with res > 0
 = ???
 
+def foo(x: Int):
+  res: Int with res > 0
+= ???
+*/
+
 // Shortcuts:
 
+
+type Alias = Int with true
+
+
+def foo(x: Int with true) = ???
+/*
 def foo(x: Int with x > 0 )
 
-def secondGreater2(x: Int, z: Int, y: Int with x > z) = ???
+def secondGreater2(x: Int, y: Int, z: Int with x > y) = ???
 
 id[x: Int with x < 0](1)
  */
