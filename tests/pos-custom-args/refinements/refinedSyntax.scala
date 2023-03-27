@@ -55,10 +55,19 @@ type Alias = Int with true
 
 
 def foo(x: Int with true) = ???
-/*
-def foo(x: Int with x > 0 )
+
+def bar(x: Int with x > 0) = ???
 
 def secondGreater2(x: Int, y: Int, z: Int with x > y) = ???
 
+/*
 id[x: Int with x < 0](1)
- */
+*/
+
+
+// Should not compile:
+
+/* Does not compile:
+type Pos6 = {x: (Int with x > 0) with x < 10}
+type Pos7 = {x: Int with x > 0 with x < 10}
+*/

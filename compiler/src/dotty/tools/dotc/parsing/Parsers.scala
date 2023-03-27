@@ -437,6 +437,8 @@ object Parsers {
       finally staged = saved
     }
 
+    private var currentParameterIdentifier: TermName | Null = null
+
 /* ---------- TREE CONSTRUCTION ------------------------------------------- */
 
     /** Convert tree to formal parameter list
@@ -1805,7 +1807,11 @@ object Parsers {
             val qualifier = postfixExpr()
 
             val startingOffset = t.span.start
-            val identifier = WildcardParamName.fresh()
+            val identifier = 
+              if currentParameterIdentifier == null then
+                WildcardParamName.fresh()
+              else
+                currentParameterIdentifier
 
             buildQualifiedType(startingOffset, identifier, beingQualified = t, qualifier)
         else
@@ -3387,6 +3393,7 @@ object Parsers {
         }
         atSpan(start, nameStart) {
           val name = ident()
+          currentParameterIdentifier = name
           acceptColon()
           if (in.token == ARROW && ofClass && !mods.is(Local))
             syntaxError(VarValParametersMayNotBeCallByName(name, mods.is(Mutable)))
@@ -3428,11 +3435,14 @@ object Parsers {
                 || startParamTokens.contains(in.token)
                 || isIdent && (in.name == nme.inline || in.lookahead.isColon)
               if isParams then commaSeparated(() => param())
-              else contextTypes(ofClass, numLeadParams, impliedMods)
+              else 
+                currentParameterIdentifier = null
+                contextTypes(ofClass, numLeadParams, impliedMods)
           checkVarArgsRules(clause)
           clause
       }
     }
+    currentParameterIdentifier = null
 
     /** ClsTermParamClauses   ::=  {ClsTermParamClause} [[nl] ‘(’ [‘implicit’] ClsParams ‘)’]
      *  TypelessClauses       ::=  TypelessClause {TypelessClause}
