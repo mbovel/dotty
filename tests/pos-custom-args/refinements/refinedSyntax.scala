@@ -33,6 +33,11 @@ type Pos5 =
     val y = x*x
     y > 0
 
+
+type T = (
+  x: Int
+) => x.type
+
 /* Doesn't work because of bug with CheckRefinements, see refined.scala
 type Pos4 =
   x: {y: Int with y > 0} with x < 10
