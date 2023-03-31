@@ -1005,34 +1005,22 @@ object Parsers {
     /** Under refinements language import: is the following token sequence a
      *  qualified type `<<< id: type with boolean >>>` ?
      * 
-     * Checks for the `with` keyword in the upcoming section
+     * Checks for for `id:`
      */
     def followingIsQualifiedType(): Boolean =
-      val res = Feature.refinementsEnabled && {
-        val lookahead = in.LookaheadScanner(allowIndent = true) // if replaced by `in`, the regions are updated correctly
+      Feature.refinementsEnabled && {
+        val lookahead = in.LookaheadScanner(allowIndent = true)
 
         if in.token == INDENT then
           () // The LookaheadScanner doesn't see previous indents, so no need to skip it
         else
-          lookahead.nextToken() // skips the opening brace, enters into brace-enclosed region
+          lookahead.nextToken() // skips the opening brace
 
-        val startingRegion = lookahead.currentRegion
-        
-        def recur(): Boolean =
-          if lookahead.currentRegion.isOutermost && lookahead.currentRegion != startingRegion then
-            // Should be `lookahead.currentRegion == startingRegion.outer`
-            // But `startingRegion.outer` is `null`, while `lookahead.currentRegion` cannot be `null`,
-            // it is instead instantiated to some new outermost region
-            false
-          else if lookahead.currentRegion == startingRegion && lookahead.token == WITH then
-            true
-          else
-            lookahead.nextToken()
-            recur()
-        recur()
+        lookahead.token == IDENTIFIER && {
+          lookahead.nextToken();
+          lookahead.token == COLONfollow
+        }
       }
-      //println(s"result of followingIsQualifiedType at ${in.token} (brace: $LBRACE, indent: $INDENT) was $res")
-      res
   /* --------- OPERAND/OPERATOR STACK --------------------------------------- */
 
     var opStack: List[OpInfo] = Nil
