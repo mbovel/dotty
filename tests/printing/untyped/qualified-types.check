@@ -1,0 +1,44 @@
+[[syntax trees at end of                    parser]] // tests/printing/untyped/qualified-types.scala
+package example {
+  type Useless = Int @annotation.refined[Int]((x: Int) => true)
+  type Pos = Int @annotation.refined[Int]((x: Int) => x > 0)
+  type Neg = Int @annotation.refined[Int]((x: Int) => x < 0)
+  def secondGreater1(x: Int, z: Int,
+    y: Int @annotation.refined[Int]((w: Int) => x > z)) = ???
+  def id[T](x: T): T = x
+  def test() =
+    {
+      val x1: Pos = 1
+      val x2: Int @annotation.refined[Int]((x: Int) => x > 0) = 1
+      val x3: Int =
+        id[Int @annotation.refined[Int]((x: Int) => x < 0)](1) + id[Neg](-1)
+      def f: (Pos) => Int = ???
+      val g: (Int) => Pos = f
+      <empty>
+    }
+  type Nesting =
+    Int @annotation.refined[Int](
+      (x: Int) =>
+        {
+          val y: Int @annotation.refined[Int]((z: Int) => z > 0) = ???
+          x > y
+        }
+    )
+  type Pos3 = Int & Int @annotation.refined[Int]((x: Int) => x > 0)
+  type Pos2 = Int @annotation.refined[Int]((x: Int) => x > 0)
+  type Pos5 =
+    Int @annotation.refined[Int](
+      (x: Int) =>
+        {
+          val y = x * x
+          y > 0
+        }
+    )
+  type T = (x: Int) => x.type
+  type Alias = Int @annotation.refined[Int]((x: Int) => true)
+  def foo(x: Int @annotation.refined[Int]((x: Int) => true)) = ???
+  def bar(x: Int @annotation.refined[Int]((x: Int) => x > 0)) = ???
+  def secondGreater2(x: Int, y: Int,
+    z: Int @annotation.refined[Int]((z: Int) => x > y)) = ???
+}
+
