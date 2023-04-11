@@ -24,6 +24,8 @@ type Nesting = {x: Int with { val y: {z: Int with z > 0} = ??? ; x > y }}
 type Pos3 =
   Int & {x: Int with x > 0}
 
+// Brace ellison
+
 type Pos2 =
   x: Int with x > 0
 
@@ -36,6 +38,13 @@ type Pos5 =
 type T = (
   x: Int
 ) => x.type
+
+/* Doesn't work because of bug with CheckRefinements, see refined.scala
+type Pos4 =
+  x: {y: Int with y > 0} with x < 10
+*/
+
+// Shortcuts:
 
 type Alias = Int with true
 
