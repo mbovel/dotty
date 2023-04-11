@@ -54,6 +54,8 @@ class PrintingTest {
       .filter(f => f.extension == "scala")
       .map { f => compileFile(f.jpath, phase) }
 
+    assert(res.length != 0, s"Folder ${Directory.Current.getOrElse("")}/${testsDir} contains no printing tests")
+
     val failed = res.filter(!_)
 
     val msg = s"Pass: ${res.length - failed.length}, Failed: ${failed.length}"

@@ -1757,21 +1757,7 @@ object Parsers {
       ).withSpan(fullSpan)
 
       // beingQualified @refined[beingQualified](pred)
-      val res = Annotated(beingQualified, annot).withSpan(fullSpan)
-
-      if false then
-        println(s"""
-          |Type
-          |${beingQualified.show}
-          |With
-          |${pred.show}
-          |${pred}
-          |Res
-          |${res.show}
-          |$res
-          |""".stripMargin)
-
-      res
+      Annotated(beingQualified, annot).withSpan(fullSpan)
 
     /** 
      * Without refinementsEnabled:
