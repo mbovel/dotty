@@ -32,6 +32,8 @@ object Feature:
   val pureFunctions = experimental("pureFunctions")
   val captureChecking = experimental("captureChecking")
   val refinements = experimental("refinements")
+  val setNotation = experimental("setNotation")
+  val postfixLambda = experimental("postfixLambda")
   val into = experimental("into")
 
   val globalOnlyImports: Set[TermName] = Set(pureFunctions, captureChecking)
@@ -94,6 +96,14 @@ object Feature:
   def ccEnabled(using Context) =
     enabledBySetting(captureChecking)
     || ctx.compilationUnit.needsCaptureChecking
+
+/** Is the set notation syntax enabled for this compilation unit? */
+  def setNotationEnabled(using Context) =
+    enabled(setNotation)
+
+/** Is the postfix lambda syntax enabled for this compilation unit? */
+  def postfixLambdaEnabled(using Context) =
+    enabled(postfixLambda)
 
   /** Is refinementsChecking enabled for this compilation unit? */
   def refinementsEnabled(using Context) =

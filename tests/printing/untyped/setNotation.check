@@ -1,4 +1,4 @@
-[[syntax trees at end of                    parser]] // tests/printing/untyped/qualified-types.scala
+[[syntax trees at end of                    parser]] // tests/printing/untyped/setNotation.scala
 package example {
   type Useless = Int @annotation.refined[Int]((x: Int) => true)
   type Pos = Int @annotation.refined[Int]((x: Int) => x > 0)
