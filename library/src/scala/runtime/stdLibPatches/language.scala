@@ -90,6 +90,17 @@ object language:
      */
     @compileTimeOnly("`into` can only be used at compile time in import statements")
     object into
+
+    /** Enable set notation syntax for qualified types
+      */
+    @compileTimeOnly("`setNotation` can only be used at compile time in import statements")
+    object setNotation
+
+    /** Enable postfix lambda syntax for qualified types
+      */
+    @compileTimeOnly("`postfixLambda` can only be used at compile time in import statements")
+    object postfixLambda
+
   end experimental
 
   /** The deprecated object contains features that are no longer officially suypported in Scala.

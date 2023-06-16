@@ -1769,9 +1769,9 @@ object Parsers {
 
     def withTypeRest(t: Tree): Tree =
       if in.token == WITH then
-        if Feature.setNotationEnabled then
+        if in.featureEnabled(Feature.setNotation) then
           assert(Feature.refinementsEnabled, "Set notation is a syntax for refinements, which are not enabled")
-          assert(!Feature.postfixLambdaEnabled, "Set notation syntax is incompatible with postfix lambda syntax")
+          assert(!in.featureEnabled(Feature.postfixLambda), "Set notation syntax is incompatible with postfix lambda syntax")
 
           if inQualifiedTypeSetNotation then
             t
@@ -1793,9 +1793,9 @@ object Parsers {
         else
           val withOffset = in.offset
           in.nextToken()
-          if Feature.postfixLambdaEnabled then
+          if in.featureEnabled(Feature.postfixLambda) then
             assert(Feature.refinementsEnabled, "Postfix lambda is a syntax for refinements, which are not enabled")
-            assert(!Feature.setNotationEnabled, "Postfix lambda syntax is incompatible with set notation syntax")
+            assert(!in.featureEnabled(Feature.setNotation), "Postfix lambda syntax is incompatible with set notation syntax")
             // Stolen from expr()
             val saved = placeholderParams
             placeholderParams = Nil
