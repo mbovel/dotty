@@ -92,9 +92,9 @@ type Unnamed1 = Dict with
 object usingCaseClass:
 
   case class LongitudeAndLatitudeValues(
-    latitude: Double with -90 <= latitude && latitude <= 90,
-    longitude: Double with -180 <= longitude && longitude <= 180,
-    city: String with raw"^[A-Za-z . ,'-]+$$".r.matches(city)
+    latitude: Double with (latitude => -90 <= latitude && latitude <= 90),
+    longitude: Double with (longitude => -180 <= longitude && longitude <= 180),
+    city: String with (city => raw"^[A-Za-z . ,'-]+$$".r.matches(city))
   ) extends Obj
 
 object usingImplicits:
