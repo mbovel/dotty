@@ -62,7 +62,7 @@ type Product = Dict with
     required("productId")[Int] &&
     required("productName")[String] &&
     required("price")[Double with _ > 0] &&
-    optional("tags")[List[String] with a => a.size >= 1 && unique(a)] &&
+    optional("tags")[List[String] with (a => a.size >= 1 && unique(a))] &&
     optional("dimensions")[Dimensions]
 
 type Dimensions = Dict with
@@ -101,9 +101,9 @@ object usingImplicits:
   type LongitudeAndLatitudeValues = Dict with
     d =>
       given Dict = d
-      required("latitude")[Double with l => -90 <= l && l <= 90] &&
-      required("longitude")[Double with l => -180 <= l && l <= 180] &&
-      required("city")[String with city => raw"^[A-Za-z . ,'-]+$$".r.matches(city)]
+      required("latitude")[Double with (l => -90 <= l && l <= 90)] &&
+      required("longitude")[Double with (l => -180 <= l && l <= 180)] &&
+      required("city")[String with (city => raw"^[A-Za-z . ,'-]+$$".r.matches(city))]
 
 // Enumerations - String
 
