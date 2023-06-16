@@ -564,8 +564,8 @@ object Parsers {
       accept(tok)
       try body finally accept(tok + 1)
 
-    def inParens[T](body: => T): T = 
-      if Feature.setNotationEnabled then
+    def inParens[T](body: => T): T =
+      if in.featureEnabled(Feature.setNotation) then
         fromWithoutQualifiedTypeSetNotation(enclosed(LPAREN, body))
       else
         enclosed(LPAREN, body)
@@ -1008,7 +1008,7 @@ object Parsers {
      * Checks for for `id:`
      */
     def followingIsQualifiedTypeSetNotation(): Boolean =
-      Feature.setNotationEnabled && {
+      in.featureEnabled(Feature.setNotation) && {
         val lookahead = in.LookaheadScanner(allowIndent = true)
 
         if in.token == INDENT then
