@@ -1715,7 +1715,7 @@ object Parsers {
         accept(COLONfollow)
         val t = fromWithinQualifiedType(typ())
         accept(WITH)
-        val qual = expr()
+        val qual = block(simplify = true)
         (offset, id, t, qual)
       }
 

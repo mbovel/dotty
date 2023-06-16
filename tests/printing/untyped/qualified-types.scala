@@ -34,6 +34,10 @@ type Pos5 =
     val y = x*x
     y > 0
 
+type Pos6 = {x: Int with
+    val y = x*x
+    y > 0
+  }
 
 type T = (
   x: Int
