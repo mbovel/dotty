@@ -34,6 +34,14 @@ package example {
           y > 0
         }
     )
+  type Pos6 =
+    Int @annotation.refined[Int](
+      (x: Int) =>
+        {
+          val y = x * x
+          y > 0
+        }
+    )
   type T = (x: Int) => x.type
   type Alias = Int @annotation.refined[Int]((x: Int) => true)
   def foo(x: Int @annotation.refined[Int]((x: Int) => true)) = ???
