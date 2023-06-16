@@ -47,41 +47,46 @@ def optionalWithPred(using d: Dict)(field: String)[T](pred: T => Boolean): Boole
 
 // SimpleSchema
 
-type Person = Dict with d =>
-  d.optionalFieldOfType("firstName")[String] &&
-  d.optionalFieldOfType("lastName")[String] &&
-  d.optionalFieldOfType("age")[Int with _ > 0]
+type Person = Dict with
+  d =>
+    d.optionalFieldOfType("firstName")[String] &&
+    d.optionalFieldOfType("lastName")[String] &&
+    d.optionalFieldOfType("age")[Int with _ > 0]
 
 // NestedSchema
 
-type Product = Dict with d =>
-  def required(f: String)[T] = d.hasFieldOfType(f)[T]
-  def optional(f: String)[T] = d.optionalFieldOfType(f)[T]
-  required("productId")[Int] &&
-  required("productName")[String] &&
-  required("price")[Double with _ > 0] &&
-  optional("tags")[List[String] with a => a.size >= 1 && unique(a)] &&
-  optional("dimensions")[Dimensions]
+type Product = Dict with
+  d =>
+    def required(f: String)[T] = d.hasFieldOfType(f)[T]
+    def optional(f: String)[T] = d.optionalFieldOfType(f)[T]
+    required("productId")[Int] &&
+    required("productName")[String] &&
+    required("price")[Double with _ > 0] &&
+    optional("tags")[List[String] with a => a.size >= 1 && unique(a)] &&
+    optional("dimensions")[Dimensions]
 
-type Dimensions = Dict with d =>
-  def required(f: String)[T] = d.hasFieldOfType(f)[T]
-  required("length")[Double] &&
-  required("width")[Double] &&
-  required("height")[Double]
+type Dimensions = Dict with
+  d =>
+    def required(f: String)[T] = d.hasFieldOfType(f)[T]
+    required("length")[Double] &&
+    required("width")[Double] &&
+    required("height")[Double]
 
 // Schema with local references
 
-type Address = Dict with d =>
-  given Dict = d
-  required("street_adress")[String] &&
-  required("city")[String] &&
-  required("state")[String] &&
-  optional("zip")[Int]
+type Address = Dict with
+  d =>
+    given Dict = d
+    required("street_adress")[String] &&
+    required("city")[String] &&
+    required("state")[String] &&
+    optional("zip")[Int]
 
-type Unnamed1 = Dict with d =>
-  given Dict = d
-  optional("billing_address")[Address] && // Maybe should be opaque aliases of Address
-  optional("shipping_address")[Address]
+type Unnamed1 = Dict with
+  d =>
+    given Dict = d
+    optional("billing_address")[Address] && // Maybe should be opaque aliases of Address
+    optional("shipping_address")[Address]
 
 // Schema Validation
 object usingCaseClass:
@@ -93,45 +98,50 @@ object usingCaseClass:
   ) extends Obj
 
 object usingImplicits:
-  type LongitudeAndLatitudeValues = Dict with d =>
-    given Dict = d
-    required("latitude")[Double with l => -90 <= l && l <= 90] &&
-    required("longitude")[Double with l => -180 <= l && l <= 180] &&
-    required("city")[String with city => raw"^[A-Za-z . ,'-]+$$".r.matches(city)]
+  type LongitudeAndLatitudeValues = Dict with
+    d =>
+      given Dict = d
+      required("latitude")[Double with l => -90 <= l && l <= 90] &&
+      required("longitude")[Double with l => -180 <= l && l <= 180] &&
+      required("city")[String with city => raw"^[A-Za-z . ,'-]+$$".r.matches(city)]
 
 // Enumerations - String
 
-type Person2 = Dict with d =>
-  given Dict = d
-  required("personId")[Int] &&
-  required("transactions")[List[Transaction]]
+type Person2 = Dict with
+  d =>
+    given Dict = d
+    required("personId")[Int] &&
+    required("transactions")[List[Transaction]]
 
-type Transaction = Dict with d =>
-  given Dict = d
-  optional("txId")[Int] &&
-  optional("txTime")[Int] &&
-  optional("txType")[String with txType =>
-    // TODO: Update below when dotty#17939 is fixed
-    true //List("DEBIT", "CREDIT", "VOID").contains(txType)
-  ]
+type Transaction = Dict with
+  d =>
+    given Dict = d
+    optional("txId")[Int] &&
+    optional("txTime")[Int] &&
+    optional("txType")[String with txType =>
+      // TODO: Update below when dotty#17939 is fixed
+      true //List("DEBIT", "CREDIT", "VOID").contains(txType)
+    ]
 
 // Enumeration - Array
 
-type Person3 = Dict with d =>
-  given Dict = d
-  required("numbers")[List[
-    String with s =>
-      // TODO: Update below when dotty#17939 is fixed
-      true //List("one", "two", "three").contains(s)
-  ]]
+type Person3 = Dict with
+  d =>
+    given Dict = d
+    required("numbers")[List[
+      String with s =>
+        // TODO: Update below when dotty#17939 is fixed
+        true //List("one", "two", "three").contains(s)
+    ]]
 
 // Schema Composition - allOf (Simple)
 
-type Person4 = Dict with d =>
-  given Dict = d
-  optional("firstName")[String] &&
-  optional("age")[Int with x =>
-    x >= 3 &&
-    x%3 == 0 &&
-    x%5 == 0
-  ]
+type Person4 = Dict with
+  d =>
+    given Dict = d
+    optional("firstName")[String] &&
+    optional("age")[Int with x =>
+      x >= 3 &&
+      x%3 == 0 &&
+      x%5 == 0
+    ]
