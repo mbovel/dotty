@@ -1816,21 +1816,7 @@ object Parsers {
               case _ =>
                 buildQualifiedType(t.span.start, identifier, t, tree) // if not already a function, make buildQualifiedType build one
 
-            val res = extractPredAndBuild(protoPred)
-
-            if false then
-              println(s"""
-                |Type
-                |${t.show}
-                |With
-                |${pred.show}
-                |${pred}
-                |Res
-                |${res.show}
-                |$res
-                |""".stripMargin)
-
-            res
+            extractPredAndBuild(protoPred)
 
           else
             if in.token == LBRACE || in.token == INDENT then
