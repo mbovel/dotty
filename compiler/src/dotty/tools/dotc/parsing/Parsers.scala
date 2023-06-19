@@ -1810,6 +1810,7 @@ object Parsers {
                 currentParameterIdentifier
 
             def extractPredAndBuild(tree: Tree): Tree = tree match
+              case Parens(subtree)        => extractPredAndBuild(subtree)
               case Block(List(), subtree) => extractPredAndBuild(subtree)
               case Match(EmptyTree, _) | _: Function =>
                 buildQualifiedType(t.span.start,             t, tree)
