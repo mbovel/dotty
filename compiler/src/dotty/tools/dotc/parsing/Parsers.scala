@@ -1695,9 +1695,9 @@ object Parsers {
           // @refined[t](pred)
           val annot = Apply( // fully qualified
             // TODO: test with RefinedAnnot
-            TypeApply(Select(Ident(nme.annotation), nme.refined), List(t.withSpan(NoSpan))).withSpan(NoSpan),  // Should we use the position of `with` as the span for the `@refined` ?
+            TypeApply(Select(Ident(nme.annotation), nme.refined), List(t)),  // Should we use the position of `with` as the span for the `@refined` ?
             pred
-          ).withSpan(rhs.span)
+          ).withSpan(Span(t.span.start, rhs.span.end))
 
           // t @refined[t](pred)
           val res = Annotated(t, annot)//.withSpan(Span(t.span.start, pred.span.end))
