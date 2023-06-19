@@ -1718,45 +1718,34 @@ object Parsers {
         (offset, id, t, qual)
       }
 
-      buildQualifiedTypeSetNotation(startingOffset, identifier, beingQualified, qualifier)
+      buildQualifiedType(startingOffset, identifier, beingQualified, qualifier)
 
-    def buildQualifiedTypeSetNotation(startingOffset: Offset, identifier: TermName, beingQualified: Tree, qualifier: Tree) =
-
-      val fullSpan = Span(startingOffset, qualifier.span.end)
-
-      if false then
-        println(s"""
-          |Identifier
-          |${identifier.show}
-          |beingQualified
-          |${beingQualified.show}
-          |${beingQualified}
-          |qualifier
-          |${qualifier.show}
-          |$qualifier
-          |""".stripMargin)
-
-
-      // identifier: beingQualified
-      val paramPred = makeParameter(identifier, beingQualified, EmptyModifiers) // modifier Param is already added by makeParameter
-
-      // (identifier: beingQualified) => qualifier
-      val pred: Tree = Function(List(paramPred), qualifier)//.withSpan(qualifier.span)
-
+    def buildQualifiedType(startingOffset: Offset, beingQualified: Tree, predicate: Tree): Tree =
+      val fullSpan = Span(startingOffset, predicate.span.end)
       // @refined[beingQualified]
       // TODO: test with RefinedAnnot
       // Should we use the position of `with` as the span for the `@refined` ?
       // ref(ctx.definitions.RefinedAnnot)
       val typeApplied = TypeApply(Select(Ident(nme.annotation), nme.refined), List(beingQualified))
 
-      // @refined[beingQualified](pred)
+      // @refined[beingQualified](predicate)
       val annot = Apply(
         typeApplied,
-        pred
+        predicate
       ).withSpan(fullSpan)
 
       // beingQualified @refined[beingQualified](pred)
       Annotated(beingQualified, annot).withSpan(fullSpan)
+
+    def buildQualifiedType(startingOffset: Offset, identifier: TermName, beingQualified: Tree, qualifier: Tree): Tree =
+
+      // identifier: beingQualified
+      val paramPred = makeParameter(identifier, beingQualified, EmptyModifiers) // modifier Param is already added by makeParameter
+
+      // (identifier: beingQualified) => qualifier
+      val pred: Tree = Function(List(paramPred), qualifier)
+
+      buildQualifiedType(startingOffset, beingQualified, pred)
 
     /**
      * Without refinementsEnabled:
@@ -1773,7 +1762,7 @@ object Parsers {
           assert(Feature.refinementsEnabled, "Set notation is a syntax for refinements, which are not enabled")
           assert(!in.featureEnabled(Feature.postfixLambda), "Set notation syntax is incompatible with postfix lambda syntax")
 
-          if inQualifiedTypeSetNotation then
+          if inQualifiedTypeSetNotation then // Don't interpret {x: T with p} as {x: (T with p) <error: missing with> }
             t
           else
             val withOffset = in.offset
@@ -1782,6 +1771,7 @@ object Parsers {
             // TODO: Restrict parser to forbid things like matches
             val qualifier = postfixExpr()
 
+            //TODO: Move this above qualifier ?
             val startingOffset = t.span.start
             val identifier =
               if currentParameterIdentifier == null then
@@ -1789,7 +1779,7 @@ object Parsers {
               else
                 currentParameterIdentifier
 
-            buildQualifiedTypeSetNotation(startingOffset, identifier, beingQualified = t, qualifier)
+            buildQualifiedType(startingOffset, identifier, beingQualified = t, qualifier)
         else
           val withOffset = in.offset
           in.nextToken()
@@ -1810,34 +1800,24 @@ object Parsers {
             // TODO: Restrict parser to forbid things like matches
             val rhs = postfixExpr()
 
-            // Insert smart conversion logic here
+            val protoPred = wrapPlaceholders(rhs)
 
+            // Should probably be moved before rhs ? (then not lazy val !)
+            lazy val identifier =
+              if currentParameterIdentifier == null then
+                WildcardParamName.fresh()
+              else
+                currentParameterIdentifier
 
-            val pred = wrapPlaceholders(rhs)
+            def extractPredAndBuild(tree: Tree): Tree = tree match
+              case Parens(subtree)        => extractPredAndBuild(subtree)
+              case Block(List(), subtree) => extractPredAndBuild(subtree)
+              case Match(EmptyTree, _) | _: Function =>
+                buildQualifiedType(t.span.start,             t, tree)
+              case _ =>
+                buildQualifiedType(t.span.start, identifier, t, tree) // if not already a function, make buildQualifiedType build one
 
-            // @refined[t](pred)
-            val annot = Apply( // fully qualified
-              // TODO: test with RefinedAnnot
-              TypeApply(Select(Ident(nme.annotation), nme.refined), List(t)),  // Should we use the position of `with` as the span for the `@refined` ?
-              pred
-            ).withSpan(Span(t.span.start, rhs.span.end))
-
-            // t @refined[t](pred)
-            val res = Annotated(t, annot)//.withSpan(Span(t.span.start, pred.span.end))
-
-            if false then
-              println(s"""
-                |Type
-                |${t.show}
-                |With
-                |${pred.show}
-                |${pred}
-                |Res
-                |${res.show}
-                |$res
-                |""".stripMargin)
-
-            res
+            extractPredAndBuild(protoPred)
 
           else
             if in.token == LBRACE || in.token == INDENT then
