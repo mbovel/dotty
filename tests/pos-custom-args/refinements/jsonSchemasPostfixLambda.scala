@@ -118,10 +118,10 @@ type Transaction = Dict with
     given Dict = d
     optional("txId")[Int] &&
     optional("txTime")[Int] &&
-    optional("txType")[String with (txType =>
+    optional("txType")[String with txType =>
       // TODO: Update below when dotty#17939 is fixed
       true //List("DEBIT", "CREDIT", "VOID").contains(txType)
-    )]
+    ]
 
 // Enumeration - Array
 
@@ -129,10 +129,10 @@ type Person3 = Dict with
   d =>
     given Dict = d
     required("numbers")[List[
-      String with (s =>
+      String with s =>
         // TODO: Update below when dotty#17939 is fixed
         true //List("one", "two", "three").contains(s)
-    )]]
+    ]]
 
 // Schema Composition - allOf (Simple)
 
@@ -140,8 +140,8 @@ type Person4 = Dict with
   d =>
     given Dict = d
     optional("firstName")[String] &&
-    optional("age")[Int with (x =>
+    optional("age")[Int with x =>
       x >= 3 &&
       x%3 == 0 &&
       x%5 == 0
-    )]
+    ]
