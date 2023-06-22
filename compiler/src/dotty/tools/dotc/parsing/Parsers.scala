@@ -1799,6 +1799,11 @@ object Parsers {
             finally placeholderParams = saved
             // end Stolen from expr()
 
+            def followedByArrow() =
+              val arrow = showToken(in.token)
+              em"""qualified types may not be followed by $arrow
+               |consider enclosing it or its predicate in parentheses"""
+
             // parses t with rhs
             // TODO: Restrict parser to forbid things like matches
             val (hardIdentifier, rhs) =
@@ -1808,7 +1813,10 @@ object Parsers {
                 in.nextToken()
                 (identifier, postfixExpr()) // TODO: If we keep same parser in both branches, simplify
               else
-                (null, postfixExpr())
+                val rhs = postfixExpr()
+                if in.isArrow then
+                  syntaxError(followedByArrow(), in.offset)
+                (null, rhs)
 
             val protoPred = wrapPlaceholders(rhs)
 
@@ -1820,6 +1828,9 @@ object Parsers {
                 currentParameterIdentifier
 
             def extractPredAndBuild(tree: Tree): Tree = tree match
+              //case _ : ValDef             =>
+                //syntaxErrorOrIncomplete(em"if a function follows `with`, its parameter can't have a type", tree.span)
+                //EmptyTree
               case Parens(subtree)        => extractPredAndBuild(subtree)
               case Block(List(), subtree) => extractPredAndBuild(subtree)
               case _ if hardIdentifier != null =>
