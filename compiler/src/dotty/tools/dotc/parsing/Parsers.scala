@@ -1748,11 +1748,14 @@ object Parsers {
       buildQualifiedType(startingOffset, beingQualified, pred)
 
     /**
-     * Without refinementsEnabled:
-     * WithType ::= AnnotType {`with' AnnotType}    (deprecated)
+     * With refinements & setNotation enabled:
+     * WithType ::= AnnotType [`with' PostfixExpr]
      *
-     * With refinementsEnabled:
-     * WithType ::= AnnotType {`with' InfixExpr}
+     * With refinements & postficLambda enabled:
+     * WithType ::= AnnotType [`with' [Identifier `=>'] PostfixExpr]  -- the rhs of `with` has to be explicitly a function, or a boolean
+     *
+     * Otherwise:
+     * WithType ::= AnnotType {`with' AnnotType}    (deprecated)
      */
     def withType(): Tree = withTypeRest(annotType())
 
@@ -1798,12 +1801,19 @@ object Parsers {
 
             // parses t with rhs
             // TODO: Restrict parser to forbid things like matches
-            val rhs = postfixExpr()
+            val (hardIdentifier, rhs) =
+              if in.isIdent && in.lookahead.isArrow then
+                val identifier = ident()
+                assert(in.isArrow)
+                in.nextToken()
+                (identifier, postfixExpr()) // TODO: If we keep same parser in both branches, simplify
+              else
+                (null, postfixExpr())
 
             val protoPred = wrapPlaceholders(rhs)
 
             // Should probably be moved before rhs ? (then not lazy val !)
-            lazy val identifier =
+            lazy val softIdentifier =
               if currentParameterIdentifier == null then
                 WildcardParamName.fresh()
               else
@@ -1812,10 +1822,12 @@ object Parsers {
             def extractPredAndBuild(tree: Tree): Tree = tree match
               case Parens(subtree)        => extractPredAndBuild(subtree)
               case Block(List(), subtree) => extractPredAndBuild(subtree)
+              case _ if hardIdentifier != null =>
+                buildQualifiedType(t.span.start, hardIdentifier, t, tree)
               case Match(EmptyTree, _) | _: Function =>
-                buildQualifiedType(t.span.start,             t, tree)
+                buildQualifiedType(t.span.start,                 t, tree) // TODO: Add type ascription to Function if missing ?
               case _ =>
-                buildQualifiedType(t.span.start, identifier, t, tree) // if not already a function, make buildQualifiedType build one
+                buildQualifiedType(t.span.start, softIdentifier, t, tree) // if not already a function, make buildQualifiedType build one
 
             extractPredAndBuild(protoPred)
 
