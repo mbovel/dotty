@@ -22,7 +22,11 @@ def test() =
   def f: Pos => Int = ???
   val g: Int => Pos = f
 
-type Nesting = Int with { val y: Int with _ > 0 = ??? ; _ > y }
+type Nesting = Int with x => { val y: Int with _ > 0 = ??? ; x > y }
+
+val b = true
+type Priority =     Int with b => false
+type EquivalentTo = Int with (b => false)
 
 
 
