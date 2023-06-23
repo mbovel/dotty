@@ -734,7 +734,7 @@ object PatternMatcher {
               .select(defn.Seq_length.matchingMember(scrutinee.tpe))
               .select(if (exact) defn.Int_== else defn.Int_>=)
               .appliedTo(Literal(Constant(len)))
-        case TypeTest(tpt, trusted) =>
+        case TypeTest(tpt, trusted) => //here ?
           val expectedTp = tpt.tpe
 
           // An outer test is needed in a situation like  `case x: y.Inner => ...`
@@ -761,12 +761,18 @@ object PatternMatcher {
               .select(defn.Object_eq)
               .appliedTo(expectedOuter)
           }
-
-          expectedTp.dealias match {
+          // Should only keep qualified type annots ! (dealiasKeepAnnots does not do that)
+          expectedTp.dealiasKeepAnnots match {
             case expectedTp: SingletonType =>
               scrutinee.isInstance(expectedTp)  // will be translated to an equality test
+            case refine.EventuallyRefinementType(qualified, predicate) =>
+              val qualTypeTest = scrutinee.select(defn.Any_typeTest).appliedToType(qualified) // Not correct, should be recursive
+              val predTest = predicate.appliedTo(scrutinee)
+
+              qualTypeTest.and(predTest)
+
             case _ =>
-              val typeTest = scrutinee.select(defn.Any_typeTest).appliedToType(expectedTp)
+              val typeTest = scrutinee.select(defn.Any_typeTest).appliedToType(expectedTp) // What is the difference between a type test and a isInstanceOf ?
               if (trusted) typeTest.pushAttachment(TrustedTypeTestKey, ())
               if (outerTestNeeded) typeTest.and(outerTest) else typeTest
           }

@@ -992,6 +992,9 @@ object tpd extends Trees.Instance[Type] with TypedTreeInfo {
           tree.ensureConforms(defn.ObjectType).select(defn.Object_eq).appliedTo(singleton(tp))
         else
           singleton(tp).equal(tree)
+      case refine.EventuallyRefinementType(qualified, predicate: Tree) => // TODO: Remove
+        //TODO: add isInstance(qualified)
+        predicate.appliedTo(tree)
       case _ =>
         tree.select(defn.Any_isInstanceOf).appliedToType(tp)
     }
