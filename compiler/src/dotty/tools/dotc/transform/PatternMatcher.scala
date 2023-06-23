@@ -736,7 +736,7 @@ object PatternMatcher {
               .select(defn.Seq_length.matchingMember(scrutinee.tpe))
               .select(if (exact) defn.Int_== else defn.Int_>=)
               .appliedTo(Literal(Constant(len)))
-        case TypeTest(tpt, trusted) =>
+        case TypeTest(tpt, trusted) => //here ?
           val expectedTp = tpt.tpe
 
           def typeTest(scrut: Tree, expected: Type): Tree =
@@ -775,10 +775,16 @@ object PatternMatcher {
               addOuterTest(tree, tycon)
             case _ =>
               tree
-
-          expectedTp.dealias match
+          // Should only keep qualified type annots ! (dealiasKeepAnnots does not do that)
+          expectedTp.dealiasKeepAnnots match
             case expectedTp: SingletonType =>
               scrutinee.isInstance(expectedTp)  // will be translated to an equality test
+            case refine.EventuallyQualifiedType(qualified, predicate) =>
+              val qualTypeTest = scrutinee.select(defn.Any_typeTest).appliedToType(qualified) // Not correct, should be recursive
+              val predTest = predicate.appliedTo(scrutinee)
+
+              qualTypeTest.and(predTest)
+
             case _ =>
               addOuterTest(typeTest(scrutinee, expectedTp), expectedTp)
     end emitCondition
