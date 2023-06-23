@@ -1743,7 +1743,7 @@ object Parsers {
       val paramPred = makeParameter(identifier, beingQualified, EmptyModifiers) // modifier Param is already added by makeParameter
 
       // (identifier: beingQualified) => qualifier
-      val pred: Tree = Function(List(paramPred), qualifier)
+      val pred: Tree = WildcardFunction(List(paramPred), qualifier) // Same as Function, but less span checks
 
       buildQualifiedType(startingOffset, beingQualified, pred)
 
@@ -1793,15 +1793,9 @@ object Parsers {
             val saved = placeholderParams
             placeholderParams = Nil
 
-            def wrapPlaceholders(t: Tree) = try
-              if (placeholderParams.isEmpty) t
-              else new WildcardFunction(placeholderParams.reverse, t)
-            finally placeholderParams = saved
-            // end Stolen from expr()
-
             def followedByArrow() =
               val arrow = showToken(in.token)
-              em"""qualified types may not be followed by $arrow
+              em"""Qualified types may not be followed by $arrow
                |consider enclosing it or its predicate in parentheses"""
 
             // parses t with rhs
@@ -1818,7 +1812,7 @@ object Parsers {
                   syntaxError(followedByArrow(), in.offset)
                 (null, rhs)
 
-            val protoPred = wrapPlaceholders(rhs)
+            val numberOfwildcards: Int = placeholderParams.size
 
             // Should probably be moved before rhs ? (then not lazy val !)
             lazy val softIdentifier =
@@ -1828,19 +1822,25 @@ object Parsers {
                 currentParameterIdentifier
 
             def extractPredAndBuild(tree: Tree): Tree = tree match
-              //case _ : ValDef             =>
-                //syntaxErrorOrIncomplete(em"if a function follows `with`, its parameter can't have a type", tree.span)
-                //EmptyTree
               case Parens(subtree)        => extractPredAndBuild(subtree)
               case Block(List(), subtree) => extractPredAndBuild(subtree)
               case _ if hardIdentifier != null =>
-                buildQualifiedType(t.span.start, hardIdentifier, t, tree)
-              case Match(EmptyTree, _) | _: Function =>
-                buildQualifiedType(t.span.start,                 t, tree) // TODO: Add type ascription to Function if missing ?
+                buildQualifiedType(t.span.start, hardIdentifier,     t, tree)
+              case _ if numberOfwildcards == 1 =>
+                val wildcardIdentifier = placeholderParams.head.name
+                buildQualifiedType(t.span.start, wildcardIdentifier, t, tree)
+              case Match(EmptyTree, _) =>
+                buildQualifiedType(t.span.start,                     t, tree)
               case _ =>
-                buildQualifiedType(t.span.start, softIdentifier, t, tree) // if not already a function, make buildQualifiedType build one
-
-            extractPredAndBuild(protoPred)
+                buildQualifiedType(t.span.start, softIdentifier,     t, tree) // if not already a function, make buildQualifiedType build one
+            try
+              if numberOfwildcards >= 2 then
+                syntaxError(em"Qualified type's qualifier contains $numberOfwildcards wildcards (${showToken(USCORE)}), when the maximum is 1", protoPred.span)
+                errorTermTree(rhs.span.start)
+              else
+                extractPredAndBuild(rhs)
+            finally
+              placeholderParams = saved
 
           else
             if in.token == LBRACE || in.token == INDENT then
