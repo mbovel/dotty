@@ -12,7 +12,3 @@ object postfixLambda:
   type T3 = Int with x =>
       b1 &&
       b2
-  type T4 = Int with
-    x =>
-      b1 &&
-      b2
