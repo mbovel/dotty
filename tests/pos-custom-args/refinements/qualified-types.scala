@@ -16,3 +16,11 @@ object postfixLambda:
   // Not recommended
   type Test = Boolean with b
     => false
+
+
+  /** The following is allowed, to keep consistency with
+   *  https://github.com/lampepfl/dotty/issues/18014
+   */
+  type T4 = Int with
+    x =>
+      true

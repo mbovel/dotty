@@ -1829,7 +1829,7 @@ object Parsers {
               case _ if numberOfwildcards == 1 =>
                 val wildcardIdentifier = placeholderParams.head.name
                 buildQualifiedType(t.span.start, wildcardIdentifier, t, tree)
-              case Match(EmptyTree, _) =>
+              case Match(EmptyTree, _) | _: Function =>
                 buildQualifiedType(t.span.start,                     t, tree)
               case _ =>
                 buildQualifiedType(t.span.start, softIdentifier,     t, tree) // if not already a function, make buildQualifiedType build one

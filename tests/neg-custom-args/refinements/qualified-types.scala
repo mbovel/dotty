@@ -29,14 +29,6 @@ object postfixLambda:
 
   def foo(x: Int with y => x > 0) = ???// error: Cyclic reference involving val x
 
-  /** The following is disallowed, to keep consistency with
-   *  https://github.com/lampepfl/dotty/issues/18014
-   *  See https://github.com/lampepfl/dotty/issues/18042 for a better error message
-   */
-  type T4 = Int with
-    x => // error: could not infer the type of the parameter x
-      true
-
   // TODO: fix the following ?
   def f: Int => Boolean = x => true
   type Call = Int with f // error
