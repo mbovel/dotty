@@ -43,7 +43,7 @@ package example {
         }
     )
   type T = (x: Int) => x.type
-  type Alias = Int @annotation.refined[Int]((x: Int) => true)
+  type Alias = Int @annotation.refined[Int]((_$1: Int) => true)
   def foo(x: Int @annotation.refined[Int]((x: Int) => true)) = ???
   def bar(x: Int @annotation.refined[Int]((x: Int) => x > 0)) = ???
   def secondGreater2(x: Int, y: Int,

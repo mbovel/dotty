@@ -1005,7 +1005,7 @@ object Parsers {
     /** Under refinements language import: is the following token sequence a
      *  qualified type `<<< id: type with boolean >>>` ?
      *
-     * Checks for for `id:`
+     * Checks for `id:`
      */
     def followingIsQualifiedTypeSetNotation(): Boolean =
       in.featureEnabled(Feature.setNotation) && {
@@ -1017,7 +1017,7 @@ object Parsers {
           lookahead.nextToken() // skips the opening brace
 
         lookahead.token == IDENTIFIER && {
-          lookahead.nextToken();
+          lookahead.nextToken()
           lookahead.token == COLONfollow
         }
       }
@@ -1559,22 +1559,22 @@ object Parsers {
             functionRest(Nil)
           }
           else {
-            val saved = inQualifiedTypeSetNotation
-            inQualifiedTypeSetNotation = false
-            if isErased then imods = addModifier(imods)
-            val paramStart = in.offset
-            val ts = in.currentRegion.withCommasExpected {
-              funArgType() match
-                case Ident(name) if name != tpnme.WILDCARD && in.isColon =>
-                  isValParamList = true
-                  commaSeparatedRest(
-                    typedFunParam(paramStart, name.toTermName, imods),
-                    () => typedFunParam(in.offset, ident(), imods))
-                case t =>
-                  commaSeparatedRest(t, funArgType)
+            val ts = fromWithoutQualifiedTypeSetNotation{
+              if isErased then imods = addModifier(imods)
+              val paramStart = in.offset
+              val ts = in.currentRegion.withCommasExpected {
+                funArgType() match
+                  case Ident(name) if name != tpnme.WILDCARD && in.isColon =>
+                    isValParamList = true
+                    commaSeparatedRest(
+                      typedFunParam(paramStart, name.toTermName, imods),
+                      () => typedFunParam(in.offset, ident(), imods))
+                  case t =>
+                    commaSeparatedRest(t, funArgType)
+              }
+              accept(RPAREN)
+              ts
             }
-            accept(RPAREN)
-            inQualifiedTypeSetNotation = saved
 
             if isValParamList || in.isArrow || isPureArrow then
               functionRest(ts)
@@ -3430,6 +3430,7 @@ object Parsers {
             else EmptyTree
           if (impliedMods.mods.nonEmpty)
             impliedMods = impliedMods.withMods(Nil) // keep only flags, so that parameter positions don't overlap
+          currentParameterIdentifier = null
           ValDef(name, tpt, default).withMods(mods)
         }
       }
@@ -3468,7 +3469,6 @@ object Parsers {
           clause
       }
     }
-    currentParameterIdentifier = null
 
     /** ClsTermParamClauses   ::=  {ClsTermParamClause} [[nl] ‘(’ [‘implicit’] ClsParams ‘)’]
      *  TypelessClauses       ::=  TypelessClause {TypelessClause}

@@ -22,8 +22,8 @@ object postfixLambda:
 
   val x = ???
   type ParensAmbiguity1 = Int with (x: Int) => true // error: Qualified types may not be directly followed by '=>'
-  type ParensAmbiguity2 = Int with (x) => true      // error: Qualified types may not be directly followed by '=>'  // error: Required: Boolean
-  type ParensAmbiguity3 = Int with (x) ?=> true     // error: Qualified types may not be directly followed by '?=>' // error: Required: Boolean
+  type ParensAmbiguity2 = Int with (x) => true      // error: Qualified types may not be directly followed by '=>'
+  type ParensAmbiguity3 = Int with (x) ?=> true     // error: Qualified types may not be directly followed by '?=>'
 
   type Nesting = Int with { val y: Int with _ > 0 = ??? ; x => x > y } // error
 
