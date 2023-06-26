@@ -3430,6 +3430,7 @@ object Parsers {
             else EmptyTree
           if (impliedMods.mods.nonEmpty)
             impliedMods = impliedMods.withMods(Nil) // keep only flags, so that parameter positions don't overlap
+          currentParameterIdentifier = null
           ValDef(name, tpt, default).withMods(mods)
         }
       }
@@ -3468,7 +3469,6 @@ object Parsers {
           clause
       }
     }
-    currentParameterIdentifier = null
 
     /** ClsTermParamClauses   ::=  {ClsTermParamClause} [[nl] ‘(’ [‘implicit’] ClsParams ‘)’]
      *  TypelessClauses       ::=  TypelessClause {TypelessClause}
