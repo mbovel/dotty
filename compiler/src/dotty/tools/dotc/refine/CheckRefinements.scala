@@ -32,7 +32,7 @@ class CheckRefinements extends Recheck:
           tp.annot.tree.tpe match
             case AppliedType(_, List(arg)) =>
               if arg != tp.parent then
-                val msg = em"Malformed refinement. Expected a refinement of ${tp.parent.show} but got ${arg.show}."
+                val msg = em"Malformed refinement. Expected a refinement of ${tp.parent} but got ${arg}."
                 report.error(msg, tp.annot.tree.sourcePos)
                 ErrorType(msg)
               else knownType(tree)
