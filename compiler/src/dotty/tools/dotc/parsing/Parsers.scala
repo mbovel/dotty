@@ -1795,7 +1795,7 @@ object Parsers {
 
             def followedByArrow() =
               val arrow = showToken(in.token)
-              em"""Qualified types may not be followed by $arrow
+              em"""Qualified types may not be directly followed by $arrow
                |consider enclosing it or its predicate in parentheses"""
 
             // parses t with rhs
@@ -1835,7 +1835,7 @@ object Parsers {
                 buildQualifiedType(t.span.start, softIdentifier,     t, tree) // if not already a function, make buildQualifiedType build one
             try
               if numberOfwildcards >= 2 then
-                syntaxError(em"Qualified type's qualifier contains $numberOfwildcards wildcards (${showToken(USCORE)}), when the maximum is 1", protoPred.span)
+                syntaxError(em"Qualified type's qualifier contains $numberOfwildcards wildcards (${showToken(USCORE)}), when the maximum is 1", rhs.span)
                 errorTermTree(rhs.span.start)
               else
                 extractPredAndBuild(rhs)
