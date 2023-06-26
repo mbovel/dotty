@@ -12,3 +12,7 @@ object postfixLambda:
   type T3 = Int with x =>
       b1 &&
       b2
+
+  // Not recommended
+  type Test = Boolean with b
+    => false

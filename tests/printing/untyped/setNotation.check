@@ -48,5 +48,17 @@ package example {
   def bar(x: Int @annotation.refined[Int]((x: Int) => x > 0)) = ???
   def secondGreater2(x: Int, y: Int,
     z: Int @annotation.refined[Int]((z: Int) => x > y)) = ???
+  trait A {}
+  given object extends A {
+    val b = false
+    true | false
+  }
 }
 
+-- [E129] Potential Issue Warning: tests/printing/untyped/setNotation.scala:65:7 
+65 |  true | false
+   |  ^^^^^^^^^^^^
+   |A pure expression does nothing in statement position; you may be omitting necessary parentheses
+   |
+   | longer explanation available when compiling with `-explain`
+1 warning found

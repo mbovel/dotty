@@ -7,6 +7,8 @@ object setNotation:
 
   type Repeated = Double with true with true // error
 
+  def foo(x: {y: Int with x > 0}) = ???// error: Cyclic reference involving val x
+
 object postfixLambda:
   import language.experimental.postfixLambda
 
@@ -25,10 +27,11 @@ object postfixLambda:
 
   type MultipleWildcards = Int with _ > _ // error: Qualified type's qualifier contains 2 wildcards ('_'), when the maximum is 1
 
+  def foo(x: Int with y => x > 0) = ???// error: Cyclic reference involving val x
 
   /** The following is disallowed, to keep consistency with
    *  https://github.com/lampepfl/dotty/issues/18014
-   *
+   *  See https://github.com/lampepfl/dotty/issues/18042 for a better error message
    */
   type T4 = Int with
     x => // error: could not infer the type of the parameter x

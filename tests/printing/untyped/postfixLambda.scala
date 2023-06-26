@@ -32,3 +32,9 @@ type EquivalentTo = Int with (b => false)
 
 // Shouldn't work:
 type Pos2 = Int with _ + 1 match { case x => true }
+
+trait A
+// Not a qualified type !
+given A with
+  val b = false
+  true | false
