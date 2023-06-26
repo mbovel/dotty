@@ -57,3 +57,9 @@ def foo(x: Int with true) = ???
 def bar(x: Int with x > 0) = ???
 
 def secondGreater2(x: Int, y: Int, z: Int with x > y) = ???
+
+trait A
+// Not a qualified type !
+given A with
+  val b = false
+  true | false
