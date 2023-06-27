@@ -13,8 +13,12 @@ object setNotation:
       b1 &&
       b2
 
-
   (): (Unit with b1)
+
+  def f(
+    x: (Int & Singleton),
+    y: (Int with y > 0)
+  ) = ???
 
 object postfixLambda:
   import language.experimental.postfixLambda
@@ -29,6 +33,11 @@ object postfixLambda:
       b2
 
   (): (Unit with b1)
+
+  def f(
+    x: (Int & Singleton),
+    y: (Int with y > 0)
+  ) = ???
 
   // Not recommended
   type Test = Boolean with b
