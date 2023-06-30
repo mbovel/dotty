@@ -209,6 +209,7 @@ class CompilationTests {
       compileFilesInDir("tests/run-custom-args/erased", defaultOptions.and("-language:experimental.erasedDefinitions")),
       compileFilesInDir("tests/run-custom-args/fatal-warnings", defaultOptions.and("-Xfatal-warnings")),
       compileFilesInDir("tests/run-custom-args/captures", allowDeepSubtypes.and("-language:experimental.captureChecking")),
+      compileFilesInDir("tests/run-custom-args/refinements", defaultOptions.and("-language:experimental.refinements")),
       compileFilesInDir("tests/run-deep-subtype", allowDeepSubtypes),
       compileFilesInDir("tests/run", defaultOptions.and("-Ysafe-init")),
       // Run tests for legacy lazy vals.

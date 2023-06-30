@@ -761,16 +761,9 @@ object PatternMatcher {
               .select(defn.Object_eq)
               .appliedTo(expectedOuter)
           }
-          // Should only keep qualified type annots ! (dealiasKeepAnnots does not do that)
-          expectedTp.dealiasKeepAnnots match {
+          expectedTp.dealias match {
             case expectedTp: SingletonType =>
               scrutinee.isInstance(expectedTp)  // will be translated to an equality test
-            case refine.EventuallyRefinementType(qualified, predicate) =>
-              val qualTypeTest = scrutinee.select(defn.Any_typeTest).appliedToType(qualified) // Not correct, should be recursive
-              val predTest = predicate.appliedTo(scrutinee)
-
-              qualTypeTest.and(predTest)
-
             case _ =>
               val typeTest = scrutinee.select(defn.Any_typeTest).appliedToType(expectedTp) // What is the difference between a type test and a isInstanceOf ?
               if (trusted) typeTest.pushAttachment(TrustedTypeTestKey, ())
