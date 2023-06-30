@@ -775,16 +775,10 @@ object PatternMatcher {
               addOuterTest(tree, tycon)
             case _ =>
               tree
-          // Should only keep qualified type annots ! (dealiasKeepAnnots does not do that)
-          expectedTp.dealiasKeepAnnots match
+
+          expectedTp.dealias match
             case expectedTp: SingletonType =>
               scrutinee.isInstance(expectedTp)  // will be translated to an equality test
-            case refine.EventuallyQualifiedType(qualified, predicate) =>
-              val qualTypeTest = scrutinee.select(defn.Any_typeTest).appliedToType(qualified) // Not correct, should be recursive
-              val predTest = predicate.appliedTo(scrutinee)
-
-              qualTypeTest.and(predTest)
-
             case _ =>
               addOuterTest(typeTest(scrutinee, expectedTp), expectedTp)
     end emitCondition
