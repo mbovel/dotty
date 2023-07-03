@@ -1,12 +1,12 @@
-It Pos
-It not Pos
-It not Pos
-It not Pos
-It not Pos
-It not Pos
-It Polite
-It Impolite
-It Impolite
-It Impolite
-It Impolite
-It Impolite
+hello: It not Pos, and It Impolite
+c: It not Pos, and It Impolite
+List(): It not Pos, and It Impolite
+72: It Pos, and It Impolite
+4: It Pos, and It Impolite
+0: It not Pos, and It Impolite
+-1: It not Pos, and It Impolite
+Give me the butter, please: It not Pos, and It Polite
+give me the butter, please: It not Pos, and It Impolite
+Give me the butter: It not Pos, and It Impolite
+give me the butter: It not Pos, and It Impolite
+: It not Pos, and It Impolite
