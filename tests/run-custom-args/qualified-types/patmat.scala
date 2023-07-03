@@ -22,6 +22,12 @@ inline val isPoliteFalse = "It Impolite"
 @main
 def Test =
 
+  val l0 = List[Int](-1, 0, 1, 4)
+  val l1 = for case (x: Pos) <- l0 yield x
+  val l2 = l0.collect{ case x: (Pos | 0) => math.sqrt(x) }
+  assert( l1 == List(1, 4))
+  assert( l2 == List(0, 1, 2))
+
   val examples = List( // val, isPosBool, isPoliteBool
     ("hello",                       false, false),
     ('c',                           false, false),
