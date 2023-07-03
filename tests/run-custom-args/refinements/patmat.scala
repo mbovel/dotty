@@ -1,23 +1,26 @@
 import language.experimental.setNotation
 
-val b = true
+
+type Pos = {x: Int with x > 0}
+
+inline val isPosTrue = "It Pos"
+inline val isPosFalse = "It not Pos"
+
+def isPos(x: Any) = x match
+  case x: Pos => isPosTrue
+  case _ => isPosFalse
+
 
 type NonEmptyString = {s: String with !s.isEmpty}
 
 type PoliteString = {s: NonEmptyString with s.head.isUpper && s.takeRight(6) == "please"}
 
-
-type Pos = {x: Int with x > 0}
-val scrut: Any = 4
-
-inline val isPosTrue = "It Pos"
-inline val isPosFalse = "It not Pos"
-
 inline val isPoliteTrue = "It Polite"
 inline val isPoliteFalse = "It Impolite"
 
-
-
+def isPolite(x: Any) = x match
+  case x: PoliteString => isPoliteTrue
+  case _ => isPoliteFalse
 
 @main
 def Test =
@@ -55,12 +58,3 @@ def Test =
     assert( isPolite(v) == expectedPoliteStr )
 
     println(s"$v: ${isPos(v)}, and ${isPolite(v)}")
-
-
-def isPos(x: Any) = x match
-  case x: Pos => isPosTrue
-  case _ => isPosFalse
-
-def isPolite(x: Any) = x match
-  case x: PoliteString => isPoliteTrue
-  case _ => isPoliteFalse
