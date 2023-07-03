@@ -332,19 +332,12 @@ object TypeTestsCasts {
               transformTypeTest(e, tp1, flagUnrelated)
                 .and(transformTypeTest(e, tp2, flagUnrelated))
             }
-          case refine.EventuallyQualifiedType(baseType, predicate@Block(List(dd: DefDef), _)) =>
+          case refine.EventuallyQualifiedType(baseType, closureDef(qualifier: DefDef)) =>
             evalOnce(expr) { e =>
-              val predParams = dd.paramss.head.head.symbol
-              val predBody = dd.rhs
-              val predTest = evalOnce(e.asInstance(baseType)){ x =>
-                predBody.subst(List(predParams), List(x.symbol)) //TODO: assumes s has a symbol, which might not be guaranteed ?
-              }
-              //dd.appliedTo(scrutinee.asInstance(baseType))//predicate.select(nme.apply).appliedTo(scrutinee.asInstance(baseType))
-
+              // e.isInstanceOf[baseType] && qualifier(e.asInstanceOf[baseType])
               transformTypeTest(e, baseType, flagUnrelated)
-                .and(predTest)
+                .and(BetaReduce(qualifier, List(e.asInstance(baseType))))
             }
-
           case defn.MultiArrayOf(elem, ndims) if isGenericArrayElement(elem, isScala2 = false) =>
             def isArrayTest(arg: Tree) =
               ref(defn.runtimeMethodRef(nme.isArray)).appliedTo(arg, Literal(Constant(ndims)))
