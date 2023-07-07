@@ -32,6 +32,11 @@ object postfixLambda:
       b1 &&
       b2
 
+  type TT = (Int with (_ => true), Int with true)
+
+  type Pos = Int with _ > 0
+  type Neg = Int with (_ < 0)
+
   (): (Unit with b1)
 
   def f(
@@ -50,3 +55,6 @@ object postfixLambda:
   type T4 = Int with
     x =>
       true
+
+  // TODO: disallow:
+  type Pos2 = Int with _ + 1 match { case x => true }

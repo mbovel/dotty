@@ -31,6 +31,8 @@ object postfixLambda:
 
   def foo(x: Int with y => x > 0) = ???// error: Cyclic reference involving val x
 
+  type Nesting = Int with { val y: Int with _ > 0 = ??? ; _ > y } // error
+
   // TODO: fix the following ?
   def f: Int => Boolean = x => true
   type Call = Int with f // error
