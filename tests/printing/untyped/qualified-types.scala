@@ -1,3 +1,4 @@
+package example
 
 type Useless1 = Int with (_ => true)
 
@@ -8,8 +9,8 @@ type Pos = Int with _ > 0
 
 type Neg = Int with (_ < 0)
 
-// TODO: Add back when https://github.com/lampepfl/dotty/issues/17242 is fixed, or the annotation only takes functions
-// def secondGreater(x: Int, z: Int, y: Int with x > z) = ???
+//TODO: Fix me
+//def secondGreater(x: Int, z: Int, y: Int with x > z) = ???
 
 def id[T](x: T): T = x
 

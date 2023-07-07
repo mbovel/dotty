@@ -1,0 +1,35 @@
+[[syntax trees at end of                    parser]] // tests/printing/untyped/qualified-types.scala
+package example {
+  type Useless1 = Int @annotation.refined[Int]((_$1 => true))
+  type Useless2 = Int @annotation.refined[Int](true)
+  type Pos = Int @annotation.refined[Int](_$2 => _$2 > 0)
+  type Neg = Int @annotation.refined[Int]((_$3 => _$3 < 0))
+  def id[T](x: T): T = x
+  def test() =
+    {
+      val x1: Pos = 1
+      val x2: Int @annotation.refined[Int](_$4 => _$4 > 0) = 1
+      val x3: Int =
+        id[Int @annotation.refined[Int](_$5 => _$5 < 0)](1) + id[Neg](-1)
+      def f: (Pos) => Int = ???
+      val g: (Int) => Pos = f
+      <empty>
+    }
+  type Nesting =
+    Int @annotation.refined[Int](
+      {
+        val y: Int @annotation.refined[Int](_$6 => _$6 > 0) = ???
+        _$7 => _$7 > y
+      }
+    )
+  type Pos2 =
+    Int @annotation.refined[Int](
+      _$8 =>
+        _$8 + 1 match
+          {
+            case x =>
+              true
+          }
+    )
+}
+
