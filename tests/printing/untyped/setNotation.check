@@ -49,3 +49,4 @@ package example {
   def secondGreater2(x: Int, y: Int,
     z: Int @annotation.refined[Int]((z: Int) => x > y)) = ???
 }
+
