@@ -1,4 +1,4 @@
-[[syntax trees at end of                    parser]] // tests/printing/untyped/qualified-types.scala
+[[syntax trees at end of                    parser]] // tests/printing/untyped/postfixLambda.scala
 package example {
   type Useless1 = Int @annotation.refined[Int]((_$1 => true))
   type Useless2 = Int @annotation.refined[Int](true)
