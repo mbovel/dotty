@@ -31,7 +31,7 @@ object Feature:
   val clauseInterleaving = experimental("clauseInterleaving")
   val pureFunctions = experimental("pureFunctions")
   val captureChecking = experimental("captureChecking")
-  val refinements = experimental("refinements")
+  val qualifiedTypes = experimental("qualifiedTypes")
   val setNotation = experimental("setNotation")
   val postfixLambda = experimental("postfixLambda")
   val into = experimental("into")
@@ -92,9 +92,9 @@ object Feature:
   /** Is the postfix lambda syntax enabled in this scope? */
   def postfixLambdaEnabled(using Context) = enabled(postfixLambda)
 
-  /** Is refinementsChecking enabled for this compilation unit? */
-  def refinementsEnabled(using Context) =
-    enabledBySetting(refinements)
+  /** Is QualifierChecking enabled for this compilation unit? */
+  def qualifiedTypesEnabled(using Context) =
+    enabledBySetting(qualifiedTypes)
 
   /** Is pureFunctions enabled for this compilation unit? */
   def pureFunsEnabled(using Context) =

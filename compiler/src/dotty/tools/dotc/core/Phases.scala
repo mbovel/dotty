@@ -17,7 +17,7 @@ import parsing.Parser
 import printing.XprintMode
 import typer.{TyperPhase, RefChecks}
 import cc.CheckCaptures
-import refine.CheckRefinements
+import refine.CheckQualifiedTypes
 import typer.ImportInfo.withRootImports
 import ast.{tpd, untpd}
 import scala.annotation.internal.sharable
@@ -229,7 +229,7 @@ object Phases {
     private var myFlattenPhase: Phase = _
     private var myGenBCodePhase: Phase = _
     private var myCheckCapturesPhase: Phase = _
-    private var myCheckRefinementsPhase: Phase = _
+    private var myCheckQualifiersPhase: Phase = _
 
     final def parserPhase: Phase = myParserPhase
     final def typerPhase: Phase = myTyperPhase
@@ -254,7 +254,7 @@ object Phases {
     final def flattenPhase: Phase = myFlattenPhase
     final def genBCodePhase: Phase = myGenBCodePhase
     final def checkCapturesPhase: Phase = myCheckCapturesPhase
-    final def checkRefinementsPhase: Phase = myCheckRefinementsPhase
+    final def checkQualifiersPhase: Phase = myCheckQualifiersPhase
 
     private def setSpecificPhases() = {
       def phaseOfClass(pclass: Class[?]) = phases.find(pclass.isInstance).getOrElse(NoPhase)
@@ -282,7 +282,7 @@ object Phases {
       myGettersPhase = phaseOfClass(classOf[Getters])
       myGenBCodePhase = phaseOfClass(classOf[GenBCode])
       myCheckCapturesPhase = phaseOfClass(classOf[CheckCaptures])
-      myCheckRefinementsPhase = phaseOfClass(classOf[CheckRefinements])
+      myCheckQualifiersPhase = phaseOfClass(classOf[CheckQualifiedTypes])
     }
 
     final def isAfterTyper(phase: Phase): Boolean = phase.id > typerPhase.id
@@ -467,7 +467,7 @@ object Phases {
   def flattenPhase(using Context): Phase                = ctx.base.flattenPhase
   def genBCodePhase(using Context): Phase               = ctx.base.genBCodePhase
   def checkCapturesPhase(using Context): Phase          = ctx.base.checkCapturesPhase
-  def checkRefinementsPhase(using Context): Phase       = ctx.base.checkRefinementsPhase
+  def checkQualifiersPhase(using Context): Phase       = ctx.base.checkQualifiersPhase
 
   def unfusedPhases(using Context): Array[Phase] = ctx.base.phases
 

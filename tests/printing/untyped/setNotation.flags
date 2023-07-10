@@ -1,2 +1,2 @@
--language:experimental.refinements
+-language:experimental.qualifiedTypes
 -language:experimental.setNotation

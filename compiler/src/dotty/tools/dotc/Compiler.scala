@@ -5,7 +5,7 @@ import core._
 import Contexts._
 import typer.{TyperPhase, RefChecks}
 import cc.CheckCaptures
-import refine.CheckRefinements
+import refine.CheckQualifiedTypes
 import parsing.Parser
 import Phases.Phase
 import transform._
@@ -85,14 +85,14 @@ class Compiler {
     List(new TestRecheck) ::         // Test only: run rechecker, enabled under -Yrecheck-test
     List(new CheckCaptures.Pre) ::   // Preparations for check captures phase, enabled under captureChecking
     List(new CheckCaptures) ::       // Check captures, enabled under captureChecking
-    List(new CheckRefinements.Pre) ::
-    List(new CheckRefinements) ::
+    List(new CheckQualifiedTypes.Pre) ::
+    List(new CheckQualifiedTypes) ::
     List(new ElimOpaque,             // Turn opaque into normal aliases
          new sjs.ExplicitJSClasses,  // Make all JS classes explicit (Scala.js only)
          new ExplicitOuter,          // Add accessors to outer classes from nested ones.
          new ExplicitSelf,           // Make references to non-trivial self types explicit as casts
          new StringInterpolatorOpt,  // Optimizes raw and s and f string interpolators by rewriting them to string concatenations or formats
-         new DropBreaks) ::          // Optimize local Break throws by rewriting them 
+         new DropBreaks) ::          // Optimize local Break throws by rewriting them
     List(new PruneErasedDefs,        // Drop erased definitions from scopes and simplify erased expressions
          new UninitializedDefs,      // Replaces `compiletime.uninitialized` by `_`
          new InlinePatterns,         // Remove placeholders of inlined patterns

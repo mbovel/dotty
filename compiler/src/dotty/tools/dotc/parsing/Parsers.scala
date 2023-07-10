@@ -1002,7 +1002,7 @@ object Parsers {
         if lookahead.token == RBRACE then followingIsTypeStart() else recur()
       }
 
-    /** Under refinements language import: is the following token sequence a
+    /** Under qualifiedTypes language import: is the following token sequence a
      *  qualified type `<<< id: type with boolean >>>` ?
      *
      * Checks for `id:`
@@ -1723,13 +1723,13 @@ object Parsers {
     def buildQualifiedType(startingOffset: Offset, beingQualified: Tree, predicate: Tree): Tree =
       val fullSpan = Span(startingOffset, predicate.span.end)
       // Was not able to make code look neater with the following, as the `ref` creates TypedSplices, and `.symbol` on it was always empty
-      //val qualifiedAnnot = wrapNew(ref(ctx.definitions.RefinedAnnot))
-      val qualifiedAnnot = scalaAnnotationDot(nme.refined)
+      //val qualifiedAnnot = wrapNew(ref(ctx.definitions.QualifiedAnnot))
+      val qualifiedAnnot = scalaAnnotationDot(nme.qualified)
 
-      // @refined[beingQualified](predicate)
+      // @qualified[beingQualified](predicate)
       val annot: Tree = Apply(TypeApply(qualifiedAnnot, List(beingQualified)), predicate).withSpan(fullSpan)
 
-      // beingQualified @refined[beingQualified](pred)
+      // beingQualified @qualified[beingQualified](pred)
       Annotated(beingQualified, annot).withSpan(fullSpan)
 
     def buildQualifiedType(startingOffset: Offset, identifier: TermName, beingQualified: Tree, qualifier: Tree): Tree =
@@ -1743,10 +1743,10 @@ object Parsers {
       buildQualifiedType(startingOffset, beingQualified, pred)
 
     /**
-     * With refinements & setNotation enabled:
+     * With qualifiedTypes & setNotation enabled:
      * WithType ::= AnnotType [`with' PostfixExpr]
      *
-     * With refinements & postficLambda enabled:
+     * With qualifiedTypes & postficLambda enabled:
      * WithType ::= AnnotType [`with' [Identifier `=>'] PostfixExpr]  -- the rhs of `with` has to be explicitly a function, or a boolean
      *
      * Otherwise:
@@ -1757,7 +1757,7 @@ object Parsers {
     def withTypeRest(t: Tree): Tree =
       if in.token == WITH then
         if in.featureEnabled(Feature.setNotation) then
-          assert(Feature.refinementsEnabled, "Set notation is a syntax for refinements, which are not enabled")
+          assert(Feature.qualifiedTypesEnabled, "Set notation is a syntax for qualifiedTypes, which are not enabled")
           assert(!in.featureEnabled(Feature.postfixLambda), "Set notation syntax is incompatible with postfix lambda syntax")
 
           if inQualifiedTypeSetNotation then // Don't interpret {x: T with p} as {x: (T with p) <error: missing with> }
@@ -1782,7 +1782,7 @@ object Parsers {
           val withOffset = in.offset
           in.nextToken()
           if in.featureEnabled(Feature.postfixLambda) then
-            assert(Feature.refinementsEnabled, "Postfix lambda is a syntax for refinements, which are not enabled")
+            assert(Feature.qualifiedTypesEnabled, "Postfix lambda is a syntax for qualifiedTypes, which are not enabled")
             assert(!in.featureEnabled(Feature.setNotation), "Postfix lambda syntax is incompatible with set notation syntax")
             // Stolen from expr()
             val saved = placeholderParams
