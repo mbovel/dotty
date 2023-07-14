@@ -1722,17 +1722,12 @@ object Parsers {
 
     def buildQualifiedType(startingOffset: Offset, beingQualified: Tree, predicate: Tree): Tree =
       val fullSpan = Span(startingOffset, predicate.span.end)
-      // @refined[beingQualified]
-      // TODO: test with RefinedAnnot
-      // Should we use the position of `with` as the span for the `@refined` ?
-      // ref(ctx.definitions.RefinedAnnot)
-      val typeApplied = TypeApply(Select(Ident(nme.annotation), nme.refined), List(beingQualified))
+      // Was not able to make code look neater with the following, as the `ref` creates TypedSplices, and `.symbol` on it was always empty
+      //val qualifiedAnnot = wrapNew(ref(ctx.definitions.RefinedAnnot))
+      val qualifiedAnnot = scalaAnnotationDot(nme.refined)
 
       // @refined[beingQualified](predicate)
-      val annot = Apply(
-        typeApplied,
-        predicate
-      ).withSpan(fullSpan)
+      val annot: Tree = Apply(TypeApply(qualifiedAnnot, List(beingQualified)), predicate).withSpan(fullSpan)
 
       // beingQualified @refined[beingQualified](pred)
       Annotated(beingQualified, annot).withSpan(fullSpan)

@@ -186,11 +186,11 @@ abstract class Positioned(implicit @constructorOnly src: SourceFile) extends Src
             case _: WildcardFunction
             if last.positioned.isInstanceOf[ValDef] && !p.isInstanceOf[ValDef] =>
               // ignore transition from last wildcard parameter to body
-            case Annotated(_, Apply(TypeApply(annot, _), _))
-            if annot.toString() == "Select(Ident(annotation),refined)" =>
+            case Annotated(_, Apply(TypeApply(annotName, _), _))
+            if annotName sameTree scalaAnnotationDot(nme.refined)(using util.NoSource) =>
               // do not check overlapping on qualified types
-            case Apply(TypeApply(annot, _), _)
-            if annot.toString() == "Select(Ident(annotation),refined)" =>
+            case Apply(TypeApply(annotName, _), _)
+            if annotName sameTree scalaAnnotationDot(nme.refined)(using util.NoSource) =>
               // do not check overlapping on qualified types
             case _ =>
               assert(!last.span.exists || !p.span.exists || last.span.end <= p.span.start,
