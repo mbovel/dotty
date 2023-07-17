@@ -1,0 +1,69 @@
+[[syntax trees at end of                    parser]] // tests/printing/untyped/setNotation.scala
+package example {
+  type Useless = Int @_root_.scala.annotation.qualified[Int]((x: Int) => true)
+  type Pos = Int @_root_.scala.annotation.qualified[Int]((x: Int) => x > 0)
+  type Neg = Int @_root_.scala.annotation.qualified[Int]((x: Int) => x < 0)
+  def secondGreater1(x: Int, z: Int,
+    y: Int @_root_.scala.annotation.qualified[Int]((w: Int) => x > z)) = ???
+  def id[T](x: T): T = x
+  def test() =
+    {
+      val x1: Pos = 1
+      val x2: Int @_root_.scala.annotation.qualified[Int]((x: Int) => x > 0) = 1
+      val x3: Int =
+        id[Int @_root_.scala.annotation.qualified[Int]((x: Int) => x < 0)](1) +
+          id[Neg](-1)
+      def f: (Pos) => Int = ???
+      val g: (Int) => Pos = f
+      <empty>
+    }
+  type Nesting =
+    Int @_root_.scala.annotation.qualified[Int](
+      (x: Int) =>
+        {
+          val y: Int @_root_.scala.annotation.qualified[Int]((z: Int) => z > 0)
+             = ???
+          x > y
+        }
+    )
+  type Pos3 =
+    Int & Int @_root_.scala.annotation.qualified[Int]((x: Int) => x > 0)
+  type Pos2 = Int @_root_.scala.annotation.qualified[Int]((x: Int) => x > 0)
+  type Pos5 =
+    Int @_root_.scala.annotation.qualified[Int](
+      (x: Int) =>
+        {
+          val y = x * x
+          y > 0
+        }
+    )
+  type Pos6 =
+    Int @_root_.scala.annotation.qualified[Int](
+      (x: Int) =>
+        {
+          val y = x * x
+          y > 0
+        }
+    )
+  type T = (x: Int) => x.type
+  type Alias = Int @_root_.scala.annotation.qualified[Int]((_$1: Int) => true)
+  def foo(x: Int @_root_.scala.annotation.qualified[Int]((x: Int) => true)) =
+    ???
+  def bar(x: Int @_root_.scala.annotation.qualified[Int]((x: Int) => x > 0)) =
+    ???
+  def secondGreater2(x: Int, y: Int,
+    z: Int @_root_.scala.annotation.qualified[Int]((z: Int) => x > y)) = ???
+  trait A {}
+  given object extends A {
+    val b = false
+    true | false
+  }
+}
+
+-- [E129] Potential Issue Warning: tests/printing/untyped/setNotation.scala:65:7 
+65 |  true | false
+   |  ^^^^^^^^^^^^
+   |A pure expression does nothing in statement position; you may be omitting necessary parentheses
+   |
+   | longer explanation available when compiling with `-explain`
+1 warning found

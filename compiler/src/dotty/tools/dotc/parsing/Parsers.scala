@@ -33,6 +33,7 @@ import config.Feature
 import config.Feature.{sourceVersion, migrateTo3, globalOnlyImports}
 import config.SourceVersion._
 import config.SourceVersion
+import dotty.tools.dotc.core.Annotations.Annotation
 
 object Parsers {
 
@@ -392,6 +393,23 @@ object Parsers {
       finally inFunReturnType = saved
     }
 
+    private var inQualifiedTypeSetNotation = false
+    private def fromWithinQualifiedTypeSetNotation[T](body: => T): T = {
+      val saved = inQualifiedTypeSetNotation
+      try {
+        inQualifiedTypeSetNotation = true
+        body
+      }
+      finally inQualifiedTypeSetNotation = saved
+    }
+    private def fromWithoutQualifiedTypeSetNotation[T](body: => T): T = {
+      val saved = inQualifiedTypeSetNotation
+      try {
+        inQualifiedTypeSetNotation = false
+        body
+      }
+      finally inQualifiedTypeSetNotation = saved
+    }
     /** A flag indicating we are parsing in the annotations of a primary
      *  class constructor
      */
@@ -418,6 +436,8 @@ object Parsers {
       try op
       finally staged = saved
     }
+
+    private var currentParameterIdentifier: TermName | Null = null
 
 /* ---------- TREE CONSTRUCTION ------------------------------------------- */
 
@@ -544,7 +564,11 @@ object Parsers {
       accept(tok)
       try body finally accept(tok + 1)
 
-    def inParens[T](body: => T): T = enclosed(LPAREN, body)
+    def inParens[T](body: => T): T =
+      if in.featureEnabled(Feature.setNotation) then
+        fromWithoutQualifiedTypeSetNotation(enclosed(LPAREN, body))
+      else
+        enclosed(LPAREN, body)
     def inBraces[T](body: => T): T = enclosed(LBRACE, body)
     def inBrackets[T](body: => T): T = enclosed(LBRACKET, body)
 
@@ -978,6 +1002,25 @@ object Parsers {
         if lookahead.token == RBRACE then followingIsTypeStart() else recur()
       }
 
+    /** Under qualifiedTypes language import: is the following token sequence a
+     *  qualified type `<<< id: type with boolean >>>` ?
+     *
+     * Checks for `id:`
+     */
+    def followingIsQualifiedTypeSetNotation(): Boolean =
+      in.featureEnabled(Feature.setNotation) && {
+        val lookahead = in.LookaheadScanner(allowIndent = true)
+
+        if in.token == INDENT then
+          () // The LookaheadScanner doesn't see previous indents, so no need to skip it
+        else
+          lookahead.nextToken() // skips the opening brace
+
+        lookahead.token == IDENTIFIER && {
+          lookahead.nextToken()
+          lookahead.token == COLONfollow
+        }
+      }
   /* --------- OPERAND/OPERATOR STACK --------------------------------------- */
 
     var opStack: List[OpInfo] = Nil
@@ -1516,19 +1559,23 @@ object Parsers {
             functionRest(Nil)
           }
           else {
-            if isErased then imods = addModifier(imods)
-            val paramStart = in.offset
-            val ts = in.currentRegion.withCommasExpected {
-              funArgType() match
-                case Ident(name) if name != tpnme.WILDCARD && in.isColon =>
-                  isValParamList = true
-                  commaSeparatedRest(
-                    typedFunParam(paramStart, name.toTermName, imods),
-                    () => typedFunParam(in.offset, ident(), imods))
-                case t =>
-                  commaSeparatedRest(t, funArgType)
+            val ts = fromWithoutQualifiedTypeSetNotation{
+              if isErased then imods = addModifier(imods)
+              val paramStart = in.offset
+              val ts = in.currentRegion.withCommasExpected {
+                funArgType() match
+                  case Ident(name) if name != tpnme.WILDCARD && in.isColon =>
+                    isValParamList = true
+                    commaSeparatedRest(
+                      typedFunParam(paramStart, name.toTermName, imods),
+                      () => typedFunParam(in.offset, ident(), imods))
+                  case t =>
+                    commaSeparatedRest(t, funArgType)
+              }
+              accept(RPAREN)
+              ts
             }
-            accept(RPAREN)
+
             if isValParamList || in.isArrow || isPureArrow then
               functionRest(ts)
             else {
@@ -1569,6 +1616,8 @@ object Parsers {
         }
         else if in.token == LBRACE && followingIsCaptureSet() then
           CapturingTypeTree(captureSet(), typ())
+        else if in.isNestedStart && followingIsQualifiedTypeSetNotation() then
+          qualifiedTypeSetNotation()
         else if (in.token == INDENT) enclosed(INDENT, typ())
         else infixType()
 
@@ -1657,20 +1706,144 @@ object Parsers {
       else t
     }
 
-    /** WithType ::= AnnotType {`with' AnnotType}    (deprecated)
+    def qualifiedTypeSetNotation(): Tree =
+      // parses `{` identifier `:` beingQualified `with` qualifier `}`
+      val (startingOffset, identifier, beingQualified, qualifier) = inBracesOrIndented{
+        val offset = in.offset
+        val id = ident()
+        accept(COLONfollow)
+        val t = fromWithinQualifiedTypeSetNotation(typ())
+        accept(WITH)
+        val qual = block(simplify = true)
+        (offset, id, t, qual)
+      }
+
+      buildQualifiedType(startingOffset, identifier, beingQualified, qualifier)
+
+    def buildQualifiedType(startingOffset: Offset, beingQualified: Tree, predicate: Tree): Tree =
+      val fullSpan = Span(startingOffset, predicate.span.end)
+      // Was not able to make code look neater with the following, as the `ref` creates TypedSplices, and `.symbol` on it was always empty
+      //val qualifiedAnnot = wrapNew(ref(ctx.definitions.QualifiedAnnot))
+      val qualifiedAnnot = scalaAnnotationDot(nme.qualified)
+
+      // @qualified[beingQualified](predicate)
+      val annot: Tree = Apply(TypeApply(qualifiedAnnot, List(beingQualified)), predicate).withSpan(fullSpan)
+
+      // beingQualified @qualified[beingQualified](pred)
+      Annotated(beingQualified, annot).withSpan(fullSpan)
+
+    def buildQualifiedType(startingOffset: Offset, identifier: TermName, beingQualified: Tree, qualifier: Tree): Tree =
+
+      // identifier: beingQualified
+      val paramPred = makeParameter(identifier, beingQualified, EmptyModifiers) // modifier Param is already added by makeParameter
+
+      // (identifier: beingQualified) => qualifier
+      val pred: Tree = WildcardFunction(List(paramPred), qualifier) // Same as Function, but less span checks
+
+      buildQualifiedType(startingOffset, beingQualified, pred)
+
+    /**
+     * With qualifiedTypes & setNotation enabled:
+     * WithType ::= AnnotType [`with' PostfixExpr]
+     *
+     * With qualifiedTypes & postficLambda enabled:
+     * WithType ::= AnnotType [`with' [Identifier `=>'] PostfixExpr]  -- the rhs of `with` has to be explicitly a function, or a boolean
+     *
+     * Otherwise:
+     * WithType ::= AnnotType {`with' AnnotType}    (deprecated)
      */
     def withType(): Tree = withTypeRest(annotType())
 
     def withTypeRest(t: Tree): Tree =
       if in.token == WITH then
-        val withOffset = in.offset
-        in.nextToken()
-        if in.token == LBRACE || in.token == INDENT then
-          t
+        if in.featureEnabled(Feature.setNotation) then
+          assert(Feature.qualifiedTypesEnabled, "Set notation is a syntax for qualifiedTypes, which are not enabled")
+          assert(!in.featureEnabled(Feature.postfixLambda), "Set notation syntax is incompatible with postfix lambda syntax")
+
+          if inQualifiedTypeSetNotation then // Don't interpret {x: T with p} as {x: (T with p) <error: missing with> }
+            t
+          else
+            val withOffset = in.offset
+            in.nextToken()
+            // parses t with rhs
+            // TODO: Restrict parser to forbid things like matches
+            val qualifier = postfixExpr()
+
+            //TODO: Move this above qualifier ?
+            val startingOffset = t.span.start
+            val identifier =
+              if currentParameterIdentifier == null then
+                WildcardParamName.fresh()
+              else
+                currentParameterIdentifier
+
+            buildQualifiedType(startingOffset, identifier, beingQualified = t, qualifier)
         else
-          if sourceVersion.isAtLeast(future) then
-            deprecationWarning(DeprecatedWithOperator(), withOffset)
-          atSpan(startOffset(t)) { makeAndType(t, withType()) }
+          val withOffset = in.offset
+          in.nextToken()
+          if in.featureEnabled(Feature.postfixLambda) then
+            assert(Feature.qualifiedTypesEnabled, "Postfix lambda is a syntax for qualifiedTypes, which are not enabled")
+            assert(!in.featureEnabled(Feature.setNotation), "Postfix lambda syntax is incompatible with set notation syntax")
+            // Stolen from expr()
+            val saved = placeholderParams
+            placeholderParams = Nil
+
+            def followedByArrow() =
+              val arrow = showToken(in.token)
+              em"""Qualified types may not be directly followed by $arrow
+               |consider enclosing it or its predicate in parentheses"""
+
+            // parses t with rhs
+            // TODO: Restrict parser to forbid things like matches
+            val (hardIdentifier, rhs) =
+              if in.isIdent && in.lookahead.isArrow then
+                val identifier = ident()
+                assert(in.isArrow)
+                in.nextToken()
+                (identifier, postfixExpr()) // TODO: If we keep same parser in both branches, simplify
+              else
+                val rhs = postfixExpr()
+                if in.isArrow then
+                  syntaxError(followedByArrow(), in.offset)
+                (null, rhs)
+
+            val numberOfwildcards: Int = placeholderParams.size
+
+            // Should probably be moved before rhs ? (then not lazy val !)
+            lazy val softIdentifier =
+              if currentParameterIdentifier == null then
+                WildcardParamName.fresh()
+              else
+                currentParameterIdentifier
+
+            def extractPredAndBuild(tree: Tree): Tree = tree match
+              case Parens(subtree)        => extractPredAndBuild(subtree)
+              case Block(List(), subtree) => extractPredAndBuild(subtree)
+              case _ if hardIdentifier != null =>
+                buildQualifiedType(t.span.start, hardIdentifier,     t, tree)
+              case _ if numberOfwildcards == 1 =>
+                val wildcardIdentifier = placeholderParams.head.name
+                buildQualifiedType(t.span.start, wildcardIdentifier, t, tree)
+              case Match(EmptyTree, _) | _: Function =>
+                buildQualifiedType(t.span.start,                     t, tree)
+              case _ =>
+                buildQualifiedType(t.span.start, softIdentifier,     t, tree) // if not already a function, make buildQualifiedType build one
+            try
+              if numberOfwildcards >= 2 then
+                syntaxError(em"Qualified type's qualifier contains $numberOfwildcards wildcards (${showToken(USCORE)}), when the maximum is 1", rhs.span)
+                errorTermTree(rhs.span.start)
+              else
+                extractPredAndBuild(rhs)
+            finally
+              placeholderParams = saved
+
+          else
+            if in.token == LBRACE || in.token == INDENT then
+              t
+            else
+              if sourceVersion.isAtLeast(future) then
+                deprecationWarning(DeprecatedWithOperator(), withOffset)
+              atSpan(startOffset(t)) { makeAndType(t, withType()) }
       else t
 
     /** AnnotType ::= SimpleType {Annotation}
@@ -1770,6 +1943,8 @@ object Parsers {
         atSpan(in.offset) {
           makeTupleOrParens(inParens(argTypes(namedOK = false, wildOK = true)))
         }
+      else if in.isNestedStart && followingIsQualifiedTypeSetNotation() then
+        qualifiedTypeSetNotation()
       else if in.token == LBRACE then
         atSpan(in.offset) { RefinedTypeTree(EmptyTree, refinement(indentOK = false)) }
       else if (isSplice)
@@ -3080,8 +3255,8 @@ object Parsers {
  /* -------- PARAMETERS ------------------------------------------- */
 
     /** DefParamClauses       ::= DefParamClause { DefParamClause }  -- and two DefTypeParamClause cannot be adjacent
-     *  DefParamClause        ::= DefTypeParamClause 
-     *                          | DefTermParamClause 
+     *  DefParamClause        ::= DefTypeParamClause
+     *                          | DefTermParamClause
      *                          | UsingParamClause
      */
     def typeOrTermParamClauses(
@@ -3179,7 +3354,7 @@ object Parsers {
      *  UsingClsTermParamClause::= ‘(’ ‘using’ [‘erased’] (ClsParams | ContextTypes) ‘)’
      *  ClsParams         ::=  ClsParam {‘,’ ClsParam}
      *  ClsParam          ::=  {Annotation}
-     * 
+     *
      *  TypelessClause    ::= DefTermParamClause
      *                      | UsingParamClause
      *
@@ -3239,6 +3414,7 @@ object Parsers {
         }
         atSpan(start, nameStart) {
           val name = ident()
+          currentParameterIdentifier = name
           acceptColon()
           if (in.token == ARROW && ofClass && !mods.is(Local))
             syntaxError(VarValParametersMayNotBeCallByName(name, mods.is(Mutable)))
@@ -3249,6 +3425,7 @@ object Parsers {
             else EmptyTree
           if (impliedMods.mods.nonEmpty)
             impliedMods = impliedMods.withMods(Nil) // keep only flags, so that parameter positions don't overlap
+          currentParameterIdentifier = null
           ValDef(name, tpt, default).withMods(mods)
         }
       }
@@ -3280,7 +3457,9 @@ object Parsers {
                 || startParamTokens.contains(in.token)
                 || isIdent && (in.name == nme.inline || in.lookahead.isColon)
               if isParams then commaSeparated(() => param())
-              else contextTypes(ofClass, numLeadParams, impliedMods)
+              else
+                currentParameterIdentifier = null
+                contextTypes(ofClass, numLeadParams, impliedMods)
           checkVarArgsRules(clause)
           clause
       }
@@ -3557,13 +3736,13 @@ object Parsers {
       }
     }
 
-    
+
 
     /** DefDef  ::=  DefSig [‘:’ Type] ‘=’ Expr
      *            |  this TypelessClauses [DefImplicitClause] `=' ConstrExpr
      *  DefDcl  ::=  DefSig `:' Type
      *  DefSig  ::=  id [DefTypeParamClause] DefTermParamClauses
-     * 
+     *
      * if clauseInterleaving is enabled:
      *  DefSig  ::=  id [DefParamClauses] [DefImplicitClause]
      */
@@ -3602,8 +3781,8 @@ object Parsers {
         val mods1 = addFlag(mods, Method)
         val ident = termIdent()
         var name = ident.name.asTermName
-        val paramss = 
-          if in.featureEnabled(Feature.clauseInterleaving) then 
+        val paramss =
+          if in.featureEnabled(Feature.clauseInterleaving) then
             // If you are making interleaving stable manually, please refer to the PR introducing it instead, section "How to make non-experimental"
             typeOrTermParamClauses(ParamOwner.Def, numLeadParams = numLeadParams)
           else
@@ -3613,7 +3792,7 @@ object Parsers {
             joinParams(tparams, vparamss)
 
         var tpt = fromWithinReturnType { typedOpt() }
-        
+
         if (migrateTo3) newLineOptWhenFollowedBy(LBRACE)
         val rhs =
           if in.token == EQUALS then

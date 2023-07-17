@@ -14,25 +14,25 @@ import Recheck.*
 import annotation.constructorOnly
 import dotty.tools.dotc.ast.tpd
 
-class CheckRefinements extends Recheck:
-  override def phaseName = "checkRefinements"
+class CheckQualifiedTypes extends Recheck:
+  override def phaseName = "checkQualifiedTypes"
 
   override def run(using Context): Unit =
-    if Feature.refinementsEnabled then super.run
+    if Feature.qualifiedTypesEnabled then super.run
 
-  override def newRechecker()(using Context): Rechecker = RefinementsRechecker(ctx)
+  override def newRechecker()(using Context): Rechecker = QualifierRechecker(ctx)
   /** The typechecker pass */
-  class RefinementsRechecker(@constructorOnly ictx: Context) extends Rechecker(ictx):
+  class QualifierRechecker(@constructorOnly ictx: Context) extends Rechecker(ictx):
 
     override def recheckTypeTree(tree: tpd.TypeTree)(using Context): Type =
       knownType(tree) match
         case tp: AnnotatedType
-          if ctx.phase == Phases.checkRefinementsPhase
-            && tp.annot.symbol == defn.RefinedAnnot =>
+          if ctx.phase == Phases.checkQualifiersPhase
+            && tp.annot.symbol == defn.QualifiedAnnot =>
           tp.annot.tree.tpe match
             case AppliedType(_, List(arg)) =>
               if arg != tp.parent then
-                val msg = em"Malformed refinement. Expected a refinement of ${tp.parent.show} but got ${arg.show}."
+                val msg = em"Malformed qualifier. Expected to qualify ${tp.parent} but was ${arg}."
                 report.error(msg, tp.annot.tree.sourcePos)
                 ErrorType(msg)
               else knownType(tree)
@@ -42,14 +42,14 @@ class CheckRefinements extends Recheck:
     override def recheckDefDef(tree: DefDef, sym: Symbol)(using Context): Unit =
       tree.termParamss
         .flatten
-        .flatMap(param => RefinementType.unapply(param.tpe))
+        .flatMap(param => QualifiedType.unapply(param.tpe))
         .foreach(checkPredicateFormat)
 
-      RefinementType.unapply(tree.tpe)
+      QualifiedType.unapply(tree.tpe)
         .foreach(checkPredicateFormat)
     */
 
 
-object CheckRefinements:
+object CheckQualifiedTypes:
   class Pre extends PreRecheck, IdentityDenotTransformer:
     override def isEnabled(using Context) = true
