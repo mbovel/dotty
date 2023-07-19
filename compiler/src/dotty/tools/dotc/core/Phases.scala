@@ -17,11 +17,12 @@ import parsing.Parser
 import printing.XprintMode
 import typer.{TyperPhase, RefChecks}
 import cc.CheckCaptures
-import refine.CheckQualifiedTypes
+import qualifiers.CheckQualifiedTypes
 import typer.ImportInfo.withRootImports
 import ast.{tpd, untpd}
 import scala.annotation.internal.sharable
 import scala.util.control.NonFatal
+import dotty.tools.dotc.qualifiers.CheckQualifiedTypes
 
 object Phases {
 

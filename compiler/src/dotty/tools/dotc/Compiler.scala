@@ -5,13 +5,14 @@ import core._
 import Contexts._
 import typer.{TyperPhase, RefChecks}
 import cc.CheckCaptures
-import refine.CheckQualifiedTypes
+import qualifiers.CheckQualifiedTypes
 import parsing.Parser
 import Phases.Phase
 import transform._
 import dotty.tools.backend
 import backend.jvm.{CollectSuperCalls, GenBCode}
 import localopt.StringInterpolatorOpt
+import dotty.tools.dotc.qualifiers.CheckQualifiedTypes
 
 /** The central class of the dotc compiler. The job of a compiler is to create
  *  runs, which process given `phases` in a given `rootContext`.

@@ -25,6 +25,7 @@ import reporting._
 import collection.mutable
 import transform.TypeUtils._
 import cc.{CapturingType, derivedCapturingType, Setup, EventuallyCapturingType, isEventuallyCapturingType}
+import qualifiers.{QualifiedType, derivedQualifiedType}
 
 import scala.annotation.internal.sharable
 
@@ -2273,6 +2274,9 @@ object SymDenotations {
 
           case CapturingType(parent, refs) =>
             tp.derivedCapturingType(recur(parent), refs)
+
+          case QualifiedType(parent, refinement) =>
+            tp.derivedQualifiedType(recur(parent), refinement)
 
           case tp: TypeProxy =>
             def computeTypeProxy = {

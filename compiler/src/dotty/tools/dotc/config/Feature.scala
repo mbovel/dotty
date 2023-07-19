@@ -35,6 +35,7 @@ object Feature:
   val qualifiedTypes = experimental("qualifiedTypes")
   val setNotation = experimental("setNotation")
   val postfixLambda = experimental("postfixLambda")
+  val noQualifierChecks = experimental("noQualifierChecks")
   val into = experimental("into")
 
   val globalOnlyImports: Set[TermName] = Set(pureFunctions, captureChecking)
@@ -93,9 +94,13 @@ object Feature:
   /** Is the postfix lambda syntax enabled in this scope? */
   def postfixLambdaEnabled(using Context) = enabled(postfixLambda)
 
-  /** Is QualifierChecking enabled for this compilation unit? */
+  /** Are qualified types enabled for this compilation unit? */
   def qualifiedTypesEnabled(using Context) =
     enabledBySetting(qualifiedTypes)
+
+  /** Are qualified types checking disabled for this compilation unit? */
+  def qualifierChecksDisabled(using Context) =
+    enabledBySetting(noQualifierChecks)
 
   /** Is pureFunctions enabled for this compilation unit? */
   def pureFunsEnabled(using Context) =

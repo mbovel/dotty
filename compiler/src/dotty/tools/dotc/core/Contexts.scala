@@ -19,7 +19,7 @@ import inlines.Inliner
 import Nullables._
 import Implicits.ContextualImplicits
 import config.Settings._
-import config.Config
+import config.{Config, Feature}
 import reporting._
 import io.{AbstractFile, NoAbstractFile, PlainFile, Path}
 import scala.io.Codec
@@ -29,6 +29,7 @@ import config.{JavaPlatform, SJSPlatform, Platform, ScalaSettings}
 import classfile.ReusableDataReader
 import StdNames.nme
 import compiletime.uninitialized
+import qualifiers.solver.{QualifierSolver, NoChecksQualifierSolver, NaiveQualifierSolver}
 
 import scala.annotation.internal.sharable
 
@@ -40,6 +41,7 @@ import xsbti.AnalysisCallback
 import plugins._
 import java.util.concurrent.atomic.AtomicInteger
 import java.nio.file.InvalidPathException
+import scala.annotation.{threadUnsafe => tu}
 
 object Contexts {
 
@@ -145,6 +147,7 @@ object Contexts {
     def gadtState: GadtState
     def searchHistory: SearchHistory
     def source: SourceFile
+    def qualifierSolver: QualifierSolver
 
     /** A map in which more contextual properties can be stored
      *  Typically used for attributes that are read and written only in special situations.
@@ -563,6 +566,9 @@ object Contexts {
     private var _store: Store = uninitialized
     final def store: Store = _store
 
+    private var _QualifierSolver: QualifierSolver = uninitialized
+    final def qualifierSolver: QualifierSolver = _QualifierSolver
+
    /** Initialize all context fields, except typerState, which has to be set separately
      *  @param  outer   The outer context
      *  @param  origin  The context from which fields are copied
@@ -579,6 +585,7 @@ object Contexts {
       _source = origin.source
       _moreProperties = origin.moreProperties
       _store = origin.store
+      _QualifierSolver = origin.qualifierSolver
       this
     }
 
@@ -729,6 +736,9 @@ object Contexts {
           .updated(compilationUnitLoc, NoCompilationUnit)
       c._searchHistory = new SearchRoot
       c._gadtState = GadtState(GadtConstraint.empty)
+      c._QualifierSolver =
+        if Feature.qualifierChecksDisabled(using c) then NoChecksQualifierSolver()
+        else NaiveQualifierSolver()
       c
   end FreshContext
 

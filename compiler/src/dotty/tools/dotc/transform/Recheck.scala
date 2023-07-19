@@ -300,6 +300,9 @@ abstract class Recheck extends Phase, SymTransformer:
           val argTypes = tree.args.map(recheck(_))
           constFold(tree, fntpe.instantiate(argTypes))
 
+    def recheckLiteral(tree: Literal)(using Context): Type =
+      tree.tpe
+
     def recheckTyped(tree: Typed)(using Context): Type =
       val tptType = recheck(tree.tpt)
       recheck(tree.expr, tptType)
@@ -329,10 +332,11 @@ abstract class Recheck extends Phase, SymTransformer:
       recheck(tree.thenp, pt) | recheck(tree.elsep, pt)
 
     def recheckClosure(tree: Closure, pt: Type)(using Context): Type =
-      if tree.tpt.isEmpty then
+      val res = if tree.tpt.isEmpty then
         tree.meth.tpe.widen.toFunctionType(tree.meth.symbol.is(JavaDefined))
       else
         recheck(tree.tpt)
+      res
 
     def recheckMatch(tree: Match, pt: Type)(using Context): Type =
       val selectorType = recheck(tree.selector)
@@ -460,7 +464,8 @@ abstract class Recheck extends Phase, SymTransformer:
       def recheckUnnamed(tree: Tree, pt: Type): Type = tree match
         case tree: Apply => recheckApply(tree, pt)
         case tree: TypeApply => recheckTypeApply(tree, pt)
-        case _: New | _: This | _: Super | _: Literal => tree.tpe
+        case _: New | _: This | _: Super => tree.tpe
+        case tree: Literal => recheckLiteral(tree)
         case tree: Typed => recheckTyped(tree)
         case tree: Assign => recheckAssign(tree)
         case tree: Block => recheckBlock(tree, pt)

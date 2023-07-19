@@ -26,6 +26,9 @@ import annotation.constructorOnly
 import cc.{CapturingType, derivedCapturingType, CaptureSet, stripCapturing, isBoxedCapturing, boxed, boxedUnlessFun, boxedIfTypeParam, isAlwaysPure}
 import NameKinds.WildcardParamName
 
+import dotty.tools.dotc.qualifiers.{QualifierExpr, QualifiedType, stripRefinements, derivedQualifiedType}
+import dotty.tools.dotc.qualifiers.solver.QualifierSolver
+
 /** Provides methods to compare types.
  */
 class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling, PatternTypeConstrainer {
@@ -242,6 +245,8 @@ class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling
    *  one sub-part of isSubType to another.
    */
   protected def recur(tp1: Type, tp2: Type): Boolean = trace(s"isSubType ${traceInfo(tp1, tp2)}${approx.show}", subtyping) {
+    //for ste <- Thread.currentThread().getStackTrace() do
+    //    System.out.println(ste.toString())
 
     def monitoredIsSubType = {
       if (pendingSubTypes == null) {
@@ -357,6 +362,8 @@ class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling
       case tp2: LazyRef =>
         isBottom(tp1) || !tp2.evaluating && recur(tp1, tp2.ref)
       case CapturingType(_, _) =>
+        secondTry
+      case QualifiedType(_, _) =>
         secondTry
       case tp2: AnnotatedType if !tp2.isRefining =>
         recur(tp1, tp2.parent)
@@ -544,6 +551,11 @@ class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling
           || !ctx.mode.is(Mode.CheckBoundsOrSelfType) && tp1.isAlwaysPure
         then recur(parent1, tp2)
         else thirdTry
+      case tp1 @ QualifiedType(parent1, refinement1) =>
+        if recur(tp1.stripRefinements, tp2.stripRefinements) then
+          ctx.qualifierSolver.tryImply(QualifierExpr.ofType(tp1), QualifierExpr.ofType(tp2))
+        else
+          thirdTry
       case tp1: AnnotatedType if !tp1.isRefining =>
         recur(tp1.parent, tp2)
       case tp1: MatchType =>
@@ -859,6 +871,13 @@ class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling
             println(i"assertion failed while compare captured $tp1 <:< $tp2")
             throw ex
         compareCapturing || fourthTry
+      case tp2 @ QualifiedType(parent2, refinement2) =>
+        given QualifierSolver = ctx.qualifierSolver
+        if recur(tp1.stripRefinements, tp2.stripRefinements) then
+          //println(f"Check refinements implication (tp2): ${tp1.show} <:< ${tp2.show}")
+          ctx.qualifierSolver.tryImply(QualifierExpr.ofType(tp1), QualifierExpr.ofType(tp2))
+        else
+          fourthTry
       case tp2: AnnotatedType if tp2.isRefining =>
         (tp1.derivesAnnotWith(tp2.annot.sameAnnotation) || tp1.isBottomType) &&
         recur(tp1, tp2.parent)
@@ -2607,6 +2626,9 @@ class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling
         parent1 & tp2
       else
         tp1.derivedCapturingType(parent1 & tp2, refs1)
+    case QualifiedType(parent1, refinement) =>
+      // TODO(mbovel): check that it makes sense.
+      tp1.derivedQualifiedType(parent1 & tp2, refinement)
     case tp1: AnnotatedType if !tp1.isRefining =>
       tp1.underlying & tp2
     case _ =>

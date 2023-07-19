@@ -40,6 +40,8 @@ object Printers {
   val pickling = noPrinter
   val quotePickling = noPrinter
   val plugins = noPrinter
+   // TODO(mbovel): change to noPrinter
+  val qual = default // used to print info related to qualified types
   val recheckr = noPrinter
   val refcheck = noPrinter
   val simplify = noPrinter
