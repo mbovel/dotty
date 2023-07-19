@@ -141,7 +141,7 @@ object Inferencing {
    *   3. T is minimized if it has a lower bound (different from Nothing) in the
    *      current constraint (the bound might come from T's declaration).
    *   4. Otherwise, T is maximized if it has an upper bound (different from Any)
-   *      in the currented constraint (the bound might come from T's declaration).
+   *      in the current constraint (the bound might come from T's declaration).
    *   5. Otherwise, T is not instantiated at all.
 
    *  If (1) and (2) do not apply, and minimizeSelected is not set:
@@ -166,14 +166,18 @@ object Inferencing {
 
     private var toMaximize: List[TypeVar] = Nil
 
-    def apply(x: Boolean, tp: Type): Boolean =
-      try tp.dealias match
+    def apply(x: Boolean, tp: Type): Boolean = trace(i"isFullyDefined($tp, $force)", typr) {
+      try {
+      val tpd = tp.dealias
+      if tpd ne tp then apply(x, tpd)
+      else tp match
         case _: WildcardType | _: ProtoType =>
           false
         case tvar: TypeVar if !tvar.isInstantiated =>
           force.appliesTo(tvar)
           && ctx.typerState.constraint.contains(tvar)
           && {
+            var fail = false
             val direction = instDirection(tvar.origin)
             if minimizeSelected then
               if direction <= 0 && tvar.hasLowerBound then
@@ -186,17 +190,16 @@ object Inferencing {
             else if variance >= 0 && (force.ifBottom == IfBottom.ok && !tvar.hasUpperBound || tvar.hasLowerBound) then
               instantiate(tvar, fromBelow = true)
             else if variance >= 0 && force.ifBottom == IfBottom.fail then
-              return false
+              fail = true
             else
               toMaximize = tvar :: toMaximize
-            foldOver(x, tvar)
+            !fail && foldOver(x, tvar)
           }
-        case tp =>
-          reporting.trace(s"IFT $tp") {
-            foldOver(x, tp)
-          }
+        case tp => foldOver(x, tp)
+      }
       catch case ex: Throwable =>
-        handleRecursive("check fully defined", tp.show, ex)
+        handleRecursive("check fully defined", tp.showSummary(20), ex)
+    }
 
     def process(tp: Type): Boolean =
       // Maximize type vars in the order they were visited before */
@@ -237,16 +240,16 @@ object Inferencing {
       * relationship _necessarily_ must hold.
       *
       * We accomplish that by:
-      *   - replacing covariant occurences with upper GADT bound
-      *   - replacing contravariant occurences with lower GADT bound
-      *   - leaving invariant occurences alone
+      *   - replacing covariant occurrences with upper GADT bound
+      *   - replacing contravariant occurrences with lower GADT bound
+      *   - leaving invariant occurrences alone
       *
       * Examples:
       *   - If we have GADT cstr A <: Int, then for all A <: Int, Option[A] <: Option[Int].
       *     Therefore, we can approximate Option[A] ~~ Option[Int].
       *   - If we have A >: S <: T, then for all such A, A => A <: S => T. This
       *     illustrates that it's fine to differently approximate different
-      *     occurences of same type.
+      *     occurrences of same type.
       *   - If we have A <: Int and F <: [A] => Option[A] (note the invariance),
       *     then we should approximate F[A] ~~ Option[A]. That is, we should
       *     respect the invariance of the type constructor.
@@ -307,16 +310,17 @@ object Inferencing {
   }
 
   /** If `tree` has a type lambda type, infer its type parameters by comparing with expected type `pt` */
-  def inferTypeParams(tree: Tree, pt: Type)(using Context): Tree = tree.tpe match {
+  def inferTypeParams(tree: Tree, pt: Type)(using Context): Tree = tree.tpe match
     case tl: TypeLambda =>
       val (tl1, tvars) = constrained(tl, tree)
       var tree1 = AppliedTypeTree(tree.withType(tl1), tvars)
       tree1.tpe <:< pt
-      fullyDefinedType(tree1.tpe, "template parent", tree.srcPos)
-      tree1
+      if isFullyDefined(tree1.tpe, force = ForceDegree.failBottom) then
+        tree1
+      else
+        EmptyTree
     case _ =>
       tree
-  }
 
   def isSkolemFree(tp: Type)(using Context): Boolean =
     !tp.existsPart(_.isInstanceOf[SkolemType])
@@ -403,7 +407,7 @@ object Inferencing {
     val vs = variances(tp)
     val patternBindings = new mutable.ListBuffer[(Symbol, TypeParamRef)]
     val gadtBounds = ctx.gadt.symbols.map(ctx.gadt.bounds(_).nn)
-    vs foreachBinding { (tvar, v) =>
+    vs.underlying foreachBinding { (tvar, v) =>
       if !tvar.isInstantiated then
         // if the tvar is covariant/contravariant (v == 1/-1, respectively) in the input type tp
         // then it is safe to instantiate if it doesn't occur in any of the GADT bounds.
@@ -436,8 +440,6 @@ object Inferencing {
     res
   }
 
-  type VarianceMap = SimpleIdentityMap[TypeVar, Integer]
-
   /** All occurrences of type vars in `tp` that satisfy predicate
    *  `include` mapped to their variances (-1/0/1) in both `tp` and
    *  `pt.finalResultType`, where
@@ -445,7 +447,7 @@ object Inferencing {
    *  +1 means: only covariant occurrences
    *  0 means: mixed or non-variant occurrences
    *
-   *  We need to take the occurences in `pt` into account because a type
+   *  We need to take the occurrences in `pt` into account because a type
    *  variable created when typing the current tree might only appear in the
    *  bounds of a type variable in the expected type, for example when
    *  `ConstraintHandling#legalBound` creates type variables when approximating
@@ -461,23 +463,18 @@ object Inferencing {
    *
    *  we want to instantiate U to x.type right away. No need to wait further.
    */
-  private def variances(tp: Type, pt: Type = WildcardType)(using Context): VarianceMap = {
+  private def variances(tp: Type, pt: Type = WildcardType)(using Context): VarianceMap[TypeVar] = {
     Stats.record("variances")
     val constraint = ctx.typerState.constraint
 
-    object accu extends TypeAccumulator[VarianceMap] {
+    object accu extends TypeAccumulator[VarianceMap[TypeVar]]:
       def setVariance(v: Int) = variance = v
-      def apply(vmap: VarianceMap, t: Type): VarianceMap = t match {
+      def apply(vmap: VarianceMap[TypeVar], t: Type): VarianceMap[TypeVar] = t match
         case t: TypeVar
         if !t.isInstantiated && accCtx.typerState.constraint.contains(t) =>
-          val v = vmap(t)
-          if (v == null) vmap.updated(t, variance)
-          else if (v == variance || v == 0) vmap
-          else vmap.updated(t, 0)
+          vmap.recordLocalVariance(t, variance)
         case _ =>
           foldOver(vmap, t)
-      }
-    }
 
     /** Include in `vmap` type variables occurring in the constraints of type variables
      *  already in `vmap`. Specifically:
@@ -489,10 +486,10 @@ object Inferencing {
      *     bounds as non-variant.
      *  Do this in a fixpoint iteration until `vmap` stabilizes.
      */
-    def propagate(vmap: VarianceMap): VarianceMap = {
+    def propagate(vmap: VarianceMap[TypeVar]): VarianceMap[TypeVar] = {
       var vmap1 = vmap
       def traverse(tp: Type) = { vmap1 = accu(vmap1, tp) }
-      vmap.foreachBinding { (tvar, v) =>
+      vmap.underlying.foreachBinding { (tvar, v) =>
         val param = tvar.origin
         constraint.entry(param) match
           case TypeBounds(lo, hi) =>
@@ -508,7 +505,7 @@ object Inferencing {
       if (vmap1 eq vmap) vmap else propagate(vmap1)
     }
 
-    propagate(accu(accu(SimpleIdentityMap.empty, tp), pt.finalResultType))
+    propagate(accu(accu(VarianceMap.empty, tp), pt.finalResultType))
   }
 
   /** Run the transformation after dealiasing but return the original type if it was a no-op. */
@@ -560,7 +557,7 @@ trait Inferencing { this: Typer =>
    *  Eligible for interpolation are all type variables owned by the current typerstate
    *  that are not in `locked` and whose `nestingLevel` is `>= ctx.nestingLevel`.
    *  Type variables occurring co- (respectively, contra-) variantly in the tree type
-   *  or expected type are minimized (respectvely, maximized). Non occurring type variables are minimized if they
+   *  or expected type are minimized (respectively, maximized). Non occurring type variables are minimized if they
    *  have a lower bound different from Nothing, maximized otherwise. Type variables appearing
    *  non-variantly in the type are left untouched.
    *
@@ -634,7 +631,7 @@ trait Inferencing { this: Typer =>
               if !tvar.isInstantiated then
                 // isInstantiated needs to be checked again, since previous interpolations could already have
                 // instantiated `tvar` through unification.
-                val v = vs(tvar)
+                val v = vs.computedVariance(tvar)
                 if v == null then buf += ((tvar, 0))
                 else if v.intValue != 0 then buf += ((tvar, v.intValue))
                 else comparing(cmp =>
@@ -767,13 +764,14 @@ trait Inferencing { this: Typer =>
   end constrainIfDependentParamRef
 }
 
-/** An enumeration controlling the degree of forcing in "is-dully-defined" checks. */
+/** An enumeration controlling the degree of forcing in "is-fully-defined" checks. */
 @sharable object ForceDegree {
-  class Value(val appliesTo: TypeVar => Boolean, val ifBottom: IfBottom)
-  val none: Value = new Value(_ => false, IfBottom.ok)
-  val all: Value = new Value(_ => true, IfBottom.ok)
-  val failBottom: Value = new Value(_ => true, IfBottom.fail)
-  val flipBottom: Value = new Value(_ => true, IfBottom.flip)
+  class Value(val appliesTo: TypeVar => Boolean, val ifBottom: IfBottom):
+    override def toString = s"ForceDegree.Value(.., $ifBottom)"
+  val none: Value       = new Value(_ => false, IfBottom.ok)  { override def toString = "ForceDegree.none" }
+  val all: Value        = new Value(_ => true, IfBottom.ok)   { override def toString = "ForceDegree.all" }
+  val failBottom: Value = new Value(_ => true, IfBottom.fail) { override def toString = "ForceDegree.failBottom" }
+  val flipBottom: Value = new Value(_ => true, IfBottom.flip) { override def toString = "ForceDegree.flipBottom" }
 }
 
 enum IfBottom:

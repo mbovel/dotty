@@ -11,6 +11,7 @@ import complete.DefaultParsers._
 import pl.project13.scala.sbt.JmhPlugin
 import pl.project13.scala.sbt.JmhPlugin.JmhKeys.Jmh
 import sbt.Package.ManifestAttributes
+import sbt.PublishBinPlugin.autoImport._
 import sbt.plugins.SbtPlugin
 import sbt.ScriptedPlugin.autoImport._
 import xerial.sbt.pack.PackPlugin
@@ -21,6 +22,8 @@ import org.scalajs.sbtplugin.ScalaJSPlugin
 import org.scalajs.sbtplugin.ScalaJSPlugin.autoImport._
 import sbtbuildinfo.BuildInfoPlugin
 import sbtbuildinfo.BuildInfoPlugin.autoImport._
+import sbttastymima.TastyMiMaPlugin
+import sbttastymima.TastyMiMaPlugin.autoImport._
 
 import scala.util.Properties.isJavaAtLeast
 import org.portablescala.sbtplatformdeps.PlatformDepsPlugin.autoImport._
@@ -80,9 +83,9 @@ object DottyJSPlugin extends AutoPlugin {
 object Build {
   import ScaladocConfigs._
 
-  val referenceVersion = "3.3.0-RC2"
+  val referenceVersion = "3.3.1-RC4"
 
-  val baseVersion = "3.3.1-RC1"
+  val baseVersion = "3.3.2-RC1" // temporarily, before branching out `3.4.0-RC1`
 
   // Versions used by the vscode extension to create a new project
   // This should be the latest published releases.
@@ -98,7 +101,7 @@ object Build {
    *  set to 3.1.3. If it is going to be 3.1.0, it must be set to the latest
    *  3.0.x release.
    */
-  val previousDottyVersion = "3.2.2"
+  val previousDottyVersion = "3.3.0"
 
   object CompatMode {
     final val BinaryCompatible = 0
@@ -351,6 +354,8 @@ object Build {
       // Reflect doesn't expect to see it as a standalone definition
       // and therefore it's easier just not to document it
       "-skip-by-id:scala.runtime.MatchCase",
+      "-skip-by-id:dotty.tools.tasty",
+      "-skip-by-id:dotty.tools.tasty.util",
       "-project-footer", s"Copyright (c) 2002-$currentYear, LAMP/EPFL",
       "-author",
       "-groups",
@@ -360,6 +365,7 @@ object Build {
 
   // Settings used when compiling dotty with a non-bootstrapped dotty
   lazy val commonBootstrappedSettings = commonDottySettings ++ NoBloopExport.settings ++ Seq(
+    // To enable support of scaladoc and language-server projects you need to change this to true and use sbt as your build server
     bspEnabled := false,
     (Compile / unmanagedSourceDirectories) += baseDirectory.value / "src-bootstrapped",
 
@@ -523,6 +529,9 @@ object Build {
 
   // Settings shared between scala3-compiler and scala3-compiler-bootstrapped
   lazy val commonDottyCompilerSettings = Seq(
+       // Note: bench/profiles/projects.yml should be updated accordingly.
+       Compile / scalacOptions ++= Seq("-Yexplicit-nulls", "-Ysafe-init"),
+
       // Generate compiler.properties, used by sbt
       (Compile / resourceGenerators) += Def.task {
         import java.util._
@@ -546,7 +555,7 @@ object Build {
 
       // get libraries onboard
       libraryDependencies ++= Seq(
-        "org.scala-lang.modules" % "scala-asm" % "9.4.0-scala-1", // used by the backend
+        "org.scala-lang.modules" % "scala-asm" % "9.5.0-scala-1", // used by the backend
         Dependencies.oldCompilerInterface, // we stick to the old version to avoid deprecation warnings
         "org.jline" % "jline-reader" % "3.19.0",   // used by the REPL
         "org.jline" % "jline-terminal" % "3.19.0",
@@ -801,9 +810,6 @@ object Build {
       )
     },
 
-    // Note: bench/profiles/projects.yml should be updated accordingly.
-    Compile / scalacOptions ++= Seq("-Yexplicit-nulls", "-Ysafe-init"),
-
     repl := (Compile / console).value,
     Compile / console / scalacOptions := Nil, // reset so that we get stock REPL behaviour!  E.g. avoid -unchecked being enabled
   )
@@ -921,26 +927,23 @@ object Build {
       javaOptions := (`scala3-compiler-bootstrapped` / javaOptions).value
     )
 
-  /** Scala library compiled by dotty using the latest published sources of the library */
+  /** Scala 2 library compiled by dotty using the latest published sources of the library.
+   *
+   *  This version of the library is not (yet) TASTy/binary compatible with the Scala 2 compiled library.
+   */
   lazy val `stdlib-bootstrapped` = project.in(file("stdlib-bootstrapped")).
     withCommonSettings(Bootstrapped).
     dependsOn(dottyCompiler(Bootstrapped) % "provided; compile->runtime; test->test").
-    dependsOn(`scala3-tasty-inspector` % "test->test").
     settings(commonBootstrappedSettings).
     settings(
-      moduleName := "scala-library",
+      moduleName := "scala2-library",
       javaOptions := (`scala3-compiler-bootstrapped` / javaOptions).value,
-      Compile/scalacOptions += "-Yerased-terms",
-      Compile/scalacOptions ++= {
-        Seq(
-          "-sourcepath",
-          Seq(
-            (Compile/sourceManaged).value / "scala-library-src",
-            (Compile/sourceManaged).value / "dotty-library-src",
-          ).mkString(File.pathSeparator),
-        )
+      Compile / scalacOptions ++= {
+        Seq("-sourcepath", ((Compile/sourceManaged).value / "scala-library-src").toString)
       },
       Compile / doc / scalacOptions += "-Ydocument-synthetic-types",
+      scalacOptions += "-Yscala2-stdlib",
+      scalacOptions += "-Ycheck:all",
       scalacOptions -= "-Xfatal-warnings",
       ivyConfigurations += SourceDeps.hide,
       transitiveClassifiers := Seq("sources"),
@@ -970,50 +973,125 @@ object Build {
           ((trgDir ** "*.scala") +++ (trgDir ** "*.java")).get.toSet
         } (Set(scalaLibrarySourcesJar)).toSeq
       }.taskValue,
-      (Compile / sourceGenerators) += Def.task {
-        val s = streams.value
-        val cacheDir = s.cacheDirectory
-        val trgDir = (Compile / sourceManaged).value / "dotty-library-src"
-
-        // NOTE `sourceDirectory` is used for actual copying,
-        // but `sources` are used as cache keys
-        val dottyLibSourceDirs = (`scala3-library-bootstrapped`/Compile/unmanagedSourceDirectories).value
-        def dottyLibSources = dottyLibSourceDirs.foldLeft(PathFinder.empty) { (pf, dir) =>
-          if (!dir.exists) pf else pf +++ (dir ** "*.scala") +++ (dir ** "*.java")
-        }
-
-        val cachedFun = FileFunction.cached(
-          cacheDir / s"copyDottyLibrarySrc",
-          FilesInfo.lastModified,
-          FilesInfo.exists,
-        ) { _ =>
-          if (trgDir.exists) IO.delete(trgDir)
-          dottyLibSourceDirs.foreach { dir =>
-            if (dir.exists) {
-              s.log.info(s"Copying scala3-library sources from $dir to $trgDir...")
-              IO.copyDirectory(dir, trgDir)
-            }
-          }
-
-          ((trgDir ** "*.scala") +++ (trgDir ** "*.java")).get.toSet
-        }
-
-        cachedFun(dottyLibSources.get.toSet).toSeq
-      }.taskValue,
-      (Compile / sources) ~= (_.filterNot(file =>
+      (Compile / sources) ~= (_.filterNot { file =>
         // sources from https://github.com/scala/scala/tree/2.13.x/src/library-aux
-        file.getPath.endsWith("scala-library-src/scala/Any.scala") ||
-        file.getPath.endsWith("scala-library-src/scala/AnyVal.scala") ||
-        file.getPath.endsWith("scala-library-src/scala/AnyRef.scala") ||
-        file.getPath.endsWith("scala-library-src/scala/Nothing.scala") ||
-        file.getPath.endsWith("scala-library-src/scala/Null.scala") ||
-        file.getPath.endsWith("scala-library-src/scala/Singleton.scala"))),
+        val path = file.getPath.replace('\\', '/')
+        path.endsWith("scala-library-src/scala/Any.scala") ||
+        path.endsWith("scala-library-src/scala/AnyVal.scala") ||
+        path.endsWith("scala-library-src/scala/AnyRef.scala") ||
+        path.endsWith("scala-library-src/scala/Nothing.scala") ||
+        path.endsWith("scala-library-src/scala/Null.scala") ||
+        path.endsWith("scala-library-src/scala/Singleton.scala")
+      }),
+      (Compile / sources) := {
+        val files = (Compile / sources).value
+        val overwritenSourcesDir = (Compile / scalaSource).value
+        val overwritenSources = files.flatMap(_.relativeTo(overwritenSourcesDir)).toSet
+        val reference = (Compile/sourceManaged).value / "scala-library-src"
+        files.filterNot(_.relativeTo(reference).exists(overwritenSources))
+      },
       (Test / managedClasspath) ~= {
         _.filterNot(file => file.data.getName == s"scala-library-${stdlibVersion(Bootstrapped)}.jar")
+      },
+      mimaCheckDirection := "both",
+      mimaBackwardIssueFilters := MiMaFilters.StdlibBootstrappedBackwards,
+      mimaForwardIssueFilters := MiMaFilters.StdlibBootstrappedForward,
+      mimaPreviousArtifacts += "org.scala-lang" % "scala-library" % stdlibVersion(Bootstrapped),
+      mimaExcludeAnnotations ++= Seq(
+        "scala.annotation.experimental",
+        "scala.annotation.specialized",
+        "scala.annotation.unspecialized",
+      ),
+      tastyMiMaTastyQueryVersionOverride := Some("0.8.4"),
+      tastyMiMaPreviousArtifacts += "org.scala-lang" % "scala-library" % stdlibVersion(Bootstrapped),
+      tastyMiMaCurrentClasspath := {
+        val javaBootCp = tastyMiMaJavaBootClasspath.value
+        val classDir = (Compile / classDirectory).value.toPath()
+        val cp0 = Attributed.data((Compile / fullClasspath).value).map(_.toPath())
+        val cp: Seq[Path] = classDir +: (javaBootCp ++ cp0)
+        (cp, classDir)
+      },
+      tastyMiMaConfig ~= { _.withMoreProblemFilters(TastyMiMaFilters.StdlibBootstrapped) },
+      tastyMiMaReportIssues := tastyMiMaReportIssues.dependsOn(Def.task {
+        val minorVersion = previousDottyVersion.split('.')(1)
+        // TODO find a way around this and test in the CI
+        streams.value.log.warn(
+          s"""To allow TASTy-MiMa to read TASTy files generated by this vesion of the compile you must:
+             | * Modify the TASTy version to the latest stable release (latest version supported by TASTy-MiMa) in in tasty/src/dotty/tools/tasty/TastyFormat.scala
+             |   - final val MinorVersion = $minorVersion
+             |   - final val ExperimentalVersion = 0
+             | * Clean everiting to generate a compiler with those new TASTy vesrions
+             | * Run stdlib-bootstrapped/tastyMiMaReportIssues
+             |""".stripMargin)
+
+      }).value,
+      Compile / exportJars := true,
+      artifactName := { (sv: ScalaVersion, module: ModuleID, artifact: Artifact) =>
+        "scala2-library-" + dottyVersion + "." + artifact.extension
+      },
+      run := {
+        val log = streams.value.log
+        val args: Seq[String] = spaceDelimited("<arg>").parsed
+        args.foreach(println)
+        val rootDir = (ThisBuild / baseDirectory).value
+        val srcDir = (Compile / scalaSource).value.relativeTo(rootDir).get
+        val reference = (Compile/sourceManaged).value.relativeTo(rootDir).get / "scala-library-src"
+        args match {
+          case Seq("list") =>
+            log.info(s"Printing list of non-overriden files in $reference")
+            reference.allPaths.get()
+              .flatMap(_.relativeTo(reference))
+              .filter(_.ext == "scala")
+              .sorted
+              .foreach(println)
+          case Seq(cmd @ ("clone" | "overwrite"), files*) =>
+            log.info("Cloning scala-library sources: " + files.mkString(", "))
+            for (file <- files) {
+              val referenceStdlibPaths = reference / file
+              val destination = srcDir / file
+              if (!referenceStdlibPaths.exists) {
+                log.error("Not found " + referenceStdlibPaths)
+              } else if (destination.exists && cmd == "clone") {
+                log.warn(s"Already exists $destination (use `overwrite` command to overwrite)")
+              } else {
+                val action = if (cmd == "clone") "Cloning" else "Overwriting"
+                log.info(s"$action $destination")
+                IO.copyFile(referenceStdlibPaths, destination)
+              }
+            }
+          case _ =>
+            val projectName = projectInfo.value.nameFormal
+            println(
+              s"""Usage:
+                |> $projectName/run list
+                |  -- lists all files that are not overriden in stdlib-bootstrapped/src
+                |
+                |> $projectName/run clone <sources>*
+                |  -- clones the specified sources from the stdlib-bootstrapped/src
+                |  -- example: $projectName/run clone scala/Option.scala
+                |
+                |> $projectName/run overwrite <sources>*
+                |  -- (danger) overwrites the specified sources from the stdlib-bootstrapped/src
+                |""".stripMargin)
+        }
+      }
+    )
+
+  /** Packages the TASTy files of `stdlib-bootstrapped` in a jar */
+  lazy val `stdlib-bootstrapped-tasty` = project.in(file("stdlib-bootstrapped-tasty")).
+    withCommonSettings(Bootstrapped).
+    settings(
+      exportJars := true,
+      Compile / packageBin / mappings := {
+        (`stdlib-bootstrapped` / Compile / packageBin / mappings).value
+          .filter(_._2.endsWith(".tasty"))
       },
     )
 
   /** Test the tasty generated by `stdlib-bootstrapped`
+   *
+   *  The sources in src are compiled using TASTy from stdlib-bootstrapped-tasty but then run
+   *  with the scala-library compiled be Scala 2.
    *
    *  The tests are run with the bootstrapped compiler and the tasty inpector on the classpath.
    *  The classpath has the default `scala-library` and not `stdlib-bootstrapped`.
@@ -1024,11 +1102,23 @@ object Build {
    */
   lazy val `stdlib-bootstrapped-tasty-tests` = project.in(file("stdlib-bootstrapped-tasty-tests")).
     withCommonSettings(Bootstrapped).
+    dependsOn(dottyCompiler(Bootstrapped) % "compile->compile").
     dependsOn(`scala3-tasty-inspector` % "test->test").
+    dependsOn(`stdlib-bootstrapped-tasty`).
     settings(commonBootstrappedSettings).
     settings(
       javaOptions := (`scala3-compiler-bootstrapped` / javaOptions).value,
-      javaOptions += "-Ddotty.scala.library=" + (`stdlib-bootstrapped` / Compile / packageBin).value.getAbsolutePath
+      Test / javaOptions += "-Ddotty.scala.library=" + (`stdlib-bootstrapped` / Compile / packageBin).value.getAbsolutePath,
+      Compile / compile / fullClasspath ~= {
+        _.filterNot(file => file.data.getName == s"scala-library-${stdlibVersion(Bootstrapped)}.jar")
+      },
+      Compile / compile / dependencyClasspath := {
+        // make sure that the scala2-library (tasty of `stdlib-bootstrapped-tasty`) is listed before the scala-library (classfiles)
+        val (bootstrappedLib, otherLibs) =
+          (Compile / compile / dependencyClasspath).value
+            .partition(_.data.getName == s"scala2-library-${dottyVersion}.jar")
+        bootstrappedLib ++ otherLibs
+      },
     )
 
   lazy val `scala3-sbt-bridge` = project.in(file("sbt-bridge/src")).
@@ -1064,6 +1154,82 @@ object Build {
       Test / javaSource := baseDirectory.value,
       libraryDependencies += ("org.scala-sbt" %% "zinc-apiinfo" % "1.8.0" % Test).cross(CrossVersion.for3Use2_13)
     )
+
+  lazy val `scala3-presentation-compiler` = project.in(file("presentation-compiler"))
+    .asScala3PresentationCompiler(NonBootstrapped)
+  lazy val `scala3-presentation-compiler-bootstrapped` = project.in(file("presentation-compiler"))
+    .asScala3PresentationCompiler(Bootstrapped)
+
+  def scala3PresentationCompiler(implicit mode: Mode): Project = mode match {
+    case NonBootstrapped => `scala3-presentation-compiler`
+    case Bootstrapped => `scala3-presentation-compiler-bootstrapped`
+  }
+
+  def scala3PresentationCompilerBuildInfo(implicit mode: Mode) =
+    Seq(
+      ideTestsDependencyClasspath := {
+        val dottyLib = (dottyLibrary / Compile / classDirectory).value
+        val scalaLib =
+          (dottyLibrary / Compile / dependencyClasspath)
+            .value
+            .map(_.data)
+            .filter(_.getName.matches("scala-library.*\\.jar"))
+            .toList
+        dottyLib :: scalaLib
+        // Nil
+      },
+      Compile / buildInfoPackage := "dotty.tools.pc.util",
+      Compile / buildInfoKeys := Seq(scalaVersion),
+      Test / buildInfoKeys := Seq(scalaVersion, ideTestsDependencyClasspath)
+    ) ++ BuildInfoPlugin.buildInfoScopedSettings(Compile) ++
+      BuildInfoPlugin.buildInfoScopedSettings(Test) ++
+      BuildInfoPlugin.buildInfoDefaultSettings
+
+  lazy val presentationCompilerSettings = {
+    val mtagsVersion = "0.11.12+165-7d0397b3-SNAPSHOT" // Will be set to stable release after 0.11.13 is published
+
+    Seq(
+      libraryDependencies ++= Seq(
+        "org.lz4" % "lz4-java" % "1.8.0",
+        "io.get-coursier" % "interface" % "1.0.13",
+        "org.scalameta" % "mtags-interfaces" % mtagsVersion,
+      ),
+      ivyConfigurations += SourceDeps.hide,
+      transitiveClassifiers := Seq("sources"),
+      resolvers += Resolver.defaultLocal,
+      resolvers ++= Resolver.sonatypeOssRepos("snapshots"), // To be removed after 0.11.13 is published
+      libraryDependencies += ("org.scalameta" % "mtags-shared_2.13.11" % mtagsVersion % "sourcedeps"),
+      (Compile / sourceGenerators) += Def.task {
+        val s = streams.value
+        val cacheDir = s.cacheDirectory
+        val targetDir = (Compile/sourceManaged).value / "mtags-shared"
+
+        val report = updateClassifiers.value
+        val mtagsSharedSourceJar = report.select(
+          configuration = configurationFilter("sourcedeps"),
+          module = (_: ModuleID).name.startsWith("mtags-shared_"),
+          artifact = artifactFilter(`type` = "src")).headOption.getOrElse {
+            sys.error(s"Could not fetch mtags-shared sources")
+
+          }
+        FileFunction.cached(cacheDir / s"fetchMtagsSharedSource",
+            FilesInfo.lastModified, FilesInfo.exists) { dependencies =>
+          s.log.info(s"Unpacking mtags-shared sources to $targetDir...")
+          if (targetDir.exists)
+            IO.delete(targetDir)
+          IO.createDirectory(targetDir)
+          IO.unzip(mtagsSharedSourceJar, targetDir)
+
+          val mtagsSharedSources = (targetDir ** "*.scala").get.toSet
+          mtagsSharedSources.foreach(f => {
+            val lines = IO.readLines(f)
+            IO.writeLines(f, insertUnsafeNullsImport(lines))
+          })
+          mtagsSharedSources
+        } (Set(mtagsSharedSourceJar)).toSeq
+      }.taskValue,
+    )
+  }
 
   lazy val `scala3-language-server` = project.in(file("language-server")).
     dependsOn(dottyCompiler(Bootstrapped)).
@@ -1130,6 +1296,7 @@ object Build {
     enablePlugins(DottyJSPlugin).
     dependsOn(`scala3-library-bootstrappedJS`).
     settings(
+      bspEnabled := false,
       scalacOptions --= Seq("-Xfatal-warnings", "-deprecation"),
 
       // Required to run Scala.js tests.
@@ -1215,6 +1382,18 @@ object Build {
         val resourceDir = fetchScalaJSSource.value / "test-suite/js/src/test/resources"
         val f = (resourceDir / "NonNativeJSTypeTestNatives.js").toPath
         org.scalajs.jsenv.Input.Script(f) +: (Test / jsEnvInput).value
+      },
+
+      Test / unmanagedSourceDirectories ++= {
+        val linkerConfig = scalaJSStage.value match {
+          case FastOptStage => (Test / fastLinkJS / scalaJSLinkerConfig).value
+          case FullOptStage => (Test / fullLinkJS / scalaJSLinkerConfig).value
+        }
+
+        if (linkerConfig.moduleKind != ModuleKind.NoModule && !linkerConfig.closureCompiler)
+          Seq(baseDirectory.value / "test-require-multi-modules")
+        else
+          Nil
       },
 
       (Compile / managedSources) ++= {
@@ -1579,16 +1758,16 @@ object Build {
       },
       scriptedBufferLog := true,
       scripted := scripted.dependsOn(
-        (`scala3-sbt-bridge` / publishLocal),
-        (`scala3-interfaces` / publishLocal),
-        (`scala3-compiler-bootstrapped` / publishLocal),
-        (`scala3-library-bootstrapped` / publishLocal),
-        (`scala3-library-bootstrappedJS` / publishLocal),
-        (`tasty-core-bootstrapped` / publishLocal),
-        (`scala3-staging` / publishLocal),
-        (`scala3-tasty-inspector` / publishLocal),
-        (`scaladoc` / publishLocal),
-        (`scala3-bootstrapped` / publishLocal) // Needed because sbt currently hardcodes the dotty artifact
+        (`scala3-sbt-bridge` / publishLocalBin),
+        (`scala3-interfaces` / publishLocalBin),
+        (`scala3-compiler-bootstrapped` / publishLocalBin),
+        (`scala3-library-bootstrapped` / publishLocalBin),
+        (`scala3-library-bootstrappedJS` / publishLocalBin),
+        (`tasty-core-bootstrapped` / publishLocalBin),
+        (`scala3-staging` / publishLocalBin),
+        (`scala3-tasty-inspector` / publishLocalBin),
+        (`scaladoc` / publishLocalBin),
+        (`scala3-bootstrapped` / publishLocalBin) // Needed because sbt currently hardcodes the dotty artifact
       ).evaluated
     )
 
@@ -1774,9 +1953,9 @@ object Build {
 
     // FIXME: we do not aggregate `bin` because its tests delete jars, thus breaking other tests
     def asDottyRoot(implicit mode: Mode): Project = project.withCommonSettings.
-      aggregate(`scala3-interfaces`, dottyLibrary, dottyCompiler, tastyCore, `scala3-sbt-bridge`).
-      bootstrappedAggregate(`scala3-language-server`, `scala3-staging`, `scala3-tasty-inspector`,
-        `scala3-library-bootstrappedJS`, scaladoc).
+      aggregate(`scala3-interfaces`, dottyLibrary, dottyCompiler, tastyCore, `scala3-sbt-bridge`, scala3PresentationCompiler).
+      bootstrappedAggregate(`scala3-language-server`, `scala3-staging`,
+        `scala3-tasty-inspector`, `scala3-library-bootstrappedJS`, scaladoc).
       dependsOn(tastyCore).
       dependsOn(dottyCompiler).
       dependsOn(dottyLibrary).
@@ -1850,6 +2029,11 @@ object Build {
       settings(commonBenchmarkSettings).
       enablePlugins(JmhPlugin)
 
+    def asScala3PresentationCompiler(implicit mode: Mode): Project = project.withCommonSettings.
+      dependsOn(dottyCompiler, dottyLibrary).
+      settings(presentationCompilerSettings).
+      settings(scala3PresentationCompilerBuildInfo)
+
     def asDist(implicit mode: Mode): Project = project.
       enablePlugins(PackPlugin).
       withCommonSettings.
@@ -1886,7 +2070,7 @@ object ScaladocConfigs {
     SourceLinks(
       List(
         scalaSrcLink(stdLibVersion, srcManaged(version, "scala") + "="),
-        dottySrcLink(refVersion, srcManaged(version, "dotty") + "=", "#library/src"),
+        dottySrcLink(refVersion, "library/src=", "#library/src"),
         dottySrcLink(refVersion),
         "docs=github://lampepfl/dotty/main#docs"
       )
@@ -1904,7 +2088,9 @@ object ScaladocConfigs {
     def skipByRegex = SkipByRegex(List(".+\\.internal($|\\..+)", ".+\\.impl($|\\..+)"))
     def skipById = SkipById(List(
       "scala.runtime.stdLibPatches",
-      "scala.runtime.MatchCase"
+      "scala.runtime.MatchCase",
+      "dotty.tools.tasty",
+      "dotty.tools.tasty.util",
     ))
     def projectFooter = ProjectFooter(s"Copyright (c) 2002-$currentYear, LAMP/EPFL")
     def defaultTemplate = DefaultTemplate("static-site-main")
@@ -1935,7 +2121,7 @@ object ScaladocConfigs {
   }
 
   lazy val DefaultGenerationConfig = Def.task {
-    def distLocation = (dist / pack).value
+    def distLocation = (dist / Compile / pack).value
     DefaultGenerationSettings.value
   }
 
@@ -1969,6 +2155,7 @@ object ScaladocConfigs {
   lazy val Scala3 = Def.task {
     val dottyJars: Seq[java.io.File] = Seq(
       (`stdlib-bootstrapped`/Compile/products).value,
+      (`scala3-library-bootstrapped`/Compile/products).value,
       (`scala3-interfaces`/Compile/products).value,
       (`tasty-core-bootstrapped`/Compile/products).value,
     ).flatten
@@ -1982,7 +2169,7 @@ object ScaladocConfigs {
     val docRootFile = stdLibRoot.resolve("rootdoc.txt")
 
     val dottyManagesSources =
-      (`stdlib-bootstrapped`/Compile/sourceManaged).value / "dotty-library-src"
+      (`scala3-library-bootstrapped`/Compile/sourceDirectory).value
 
     val tastyCoreSources = projectRoot.relativize((`tasty-core-bootstrapped`/Compile/scalaSource).value.toPath().normalize())
 
@@ -2010,24 +2197,27 @@ object ScaladocConfigs {
   }
 
   def stableScala3(version: String) = Def.task {
+    val scalaLibrarySrc = s"out/bootstrap/stdlib-bootstrapped/scala-$version-bin-SNAPSHOT-nonbootstrapped/src_managed"
+    val dottyLibrarySrc = "library/src"
     Scala3.value
       .add(defaultSourceLinks(version + "-bin-SNAPSHOT-nonbootstrapped", version).value)
       .add(ProjectVersion(version))
       .add(SnippetCompiler(
         List(
-          s"out/bootstrap/stdlib-bootstrapped/scala-$version-bin-SNAPSHOT-nonbootstrapped/src_managed/main/dotty-library-src/scala/quoted=compile",
-          s"out/bootstrap/stdlib-bootstrapped/scala-$version-bin-SNAPSHOT-nonbootstrapped/src_managed/main/dotty-library-src/scala/compiletime=compile"
+          s"$dottyLibrarySrc/scala/quoted=compile",
+          s"$dottyLibrarySrc/scala/compiletime=compile"
         )
       ))
       .add(CommentSyntax(List(
-        s"out/bootstrap/stdlib-bootstrapped/scala-$version-bin-SNAPSHOT-nonbootstrapped/src_managed/main/dotty-library-src=markdown",
-        s"out/bootstrap/stdlib-bootstrapped/scala-$version-bin-SNAPSHOT-nonbootstrapped/src_managed/main/scala-library-src=wiki",
+        s"$dottyLibrarySrc=markdown",
+        s"$scalaLibrarySrc=wiki",
         "wiki"
       )))
-      .add(DocRootContent(s"out/bootstrap/stdlib-bootstrapped/scala-$version-bin-SNAPSHOT-nonbootstrapped/src_managed/main/scala-library-src/rootdoc.txt"))
+      .add(DocRootContent(s"$scalaLibrarySrc/rootdoc.txt"))
       .withTargets(
         Seq(
           s"out/bootstrap/stdlib-bootstrapped/scala-$version-bin-SNAPSHOT-nonbootstrapped/classes",
+          s"out/bootstrap/scala3-library-bootstrapped/scala-$version-bin-SNAPSHOT-nonbootstrapped/classes",
           s"tmp/interfaces/target/classes",
           s"out/bootstrap/tasty-core-bootstrapped/scala-$version-bin-SNAPSHOT-nonbootstrapped/classes"
         )

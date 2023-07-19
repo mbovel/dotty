@@ -261,6 +261,10 @@ object Denotations {
     /** Does this denotation have an alternative that satisfies the predicate `p`? */
     def hasAltWith(p: SingleDenotation => Boolean): Boolean
 
+    inline final def hasAltWithInline(inline p: SingleDenotation => Boolean): Boolean = inline this match
+      case mbr: SingleDenotation => mbr.exists && p(mbr)
+      case mbr => mbr.hasAltWith(p)
+
     /** The denotation made up from the alternatives of this denotation that
      *  are accessible from prefix `pre`, or NoDenotation if no accessible alternative exists.
      */
@@ -545,8 +549,7 @@ object Denotations {
         tp2 match
           case tp2: MethodType
           if TypeComparer.matchingMethodParams(tp1, tp2)
-             && tp1.isImplicitMethod == tp2.isImplicitMethod
-             && tp1.isErasedMethod == tp2.isErasedMethod =>
+             && tp1.isImplicitMethod == tp2.isImplicitMethod =>
             val resType = infoMeet(tp1.resType, tp2.resType.subst(tp2, tp1), safeIntersection)
             if resType.exists then
               tp1.derivedLambdaType(mergeParamNames(tp1, tp2), tp1.paramInfos, resType)
@@ -1270,8 +1273,8 @@ object Denotations {
     def hasAltWith(p: SingleDenotation => Boolean): Boolean =
       denot1.hasAltWith(p) || denot2.hasAltWith(p)
     def accessibleFrom(pre: Type, superAccess: Boolean)(using Context): Denotation = {
-      val d1 = denot1 accessibleFrom (pre, superAccess)
-      val d2 = denot2 accessibleFrom (pre, superAccess)
+      val d1 = denot1.accessibleFrom(pre, superAccess)
+      val d2 = denot2.accessibleFrom(pre, superAccess)
       if (!d1.exists) d2
       else if (!d2.exists) d1
       else derivedUnionDenotation(d1, d2)

@@ -70,7 +70,7 @@ class SpecializeFunctions extends MiniPhase {
   /** Dispatch to specialized `apply`s in user code when available */
   override def transformApply(tree: Apply)(using Context) =
     tree match {
-      case Apply(fun: NameTree, args) if fun.name == nme.apply && args.size <= 3 && fun.symbol.owner.isType =>
+      case Apply(fun: NameTree, args) if fun.name == nme.apply && args.size <= 3 && fun.symbol.maybeOwner.isType =>
         val argTypes = fun.tpe.widen.firstParamTypes.map(_.widenSingleton.dealias)
         val retType  = tree.tpe.widenSingleton.dealias
         val isSpecializable =
@@ -85,7 +85,7 @@ class SpecializeFunctions extends MiniPhase {
             case Select(qual, _) =>
               val qual1 = qual.tpe.widen match
                 case defn.ByNameFunction(res) =>
-                  // Need to cast to regular function, since specialied apply methods
+                  // Need to cast to regular function, since specialized apply methods
                   // are not members of ContextFunction0. The cast will be eliminated in
                   // erasure.
                   qual.cast(defn.FunctionOf(Nil, res))

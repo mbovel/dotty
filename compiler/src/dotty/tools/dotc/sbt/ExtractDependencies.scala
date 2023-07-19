@@ -7,6 +7,7 @@ import java.io.File
 import java.util.{Arrays, EnumSet}
 
 import dotty.tools.dotc.ast.tpd
+import dotty.tools.dotc.classpath.FileUtils.{isTasty, isClass}
 import dotty.tools.dotc.core.Contexts._
 import dotty.tools.dotc.core.Decorators._
 import dotty.tools.dotc.core.Flags._
@@ -141,9 +142,12 @@ class ExtractDependencies extends Phase {
     if (depFile != null) {
       // Cannot ignore inheritance relationship coming from the same source (see sbt/zinc#417)
       def allowLocal = dep.context == DependencyByInheritance || dep.context == LocalDependencyByInheritance
-      if (depFile.extension == "class") {
+      val depClassFile =
+        if depFile.isClass then depFile
+        else depFile.resolveSibling(dep.to.binaryClassName + ".class")
+      if (depClassFile != null) {
         // Dependency is external -- source is undefined
-        processExternalDependency(depFile, dep.to.binaryClassName)
+        processExternalDependency(depClassFile, dep.to.binaryClassName)
       } else if (allowLocal || depFile.file != sourceFile) {
         // We cannot ignore dependencies coming from the same source file because
         // the dependency info needs to propagate. See source-dependencies/trait-trait-211.
@@ -306,6 +310,13 @@ private class ExtractDependenciesCollector extends tpd.TreeTraverser { thisTreeT
       }
     }
 
+  private def addInheritanceDependencies(tree: Closure)(using Context): Unit =
+    // If the tpt is empty, this is a non-SAM lambda, so no need to register
+    // an inheritance relationship.
+    if !tree.tpt.isEmpty then
+      val from = resolveDependencySource
+      _dependencies += ClassDependency(from, tree.tpt.tpe.classSymbol, LocalDependencyByInheritance)
+
   private def addInheritanceDependencies(tree: Template)(using Context): Unit =
     if (tree.parents.nonEmpty) {
       val depContext = depContextOf(tree.symbol.owner)
@@ -369,6 +380,8 @@ private class ExtractDependenciesCollector extends tpd.TreeTraverser { thisTreeT
       case ref: RefTree =>
         addMemberRefDependency(ref.symbol)
         addTypeDependency(ref.tpe)
+      case t: Closure =>
+        addInheritanceDependencies(t)
       case t: Template =>
         addInheritanceDependencies(t)
       case _ =>

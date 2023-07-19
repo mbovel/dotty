@@ -4,7 +4,7 @@ package transform
 
 import core.*
 import Symbols.*, Contexts.*, Types.*, ContextOps.*, Decorators.*, SymDenotations.*
-import Flags.*, SymUtils.*, NameKinds.*, Denotations.Denotation
+import Flags.*, SymUtils.*, NameKinds.*, Denotations.{Denotation, SingleDenotation}
 import ast.*
 import Names.Name
 import Phases.Phase
@@ -22,7 +22,7 @@ import StdNames.nme
 import reporting.trace
 import annotation.constructorOnly
 import cc.CaptureSet.IdempotentCaptRefMap
-import dotty.tools.dotc.core.Denotations.SingleDenotation
+import annotation.tailrec
 
 object Recheck:
   import tpd.*
@@ -84,7 +84,7 @@ object Recheck:
      *  type stored in the tree itself
      */
     def rememberTypeAlways(tpe: Type)(using Context): Unit =
-      if tpe ne tree.tpe then tree.putAttachment(RecheckedType, tpe)
+      if tpe ne tree.knownType then tree.putAttachment(RecheckedType, tpe)
 
     /** The remembered type of the tree, or if none was installed, the original type */
     def knownType: Type =
@@ -155,8 +155,14 @@ abstract class Recheck extends Phase, SymTransformer:
      */
     def keepType(tree: Tree): Boolean = keepAllTypes
 
+    /** A map from NamedTypes to the denotations they had before this phase.
+     *  Needed so that we can `reset` them after this phase.
+     */
     private val prevSelDenots = util.HashMap[NamedType, Denotation]()
 
+    /** Reset all references in `prevSelDenots` to the denotations they had
+     *  before this phase.
+     */
     def reset()(using Context): Unit =
       for (ref, mbr) <- prevSelDenots.iterator do
         ref.withDenot(mbr)
@@ -203,13 +209,13 @@ abstract class Recheck extends Phase, SymTransformer:
             val prevDenot = prevType.denot
             val newType = qualType.select(name, mbr)
             if (newType eq prevType) && (mbr.info ne prevDenot.info) && !prevSelDenots.contains(prevType) then
+              // remember previous denot of NamedType, so that it can be reset after this phase
               prevSelDenots(prevType) = prevDenot
             newType
           case _ =>
             qualType.select(name, mbr)
         constFold(tree, newType)
           //.showing(i"recheck select $qualType . $name : ${mbr.info} = $result")
-
 
     /** Keep the symbol of the `select` but re-infer its type */
     def recheckSelection(tree: Select, qualType: Type, name: Name, pt: Type)(using Context): Type =
@@ -406,7 +412,14 @@ abstract class Recheck extends Phase, SymTransformer:
       NoType
 
     def recheckStats(stats: List[Tree])(using Context): Unit =
-      stats.foreach(recheck(_))
+      @tailrec def traverse(stats: List[Tree])(using Context): Unit = stats match
+        case (imp: Import) :: rest =>
+          traverse(rest)(using ctx.importContext(imp, imp.symbol))
+        case stat :: rest =>
+          recheck(stat)
+          traverse(rest)
+        case _ =>
+      traverse(stats)
 
     def recheckDef(tree: ValOrDefDef, sym: Symbol)(using Context): Unit =
       inContext(ctx.localContext(tree, sym)) {

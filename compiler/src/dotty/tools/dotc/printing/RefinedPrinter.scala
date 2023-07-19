@@ -92,7 +92,10 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
     nameString(if (ctx.property(XprintMode).isEmpty) sym.initial.name else sym.name)
 
   override def fullNameString(sym: Symbol): String =
-    if !sym.exists || isEmptyPrefix(sym.effectiveOwner) then nameString(sym)
+    if !sym.exists
+      || isEmptyPrefix(sym.effectiveOwner)
+      || !homogenizedView && !sym.is(Package) && isOmittablePrefix(sym.effectiveOwner)
+    then nameString(sym)
     else super.fullNameString(sym)
 
   override protected def fullNameOwner(sym: Symbol): Symbol = {
@@ -106,26 +109,30 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
         if (tp.cls.isAnonymousClass) keywordStr("this")
         if (tp.cls.is(ModuleClass)) fullNameString(tp.cls.sourceModule)
         else super.toTextRef(tp)
+      case tp: TermRef if !printDebug =>
+        if tp.symbol.is(Package) then fullNameString(tp.symbol)
+        else super.toTextRef(tp)
       case _ =>
         super.toTextRef(tp)
     }
   }
 
-  override def toTextPrefix(tp: Type): Text = controlled {
+  override def toTextPrefixOf(tp: NamedType): Text = controlled {
     def isOmittable(sym: Symbol) =
       if printDebug then false
       else if homogenizedView then isEmptyPrefix(sym) // drop <root> and anonymous classes, but not scala, Predef.
       else if sym.isPackageObject then isOmittablePrefix(sym.owner)
       else isOmittablePrefix(sym)
-    tp match {
-      case tp: ThisType if isOmittable(tp.cls) =>
+
+    tp.prefix match {
+      case thisType: ThisType if isOmittable(thisType.cls) =>
         ""
-      case tp @ TermRef(pre, _) =>
-        val sym = tp.symbol
-        if sym.isPackageObject && !homogenizedView && !printDebug then toTextPrefix(pre)
+      case termRef @ TermRef(pre, _) =>
+        val sym = termRef.symbol
+        if sym.isPackageObject && !homogenizedView && !printDebug then toTextPrefixOf(termRef)
         else if (isOmittable(sym)) ""
-        else super.toTextPrefix(tp)
-      case _ => super.toTextPrefix(tp)
+        else super.toTextPrefixOf(tp)
+      case _ => super.toTextPrefixOf(tp)
     }
   }
 
@@ -144,46 +151,55 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
   private def arrow(isGiven: Boolean, isPure: Boolean): String =
     (if isGiven then "?" else "") + (if isPure then "->" else "=>")
 
+  private def toTextFunction(tp: AppliedType, refs: Text = Str("")): Text =
+    val AppliedType(tycon, args) = (tp: @unchecked)
+    val tsym = tycon.typeSymbol
+    val isGiven = tsym.name.isContextFunction
+    val capturesRoot = refs == rootSetText
+    val isPure =
+      Feature.pureFunsEnabled && !tsym.name.isImpureFunction && !capturesRoot
+    changePrec(GlobalPrec) {
+      val argStr: Text =
+        if args.length == 2
+            && !defn.isTupleNType(args.head)
+            && !isGiven
+        then
+          atPrec(InfixPrec) { argText(args.head) }
+        else
+          "("
+          ~ argsText(args.init)
+          ~ ")"
+      argStr
+      ~ " " ~ arrow(isGiven, isPure)
+      ~ (refs provided !capturesRoot)
+      ~ " " ~ argText(args.last)
+    }
+
+  protected def toTextMethodAsFunction(info: Type, isPure: Boolean, refs: Text = Str("")): Text = info match
+    case info: MethodType =>
+      val capturesRoot = refs == rootSetText
+      changePrec(GlobalPrec) {
+        "("
+        ~ paramsText(info)
+        ~ ") "
+        ~ arrow(info.isImplicitMethod, isPure && !capturesRoot)
+        ~ (refs provided !capturesRoot)
+        ~ " "
+        ~ toTextMethodAsFunction(info.resultType, isPure)
+      }
+    case info: PolyType =>
+      changePrec(GlobalPrec) {
+        "["
+        ~ paramsText(info)
+        ~ "] => "
+        ~ toTextMethodAsFunction(info.resultType, isPure)
+      }
+    case _ =>
+      toText(info)
+
   override def toText(tp: Type): Text = controlled {
     def toTextTuple(args: List[Type]): Text =
       "(" ~ argsText(args) ~ ")"
-
-    def toTextFunction(args: List[Type], isGiven: Boolean, isErased: Boolean, isPure: Boolean): Text =
-      changePrec(GlobalPrec) {
-        val argStr: Text =
-          if args.length == 2
-             && !defn.isTupleNType(args.head)
-             && !isGiven && !isErased
-          then
-            atPrec(InfixPrec) { argText(args.head) }
-          else
-            "("
-            ~ keywordText("erased ").provided(isErased)
-            ~ argsText(args.init)
-            ~ ")"
-        argStr ~ " " ~ arrow(isGiven, isPure) ~ " " ~ argText(args.last)
-      }
-
-    def toTextMethodAsFunction(info: Type, isPure: Boolean): Text = info match
-      case info: MethodType =>
-        changePrec(GlobalPrec) {
-          "("
-          ~ keywordText("erased ").provided(info.isErasedMethod)
-          ~ paramsText(info)
-          ~ ") "
-          ~ arrow(info.isImplicitMethod, isPure)
-          ~ " "
-          ~ toTextMethodAsFunction(info.resultType, isPure)
-        }
-      case info: PolyType =>
-        changePrec(GlobalPrec) {
-          "["
-          ~ paramsText(info)
-          ~ "] => "
-          ~ toTextMethodAsFunction(info.resultType, isPure)
-        }
-      case _ =>
-        toText(info)
 
     def isInfixType(tp: Type): Boolean = tp match
       case AppliedType(tycon, args) =>
@@ -225,9 +241,7 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
             val tsym = tycon.typeSymbol
             if tycon.isRepeatedParam then toTextLocal(args.head) ~ "*"
             else if tp.isConvertibleParam then "into " ~ toText(args.head)
-            else if defn.isFunctionSymbol(tsym) then
-              toTextFunction(args, tsym.name.isContextFunction, tsym.name.isErasedFunction,
-                isPure = Feature.pureFunsEnabled && !tsym.name.isImpureFunction)
+            else if defn.isFunctionSymbol(tsym) then toTextFunction(tp)
             else if isInfixType(tp) then
               val l :: r :: Nil = args: @unchecked
               val opName = tyconName(tycon)
@@ -252,7 +266,7 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
       if !printDebug && appliedText(tp.asInstanceOf[HKLambda].resType).isEmpty =>
         // don't eta contract if the application would be printed specially
         toText(tycon)
-      case tp: RefinedType if defn.isFunctionOrPolyType(tp) && !printDebug =>
+      case tp: RefinedType if defn.isFunctionType(tp) && !printDebug =>
         toTextMethodAsFunction(tp.refinedInfo,
           isPure = Feature.pureFunsEnabled && !tp.typeSymbol.name.isImpureFunction)
       case tp: TypeRef =>
@@ -289,7 +303,6 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
       case tp @ FunProto(args, resultType) =>
         "[applied to ("
         ~ keywordText("using ").provided(tp.isContextualMethod)
-        ~ keywordText("erased ").provided(tp.isErasedMethod)
         ~ argsTreeText(args)
         ~ ") returning "
         ~ toText(resultType)
@@ -415,8 +428,7 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
       case id @ Ident(name) =>
         val txt = tree.typeOpt match {
           case tp: NamedType if name != nme.WILDCARD =>
-            val pre = if (tp.symbol.is(JavaStatic)) tp.prefix.widen else tp.prefix
-            toTextPrefix(pre) ~ withPos(selectionString(tp), tree.sourcePos)
+            toTextPrefixOf(tp) ~ withPos(selectionString(tp), tree.sourcePos)
           case _ =>
             toText(name)
         }
@@ -435,10 +447,6 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
           changePrec (GlobalPrec) {
             keywordStr("throw ") ~ toText(args.head)
           }
-        else if (!printDebug && fun.hasType && fun.symbol == defn.QuotedRuntime_exprQuote)
-          keywordStr("'{") ~ toTextGlobal(args, ", ") ~ keywordStr("}")
-        else if (!printDebug && fun.hasType && fun.symbol.isExprSplice)
-          keywordStr("${") ~ toTextGlobal(args, ", ") ~ keywordStr("}")
         else
           toTextLocal(fun)
           ~ "("
@@ -564,14 +572,15 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
           toText(sel) ~ keywordStr(" match ") ~ blockText(cases) ~
           (" <: " ~ toText(bound) provided !bound.isEmpty)
         }
+      case ImpureByNameTypeTree(tpt) =>
+        "=> " ~ toTextLocal(tpt)
       case ByNameTypeTree(tpt) =>
-        (if Feature.pureFunsEnabled then "-> " else "=> ")
-        ~ toTextLocal(tpt)
+        (if Feature.pureFunsEnabled then "-> " else "=> ") ~ toTextLocal(tpt)
       case TypeBoundsTree(lo, hi, alias) =>
         if (lo eq hi) && alias.isEmpty then optText(lo)(" = " ~ _)
         else optText(lo)(" >: " ~ _) ~ optText(hi)(" <: " ~ _) ~ optText(alias)(" = " ~ _)
       case bind @ Bind(name, body) =>
-        keywordText("given ").provided(tree.symbol.isOneOf(GivenOrImplicit) && !homogenizedView) ~ // Used for scala.quoted.Type in quote patterns (not pickled)
+        toTextOwner(bind) ~ keywordText("given ").provided(tree.symbol.isOneOf(GivenOrImplicit) && !homogenizedView) ~ // Used for scala.quoted.Type in quote patterns (not pickled)
         changePrec(InfixPrec) { nameIdText(bind) ~ " @ " ~ toText(body) }
       case Alternative(trees) =>
         changePrec(OrPrec) { toText(trees, " | ") }
@@ -625,7 +634,7 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
         def toTextAnnot =
           toTextLocal(arg) ~~ annotText(annot.symbol.enclosingClass, annot)
         def toTextRetainsAnnot =
-          try changePrec(GlobalPrec)(toText(captureSet) ~ " " ~ toText(arg))
+          try changePrec(GlobalPrec)(toText(arg) ~ "^" ~ toTextCaptureSet(captureSet))
           catch case ex: IllegalCaptureRef => toTextAnnot
         if annot.symbol.maybeOwner == defn.RetainsAnnot
             && Feature.ccEnabled && Config.printCaptureSetsAsPrefix && !printDebug
@@ -650,27 +659,29 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
           case str: Literal => strText(str)
         }
         toText(id) ~ "\"" ~ Text(segments map segmentText, "") ~ "\""
-      case Function(args, body) =>
+      case fn @ Function(args, body) =>
         var implicitSeen: Boolean = false
         var isGiven: Boolean = false
-        var isErased: Boolean = false
-        def argToText(arg: Tree) = arg match {
+        val erasedParams = fn match {
+          case fn: FunctionWithMods => fn.erasedParams
+          case _ => fn.args.map(_ => false)
+        }
+        def argToText(arg: Tree, isErased: Boolean) = arg match {
           case arg @ ValDef(name, tpt, _) =>
             val implicitText =
               if ((arg.mods.is(Given))) { isGiven = true; "" }
-              else if ((arg.mods.is(Erased))) { isErased = true; "" }
               else if ((arg.mods.is(Implicit)) && !implicitSeen) { implicitSeen = true; keywordStr("implicit ") }
               else ""
-            implicitText ~ toText(name) ~ optAscription(tpt)
+            val erasedText = if isErased then keywordStr("erased ") else ""
+            implicitText ~ erasedText ~ toText(name) ~ optAscription(tpt)
           case _ =>
             toText(arg)
         }
         val argsText = args match {
-          case (arg @ ValDef(_, tpt, _)) :: Nil if tpt.isEmpty => argToText(arg)
+          case (arg @ ValDef(_, tpt, _)) :: Nil if tpt.isEmpty => argToText(arg, erasedParams(0))
           case _ =>
             "("
-            ~ keywordText("erased ").provided(isErased)
-            ~ Text(args.map(argToText), ", ")
+            ~ Text(args.zip(erasedParams).map(argToText), ", ")
             ~ ")"
         }
         val isPure =
@@ -717,30 +728,53 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
         }
       case Number(digits, kind) =>
         digits
-      case Quote(tree) if tree.isTerm =>
-        keywordStr("'{") ~ toTextGlobal(dropBlock(tree)) ~ keywordStr("}")
-      case Splice(tree) =>
-        keywordStr("${") ~ toTextGlobal(dropBlock(tree)) ~ keywordStr("}")
       case Thicket(trees) =>
         "Thicket {" ~~ toTextGlobal(trees, "\n") ~~ "}"
       case MacroTree(call) =>
         keywordStr("macro ") ~ toTextGlobal(call)
-      case Hole(isTermHole, idx, args, content, tpt) =>
-        val (prefix, postfix) = if isTermHole then ("{{{", "}}}") else ("[[[", "]]]")
+      case tree @ Quote(body, tags) =>
+        val tagsText = (keywordStr("<") ~ toTextGlobal(tags, ", ") ~ keywordStr(">")).provided(tree.tags.nonEmpty)
+        val exprTypeText = (keywordStr("[") ~ toTextGlobal(tpd.bodyType(tree.asInstanceOf[tpd.Quote])) ~ keywordStr("]")).provided(printDebug && tree.typeOpt.exists)
+        val open = if (body.isTerm) keywordStr("{") else keywordStr("[")
+        val close = if (body.isTerm) keywordStr("}") else keywordStr("]")
+        keywordStr("'") ~ tagsText ~ exprTypeText ~ open ~ toTextGlobal(body) ~ close
+      case Splice(expr) =>
+        val spliceTypeText = (keywordStr("[") ~ toTextGlobal(tree.typeOpt) ~ keywordStr("]")).provided(printDebug && tree.typeOpt.exists)
+        keywordStr("$") ~ spliceTypeText ~ keywordStr("{") ~ toTextGlobal(expr) ~ keywordStr("}")
+      case tree @ QuotePattern(bindings, body, quotes) =>
+        val quotesText = (keywordStr("<") ~ toText(quotes) ~ keywordStr(">")).provided(printDebug)
+        val bindingsText = bindings.map(binding => {
+          keywordStr("type ") ~ toText(binding.symbol.name) ~ toText(binding.symbol.info) ~ "; "
+        }).reduceLeft(_ ~~ _).provided(bindings.nonEmpty)
+        val open = if (body.isTerm) keywordStr("{") else keywordStr("[")
+        val close = if (body.isTerm) keywordStr("}") else keywordStr("]")
+        keywordStr("'") ~ quotesText ~ open ~ bindingsText ~ toTextGlobal(body) ~ close
+      case SplicePattern(pattern, args) =>
+        val spliceTypeText = (keywordStr("[") ~ toTextGlobal(tree.typeOpt) ~ keywordStr("]")).provided(printDebug && tree.typeOpt.exists)
+        keywordStr("$") ~ spliceTypeText ~ {
+          if args.isEmpty then keywordStr("{") ~ inPattern(toText(pattern)) ~ keywordStr("}")
+          else toText(pattern.symbol.name) ~ "(" ~ toTextGlobal(args, ", ") ~ ")"
+        }
+      case Hole(isTerm, idx, args, content) =>
+        val (prefix, postfix) = if isTerm then ("{{{", "}}}") else ("[[[", "]]]")
         val argsText = toTextGlobal(args, ", ")
         val contentText = toTextGlobal(content)
-        val tptText = toTextGlobal(tpt)
-        prefix ~~ idx.toString ~~ "|" ~~ tptText ~~ "|" ~~ argsText ~~ "|" ~~ contentText ~~ postfix
-      case CapturingTypeTree(refs, parent) =>
-        parent match
-          case ImpureByNameTypeTree(bntpt) =>
-            "=> " ~ toTextLocal(bntpt)
-          case _ =>
-            changePrec(GlobalPrec)("{" ~ Text(refs.map(toText), ", ") ~ "} " ~ toText(parent))
+        val tpeText = toTextGlobal(tree.typeOpt)
+        prefix ~~ idx.toString ~~ "|" ~~ tpeText ~~ "|" ~~ argsText ~~ "|" ~~ contentText ~~ postfix
+      case CapturesAndResult(refs, parent) =>
+        changePrec(GlobalPrec)("^{" ~ Text(refs.map(toText), ", ") ~ "}" ~ toText(parent))
       case _ =>
         tree.fallbackToText(this)
     }
   }
+
+  override protected def toTextCapturing(tp: Type, refsText: Text, boxText: Text): Text = tp match
+    case tp: AppliedType if defn.isFunctionSymbol(tp.typeSymbol) && !printDebug =>
+      boxText ~ toTextFunction(tp, refsText)
+    case tp: RefinedType if defn.isFunctionType(tp) && !printDebug =>
+      boxText ~ toTextMethodAsFunction(tp.refinedInfo, isPure = !tp.typeSymbol.name.isImpureFunction, refsText)
+    case _ =>
+      super.toTextCapturing(tp, refsText, boxText)
 
   override def toText[T <: Untyped](tree: Tree[T]): Text = controlled {
     import untpd._
@@ -870,7 +904,6 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
       "()"
     case untpd.ValDefs(vparams @ (vparam :: _)) =>
       "(" ~ keywordText("using ").provided(vparam.mods.is(Given))
-          ~ keywordText("erased ").provided(vparam.mods.is(Erased))
           ~ toText(vparams, ", ") ~ ")"
     case untpd.TypeDefs(tparams) =>
       "[" ~ toText(tparams, ", ") ~ "]"
@@ -1032,7 +1065,7 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
       else PrintableFlags(isType)
     if (homogenizedView && mods.flags.isTypeFlags) flagMask &~= GivenOrImplicit // drop implicit/given from classes
     val rawFlags = if (sym.exists) sym.flagsUNSAFE else mods.flags
-    if (rawFlags.is(Param)) flagMask = flagMask &~ Given &~ Erased
+    if (rawFlags.is(Param)) flagMask = flagMask &~ Given
     val flags = rawFlags & flagMask
     var flagsText = toTextFlags(sym, flags)
     val annotTexts =

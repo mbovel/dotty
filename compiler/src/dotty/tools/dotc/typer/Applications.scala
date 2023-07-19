@@ -272,7 +272,7 @@ object Applications {
     else
       def selectGetter(qual: Tree): Tree =
         val getterDenot = qual.tpe.member(getterName)
-          .accessibleFrom(qual.tpe.widenIfUnstable) // to reset Local
+          .accessibleFrom(qual.tpe.widenIfUnstable, superAccess = true) // to reset Local
         if (getterDenot.exists) qual.select(TermRef(qual.tpe, getterName, getterDenot))
         else EmptyTree
       if !meth.isClassConstructor then
@@ -448,7 +448,7 @@ trait Applications extends Compatibility {
       def rec(t: Type): Type = {
         t.widen match{
           case funType: MethodType => funType
-          case funType: PolyType => 
+          case funType: PolyType =>
             rec(instantiateWithTypeVars(funType))
           case tp => tp
         }
@@ -695,8 +695,8 @@ trait Applications extends Compatibility {
         val argtpe1 = argtpe.widen
 
         def SAMargOK =
-          defn.isFunctionType(argtpe1) && formal.match
-            case SAMType(sam) => argtpe <:< sam.toFunctionType(isJava = formal.classSymbol.is(JavaDefined))
+          defn.isFunctionNType(argtpe1) && formal.match
+            case SAMType(samMeth, samParent) => argtpe <:< samMeth.toFunctionType(isJava = samParent.classSymbol.is(JavaDefined))
             case _ => false
 
         isCompatible(argtpe, formal)
@@ -721,8 +721,8 @@ trait Applications extends Compatibility {
         || argMatch == ArgMatch.CompatibleCAP
             && {
               val argtpe1 = argtpe.widen
-              val captured = captureWildcards(argtpe1)
-              (captured ne argtpe1) && isCompatible(captured, formal.widenExpr)
+              val captured = captureWildcardsCompat(argtpe1, formal.widenExpr)
+              captured ne argtpe1
             }
 
     /** The type of the given argument */
@@ -1097,7 +1097,7 @@ trait Applications extends Compatibility {
         }
       else {
         val app = tree.fun match
-          case _: untpd.Splice if ctx.mode.is(Mode.QuotedPattern) => typedAppliedSplice(tree, pt)
+          case _: untpd.SplicePattern => typedAppliedSplice(tree, pt)
           case _ => realApply
         app match {
           case Apply(fn @ Select(left, _), right :: Nil) if fn.hasType =>
@@ -1519,10 +1519,7 @@ trait Applications extends Compatibility {
       && isApplicableType(
             normalize(tp.select(xname, mbr), WildcardType),
             argType :: Nil, resultType)
-    tp.memberBasedOnFlags(xname, required = ExtensionMethod) match {
-      case mbr: SingleDenotation => qualifies(mbr)
-      case mbr => mbr.hasAltWith(qualifies(_))
-    }
+    tp.memberBasedOnFlags(xname, required = ExtensionMethod).hasAltWithInline(qualifies)
   }
 
   /** Drop any leading type or implicit parameter sections */
@@ -1978,7 +1975,7 @@ trait Applications extends Compatibility {
           val formals = ref.widen.firstParamTypes
           if formals.length > idx then
             formals(idx) match
-              case defn.FunctionOf(args, _, _, _) => args.length
+              case defn.FunctionOf(args, _, _) => args.length
               case _ => -1
           else -1
 
@@ -2062,7 +2059,7 @@ trait Applications extends Compatibility {
           if isDetermined(alts2) then alts2
           else resolveMapped(alts1, _.widen.appliedTo(targs1.tpes), pt1)
 
-      case defn.FunctionOf(args, resultType, _, _) =>
+      case defn.FunctionOf(args, resultType, _) =>
         narrowByTypes(alts, args, resultType)
 
       case pt =>
@@ -2077,7 +2074,7 @@ trait Applications extends Compatibility {
            *   new java.io.ObjectOutputStream(f)
            */
           pt match {
-            case SAMType(mtp) =>
+            case SAMType(mtp, _) =>
               narrowByTypes(alts, mtp.paramInfos, mtp.resultType)
             case _ =>
               // pick any alternatives that are not methods since these might be convertible
@@ -2225,7 +2222,7 @@ trait Applications extends Compatibility {
         val formalsForArg: List[Type] = altFormals.map(_.head)
         def argTypesOfFormal(formal: Type): List[Type] =
           formal.dealias match {
-            case defn.FunctionOf(args, result, isImplicit, isErased) => args
+            case defn.FunctionOf(args, result, isImplicit) => args
             case defn.PartialFunctionOf(arg, result) => arg :: Nil
             case _ => Nil
           }
@@ -2422,4 +2419,9 @@ trait Applications extends Compatibility {
   def isApplicableExtensionMethod(methodRef: TermRef, receiverType: Type)(using Context): Boolean =
     methodRef.symbol.is(ExtensionMethod) && !receiverType.isBottomType &&
       tryApplyingExtensionMethod(methodRef, nullLiteral.asInstance(receiverType)).nonEmpty
+
+  def captureWildcardsCompat(tp: Type, pt: Type)(using Context): Type =
+    val captured = captureWildcards(tp)
+    if (captured ne tp) && isCompatible(captured, pt) then captured
+    else tp
 }

@@ -19,6 +19,7 @@ import config.Config
 import collection.mutable
 import reporting.{Profile, NoProfile}
 import dotty.tools.tasty.TastyFormat.ASTsSection
+import quoted.QuotePatterns
 
 object TreePickler:
   class StackSizeExceeded(val mdef: tpd.MemberDef) extends Exception
@@ -287,7 +288,6 @@ class TreePickler(pickler: TastyPickler) {
       var mods = EmptyFlags
       if tpe.isContextualMethod then mods |= Given
       else if tpe.isImplicitMethod then mods |= Implicit
-      if tpe.isErasedMethod then mods |= Erased
       pickleMethodic(METHODtype, tpe, mods)
     case tpe: ParamRef =>
       assert(pickleParamRef(tpe), s"orphan parameter reference: $tpe")
@@ -666,11 +666,34 @@ class TreePickler(pickler: TastyPickler) {
               pickleTree(hi)
               pickleTree(alias)
           }
-        case Hole(_, idx, args, _, tpt) =>
+        case tree @ Quote(body, Nil) =>
+          // TODO: Add QUOTE tag to TASTy
+          assert(body.isTerm,
+            """Quote with type should not be pickled.
+              |Quote with type should only exists after staging phase at staging level 0.""".stripMargin)
+          pickleTree(
+            // scala.quoted.runtime.Expr.quoted[<tree.bodyType>](<body>)
+            ref(defn.QuotedRuntime_exprQuote)
+              .appliedToType(tree.bodyType)
+              .appliedTo(body)
+              .withSpan(tree.span)
+          )
+        case Splice(expr) =>
+          pickleTree( // TODO: Add SPLICE tag to TASTy
+            // scala.quoted.runtime.Expr.splice[<tree.tpe>](<expr>)
+            ref(defn.QuotedRuntime_exprSplice)
+              .appliedToType(tree.tpe)
+              .appliedTo(expr)
+              .withSpan(tree.span)
+          )
+        case tree: QuotePattern =>
+          // TODO: Add QUOTEPATTERN tag to TASTy
+          pickleTree(QuotePatterns.encode(tree))
+        case Hole(_, idx, args, _) =>
           writeByte(HOLE)
           withLength {
             writeNat(idx)
-            pickleType(tpt.tpe, richTypes = true)
+            pickleType(tree.tpe, richTypes = true)
             args.foreach(pickleTree)
           }
       }
@@ -678,6 +701,9 @@ class TreePickler(pickler: TastyPickler) {
         case ex: TypeError =>
           report.error(ex.toMessage, tree.srcPos.focus)
         case ex: AssertionError =>
+          println(i"error when pickling tree $tree")
+          throw ex
+        case ex: MatchError =>
           println(i"error when pickling tree $tree")
           throw ex
       }

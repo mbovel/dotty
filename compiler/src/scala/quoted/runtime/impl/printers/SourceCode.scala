@@ -1189,12 +1189,12 @@ object SourceCode {
         }
 
       case SuperType(thistpe, supertpe) =>
-        printType(supertpe)
+        printType(thistpe)
         this += highlightTypeDef(".super")
 
       case TypeLambda(paramNames, tparams, body) =>
         inSquare(printMethodicTypeParams(paramNames, tparams))
-        this += highlightTypeDef(" => ")
+        this += highlightTypeDef(" =>> ")
         printType(body)
 
       case ParamRef(lambda, idx) =>
@@ -1345,18 +1345,22 @@ object SourceCode {
     }
 
     private def printBoundsTree(bounds: TypeBoundsTree)(using elideThis: Option[Symbol]): this.type = {
-      bounds.low match {
-        case Inferred() =>
-        case low =>
-          this += " >: "
-          printTypeTree(low)
-      }
-      bounds.hi match {
-        case Inferred() => this
-        case hi =>
-          this += " <: "
-          printTypeTree(hi)
-      }
+      if bounds.low.tpe == bounds.hi.tpe then
+        this += " = "
+        printTypeTree(bounds.low)
+      else
+        bounds.low match {
+          case Inferred() =>
+          case low =>
+            this += " >: "
+            printTypeTree(low)
+        }
+        bounds.hi match {
+          case Inferred() => this
+          case hi =>
+            this += " <: "
+            printTypeTree(hi)
+        }
     }
 
     private def printBounds(bounds: TypeBounds)(using elideThis: Option[Symbol]): this.type = {
@@ -1368,28 +1372,24 @@ object SourceCode {
 
     private def printProtectedOrPrivate(definition: Definition): Boolean = {
       var prefixWasPrinted = false
-      def printWithin(within: TypeRepr) = within match {
-        case TypeRef(_, name) => this += name
-        case _ => printFullClassName(within)
-      }
-      if (definition.symbol.flags.is(Flags.Protected)) {
+      def printWithin(within: Option[TypeRepr]) = within match
+        case _ if definition.symbol.flags.is(Flags.Local) => inSquare(this += "this")
+        case Some(TypeRef(_, name)) => inSquare(this += name)
+        case Some(within) => inSquare(printFullClassName(within))
+        case _ =>
+
+      if definition.symbol.flags.is(Flags.Protected) then
         this += highlightKeyword("protected")
-        definition.symbol.protectedWithin match {
-          case Some(within) =>
-            inSquare(printWithin(within))
-          case _ =>
-        }
+        printWithin(definition.symbol.protectedWithin)
         prefixWasPrinted = true
-      } else {
-        definition.symbol.privateWithin match {
-          case Some(within) =>
-            this += highlightKeyword("private")
-            inSquare(printWithin(within))
-            prefixWasPrinted = true
-          case _ =>
-        }
-      }
-      if (prefixWasPrinted)
+      else
+        val privateWithin = definition.symbol.privateWithin
+        if privateWithin.isDefined || definition.symbol.flags.is(Flags.Private) then
+          this += highlightKeyword("private")
+          printWithin(definition.symbol.privateWithin)
+          prefixWasPrinted = true
+
+      if prefixWasPrinted then
         this += " "
       prefixWasPrinted
     }

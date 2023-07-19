@@ -190,12 +190,14 @@ class Erasure extends Phase with DenotTransformer {
   def assertErased(tp: Type, tree: tpd.Tree = tpd.EmptyTree)(using Context): Unit = {
     def isAllowed(cls: Symbol, sourceName: String) =
       tp.typeSymbol == cls && ctx.compilationUnit.source.file.name == sourceName
-    assert(isErasedType(tp) ||
-           isAllowed(defn.ArrayClass, "Array.scala") ||
-           isAllowed(defn.TupleClass, "Tuple.scala") ||
-           isAllowed(defn.NonEmptyTupleClass, "Tuple.scala") ||
-           isAllowed(defn.PairClass, "Tuple.scala"),
-        i"The type $tp - ${tp.toString} of class ${tp.getClass} of tree $tree : ${tree.tpe} / ${tree.getClass} is illegal after erasure, phase = ${ctx.phase.prev}")
+    assert(
+      isErasedType(tp)
+      || isAllowed(defn.ArrayClass, "Array.scala")
+      || isAllowed(defn.TupleClass, "Tuple.scala")
+      || isAllowed(defn.NonEmptyTupleClass, "Tuple.scala")
+      || isAllowed(defn.PairClass, "Tuple.scala")
+      || isAllowed(defn.PureClass, "Pure.scala"),
+      i"The type $tp - ${tp.toString} of class ${tp.getClass} of tree $tree : ${tree.tpe} / ${tree.getClass} is illegal after erasure, phase = ${ctx.phase.prev}")
   }
 }
 
@@ -500,7 +502,7 @@ object Erasure {
         if isFunction && !ctx.settings.scalajs.value then
           val arity = implParamTypes.length
           val specializedFunctionalInterface =
-            if defn.isSpecializableFunctionSAM(implParamTypes, implResultType) then
+            if !implType.hasErasedParams && defn.isSpecializableFunctionSAM(implParamTypes, implResultType) then
               // Using these subclasses is critical to avoid boxing since their
               // SAM is a specialized method `apply$mc*$sp` whose default
               // implementation in FunctionN boxes.
@@ -677,8 +679,8 @@ object Erasure {
           // Instead, we manually lookup the type of `apply` in the qualifier.
           inContext(preErasureCtx) {
             val qualTp = tree.qualifier.typeOpt.widen
-            if qualTp.derivesFrom(defn.PolyFunctionClass) then
-              erasePolyFunctionApply(qualTp.select(nme.apply).widen).classSymbol
+            if qualTp.derivesFrom(defn.PolyFunctionClass) || qualTp.derivesFrom(defn.ErasedFunctionClass) then
+              eraseRefinedFunctionApply(qualTp.select(nme.apply).widen).classSymbol
             else
               NoSymbol
           }
@@ -760,7 +762,9 @@ object Erasure {
         val symIsPrimitive = sym.owner.isPrimitiveValueClass
 
         def originalQual: Type =
-          erasure(tree.qualifier.typeOpt.widen.finalResultType)
+          erasure(
+            inContext(preErasureCtx):
+              tree.qualifier.typeOpt.widen.finalResultType)
 
         if (qualIsPrimitive && !symIsPrimitive || qual.tpe.widenDealias.isErasedValueType)
           recur(box(qual))
@@ -827,7 +831,10 @@ object Erasure {
       val Apply(fun, args) = tree
       val origFun = fun.asInstanceOf[tpd.Tree]
       val origFunType = origFun.tpe.widen(using preErasureCtx)
-      val ownArgs = if origFunType.isErasedMethod then Nil else args
+      val ownArgs = origFunType match
+        case mt: MethodType if mt.hasErasedParams =>
+          args.zip(mt.erasedParams).collect { case (arg, false) => arg }
+        case _ => args
       val fun1 = typedExpr(fun, AnyFunctionProto)
       fun1.tpe.widen match
         case mt: MethodType =>
@@ -862,7 +869,7 @@ object Erasure {
 
           app(fun1)
         case t =>
-          if ownArgs.isEmpty then fun1
+          if ownArgs.isEmpty || t.isError then fun1
           else throw new MatchError(i"tree $tree has unexpected type of function $fun/$fun1: $t, was $origFunType, args = $ownArgs")
     end typedApply
 

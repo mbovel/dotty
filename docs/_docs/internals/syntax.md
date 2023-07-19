@@ -20,51 +20,46 @@ productions map to AST nodes.
 The following description of Scala tokens uses literal characters `‘c’` when
 referring to the ASCII fragment `\u0000` – `\u007F`.
 
-_Unicode escapes_ are used to represent the [Unicode character](https://www.w3.org/International/articles/definitions-characters/) with the given
-hexadecimal code:
-
-```ebnf
-UnicodeEscape ::= ‘\’ ‘u’ {‘u’} hexDigit hexDigit hexDigit hexDigit
-hexDigit      ::= ‘0’ | … | ‘9’ | ‘A’ | … | ‘F’ | ‘a’ | … | ‘f’
-```
-
-Informal descriptions are typeset as `“some comment”`.
-
 ## Lexical Syntax
 
-The lexical syntax of Scala is given by the following grammar in EBNF
-form.
+The lexical syntax of Scala is given by the following grammar in EBNF form:
 
 ```ebnf
 whiteSpace       ::=  ‘\u0020’ | ‘\u0009’ | ‘\u000D’ | ‘\u000A’
-upper            ::=  ‘A’ | … | ‘Z’ | ‘\$’ | ‘_’  “… and Unicode category Lu”
-lower            ::=  ‘a’ | … | ‘z’ “… and Unicode category Ll”
-letter           ::=  upper | lower “… and Unicode categories Lo, Lt, Lm, Nl”
-digit            ::=  ‘0’ | … | ‘9’
+upper            ::=  ‘A’ | ... | ‘Z’ | ‘$’ and any character in Unicode categories Lu, Lt or Nl,
+                      and any character in Unicode categories Lo and Lm that doesn't have
+                      contributory property Other_Lowercase
+lower            ::=  ‘a’ | ... | ‘z’ | ‘_’ and any character in Unicode category Ll,
+                      and any character in Unicode categories Lo or Lm that has contributory
+                      property Other_Lowercase
+letter           ::=  upper | lower
+digit            ::=  ‘0’ | ... | ‘9’
 paren            ::=  ‘(’ | ‘)’ | ‘[’ | ‘]’ | ‘{’ | ‘}’
 delim            ::=  ‘`’ | ‘'’ | ‘"’ | ‘.’ | ‘;’ | ‘,’
 opchar           ::=  ‘!’ | ‘#’ | ‘%’ | ‘&’ | ‘*’ | ‘+’ | ‘-’ | ‘/’ | ‘:’ |
                       ‘<’ | ‘=’ | ‘>’ | ‘?’ | ‘@’ | ‘\’ | ‘^’ | ‘|’ | ‘~’
-                      “… and Unicode categories Sm, So”
-printableChar    ::=  “all characters in [\u0020, \u007E] inclusive”
+                      and any character in Unicode categories Sm or So
+printableChar    ::=  all characters in [\u0020, \u007E] inclusive
+UnicodeEscape    ::=  ‘\’ ‘u’ {‘u’} hexDigit hexDigit hexDigit hexDigit
+hexDigit         ::=  ‘0’ | ... | ‘9’ | ‘A’ | ... | ‘F’ | ‘a’ | ... | ‘f’
 charEscapeSeq    ::=  ‘\’ (‘b’ | ‘t’ | ‘n’ | ‘f’ | ‘r’ | ‘"’ | ‘'’ | ‘\’)
+escapeSeq        ::=  UnicodeEscape | charEscapeSeq
 
 op               ::=  opchar {opchar}
 varid            ::=  lower idrest
-alphaid          ::=  upper idrest
-                   |  varid
+boundvarid       ::=  varid
+                   |  ‘`’ varid ‘`’
 plainid          ::=  alphaid
                    |  op
 id               ::=  plainid
-                   |  ‘`’ { charNoBackQuoteOrNewline | UnicodeEscape | charEscapeSeq } ‘`’
+                   |  ‘`’ { charNoBackQuoteOrNewline | escapeSeq } ‘`’
 idrest           ::=  {letter | digit} [‘_’ op]
 quoteId          ::=  ‘'’ alphaid
 spliceId         ::=  ‘$’ alphaid ;
 
 integerLiteral   ::=  (decimalNumeral | hexNumeral) [‘L’ | ‘l’]
-decimalNumeral   ::=  ‘0’ | nonZeroDigit [{digit | ‘_’} digit]
+decimalNumeral   ::=  ‘0’ | digit [{digit | ‘_’} digit]
 hexNumeral       ::=  ‘0’ (‘x’ | ‘X’) hexDigit [{hexDigit | ‘_’} hexDigit]
-nonZeroDigit     ::=  ‘1’ | … | ‘9’
 
 floatingPointLiteral
                  ::=  [decimalNumeral] ‘.’ digit [{digit | ‘_’} digit] [exponentPart] [floatType]
@@ -75,25 +70,25 @@ floatType        ::=  ‘F’ | ‘f’ | ‘D’ | ‘d’
 
 booleanLiteral   ::=  ‘true’ | ‘false’
 
-characterLiteral ::=  ‘'’ (printableChar | charEscapeSeq) ‘'’
+characterLiteral ::=  ‘'’ (charNoQuoteOrNewline | escapeSeq) ‘'’
 
 stringLiteral    ::=  ‘"’ {stringElement} ‘"’
                    |  ‘"""’ multiLineChars ‘"""’
-stringElement    ::=  printableChar \ (‘"’ | ‘\’)
-                   |  UnicodeEscape
-                   |  charEscapeSeq
-multiLineChars   ::=  {[‘"’] [‘"’] char \ ‘"’} {‘"’}
-processedStringLiteral
-                 ::=  alphaid ‘"’ {[‘\’] processedStringPart | ‘\\’ | ‘\"’} ‘"’
-                   |  alphaid ‘"""’ {[‘"’] [‘"’] char \ (‘"’ | ‘$’) | escape} {‘"’} ‘"""’
-processedStringPart
-                 ::= printableChar \ (‘"’ | ‘$’ | ‘\’) | escape
-escape           ::=  ‘$$’
-                   |  ‘$’ letter { letter | digit }
-                   |  ‘{’ Block  [‘;’ whiteSpace stringFormat whiteSpace] ‘}’
-stringFormat     ::=  {printableChar \ (‘"’ | ‘}’ | ‘ ’ | ‘\t’ | ‘\n’)}
+stringElement    ::=  charNoDoubleQuoteOrNewline
+                   |  escapeSeq
+multiLineChars   ::=  {[‘"’] [‘"’] charNoDoubleQuote} {‘"’}
 
-symbolLiteral    ::=  ‘'’ plainid // until 2.13
+interpolatedString
+                 ::=  alphaid ‘"’ {[‘\’] interpolatedStringPart | ‘\\’ | ‘\"’} ‘"’
+                   |  alphaid ‘"""’ {[‘"’] [‘"’] char \ (‘"’ | ‘\$’) | escape} {‘"’} ‘"""’
+interpolatedStringPart
+                 ::= printableChar \ (‘"’ | ‘$’ | ‘\’) | escape
+escape           ::=  ‘\$\$’
+                   |  ‘\$"’
+                   |  ‘\$’ alphaid
+                   |  ‘\$’ BlockExpr
+alphaid          ::=  upper idrest
+                   |  varid
 
 comment          ::=  ‘/*’ “any sequence of characters; nested comments are allowed” ‘*/’
                    |  ‘//’ “any sequence of characters up to end of line”
@@ -140,7 +135,7 @@ type      val       var       while     with      yield
 ### Soft keywords
 
 ```
-as  derives  end  extension  infix  inline  opaque  open  throws transparent  using  |  *  +  -
+as  derives  end  erased  extension  infix  inline  opaque  open  throws transparent  using  |  *  +  -
 ```
 
 See the [separate section on soft keywords](../reference/soft-modifier.md) for additional
@@ -159,7 +154,7 @@ SimpleLiteral     ::=  [‘-’] integerLiteral
                     |  characterLiteral
                     |  stringLiteral
 Literal           ::=  SimpleLiteral
-                    |  processedStringLiteral
+                    |  interpolatedStringLiteral
                     |  symbolLiteral
                     |  ‘null’
 
@@ -180,13 +175,13 @@ Type              ::=  FunType
                     |  FunParamClause ‘=>>’ Type                                TermLambdaTypeTree(ps, t)
                     |  MatchType
                     |  InfixType
-FunType           ::=  FunTypeArgs (‘=>’ | ‘?=>’) Type                          Function(ts, t)
+FunType           ::=  FunTypeArgs (‘=>’ | ‘?=>’) Type                          Function(ts, t) | FunctionWithMods(ts, t, mods, erasedParams)
                     |  HKTypeParamClause '=>' Type                              PolyFunction(ps, t)
 FunTypeArgs       ::=  InfixType
                     |  ‘(’ [ FunArgTypes ] ‘)’
                     |  FunParamClause
 FunParamClause    ::=  ‘(’ TypedFunParam {‘,’ TypedFunParam } ‘)’
-TypedFunParam     ::=  id ‘:’ Type
+TypedFunParam     ::=  [`erased`] id ‘:’ Type
 MatchType         ::=  InfixType `match` <<< TypeCaseClauses >>>
 InfixType         ::=  RefinedType {id [nl] RefinedType}                        InfixOp(t1, op, t2)
 RefinedType       ::=  AnnotType {[nl] Refinement}                              RefinedTypeTree(t, ds)
@@ -206,9 +201,8 @@ SimpleType1       ::=  id                                                       
 Singleton         ::=  SimpleRef
                     |  SimpleLiteral
                     |  Singleton ‘.’ id
-Singletons        ::=  Singleton { ‘,’ Singleton }
-FunArgType        ::=  Type
-                    |  ‘=>’ Type                                                PrefixOp(=>, t)
+FunArgType        ::=  [`erased`] Type
+                    |  [`erased`] ‘=>’ Type                                     PrefixOp(=>, t)
 FunArgTypes       ::=  FunArgType { ‘,’ FunArgType }
 ParamType         ::=  [‘=>’] ParamValueType
 ParamValueType    ::=  [‘into’] ExactParamType                                  Into(t)
@@ -229,7 +223,7 @@ BlockResult       ::=  FunParams (‘=>’ | ‘?=>’) Block
                     |  HkTypeParamClause ‘=>’ Block
                     |  Expr1
 FunParams         ::=  Bindings
-                    |  id
+                    |  [`erased`] id
                     |  ‘_’
 Expr1             ::=  [‘inline’] ‘if’ ‘(’ Expr ‘)’ {nl} Expr [[semi] ‘else’ Expr] If(Parens(cond), thenp, elsep?)
                     |  [‘inline’] ‘if’  Expr ‘then’ Expr [[semi] ‘else’ Expr]    If(cond, thenp, elsep?)
@@ -320,10 +314,10 @@ TypeCaseClause    ::=  ‘case’ (InfixType | ‘_’) ‘=>’ Type [semi]
 
 Pattern           ::=  Pattern1 { ‘|’ Pattern1 }                                Alternative(pats)
 Pattern1          ::=  PatVar ‘:’ RefinedType                                   Bind(name, Typed(Ident(wildcard), tpe))
-                    | [‘-’] integerLiteral ‘:’ RefinedType                      Typed(pat, tpe)
-                    | [‘-’] floatingPointLiteral ‘:’ RefinedType                Typed(pat, tpe)
+                    |  [‘-’] integerLiteral ‘:’ RefinedType                     Typed(pat, tpe)
+                    |  [‘-’] floatingPointLiteral ‘:’ RefinedType               Typed(pat, tpe)
                     |  Pattern2
-Pattern2          ::=  [id ‘@’] InfixPattern [‘*’]                              Bind(name, pat)
+Pattern2          ::=  [id ‘@’] InfixPattern                                    Bind(name, pat)
 InfixPattern      ::=  SimplePattern { id [nl] SimplePattern }                  InfixOp(pat, op, pat)
 SimplePattern     ::=  PatVar                                                   Ident(wildcard)
                     |  Literal                                                  Bind(name, Ident(wildcard))
@@ -362,8 +356,8 @@ ClsParam          ::=  {Annotation}                                             
                        [{Modifier} (‘val’ | ‘var’) | ‘inline’] Param
 
 DefParamClauses   ::=  DefParamClause { DefParamClause } -- and two DefTypeParamClause cannot be adjacent
-DefParamClause    ::=  DefTypeParamClause 
-                    |  DefTermParamClause 
+DefParamClause    ::=  DefTypeParamClause
+                    |  DefTermParamClause
                     |  UsingParamClause
 TypelessClauses   ::=  TypelessClause {TypelessClause}
 TypelessClause    ::=  DefTermParamClause
@@ -376,13 +370,13 @@ UsingParamClause  ::=  [nl] ‘(’ ‘using’ (DefTermParams | FunArgTypes) �
 DefImplicitClause ::=  [nl] ‘(’ ‘implicit’ DefTermParams ‘)’
 
 DefTermParams     ::= DefTermParam {‘,’ DefTermParam}
-DefTermParam      ::= {Annotation} [‘inline’] Param                         ValDef(mods, id, tpe, expr) -- point of mods at id.
+DefTermParam      ::= {Annotation} [`erased`] [‘inline’] Param                    ValDef(mods, id, tpe, expr) -- point of mods at id.
 Param             ::=  id ‘:’ ParamType [‘=’ Expr]
 ```
 
 ### Bindings and Imports
 ```ebnf
-Bindings          ::=  ‘(’ [Binding {‘,’ Binding}] ‘)’
+Bindings          ::=  ‘(’[`erased`] [Binding {‘,’ [`erased`] Binding}] ‘)’
 Binding           ::=  (id | ‘_’) [‘:’ Type]                                    ValDef(_, id, tpe, EmptyTree)
 
 Modifier          ::=  LocalModifier

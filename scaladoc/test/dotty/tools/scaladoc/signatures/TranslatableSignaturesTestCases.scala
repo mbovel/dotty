@@ -1,6 +1,6 @@
 package dotty.tools.scaladoc.signatures
 
-class GenericSignaftures extends SignatureTest("genericSignatures", Seq("class"))
+class GenericSignatures extends SignatureTest("genericSignatures", Seq("class"))
 
 class ObjectSignatures extends SignatureTest("objectSignatures", Seq("object"))
 
@@ -39,7 +39,7 @@ class PackageObjectSymbolSignatures extends SignatureTest("packageObjectSymbolSi
 class MergedPackageSignatures extends SignatureTest("mergedPackage", SignatureTest.all.filterNot(_ == "object"),
   sourceFiles = List("mergedPackage1", "mergedPackage2", "mergedPackage3"))
 
-class ExtensionMethodSignature extends SignatureTest("extensionMethodSignatures", SignatureTest.all)
+class ExtensionMethodSignature extends SignatureTest("extensionMethodSignatures", SignatureTest.all.filterNot(_ == "extension"))
 
 class ExtensionMethodParamsSignature extends SignatureTest("extensionParams", SignatureTest.all)
 
@@ -108,3 +108,15 @@ class ImplicitMembers extends SignatureTest(
 )
 
 class NonScala3Parent extends SignatureTest("nonScala3Parent", SignatureTest.all)
+
+class SupertypeParamsSubstitution extends SignatureTest("supertypeParamsSubstitution", SignatureTest.all)
+
+class ThisType extends SignatureTest("thisType", SignatureTest.all)
+
+class PathDependentTypes extends SignatureTest("pathDependentTypes", SignatureTest.all)
+
+class MatchTypeTuple extends SignatureTest("matchTypeTuple", SignatureTest.all)
+
+class InfixTypes extends SignatureTest("infixTypes", SignatureTest.all)
+
+class ExtendsCall extends SignatureTest("extendsCall", SignatureTest.all)

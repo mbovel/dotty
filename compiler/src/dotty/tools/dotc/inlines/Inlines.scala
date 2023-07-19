@@ -14,9 +14,10 @@ import ErrorReporting.errorTree
 import dotty.tools.dotc.util.{SourceFile, SourcePosition, SrcPos}
 import parsing.Parsers.Parser
 import transform.{PostTyper, Inlining, CrossVersionChecks}
+import staging.StagingLevel
 
 import collection.mutable
-import reporting.trace
+import reporting.{NotConstant, trace}
 import util.Spans.Span
 
 /** Support for querying inlineable methods and for inlining calls to such methods */
@@ -56,7 +57,7 @@ object Inlines:
     case _ =>
       isInlineable(tree.symbol)
       && !tree.tpe.widenTermRefExpr.isInstanceOf[MethodOrPoly]
-      && StagingContext.level == 0
+      && StagingLevel.level == 0
       && (
         ctx.phase == Phases.inliningPhase
         || (ctx.phase == Phases.typerPhase && needsTransparentInlining(tree))
@@ -380,8 +381,7 @@ object Inlines:
 
     /** Expand call to scala.compiletime.codeOf */
     def codeOf(arg: Tree, pos: SrcPos)(using Context): Tree =
-      val ctx1 = ctx.fresh.setSetting(ctx.settings.color, "never")
-      Literal(Constant(arg.show(using ctx1))).withSpan(pos.span)
+      Literal(Constant(arg.show(using ctx.withoutColors))).withSpan(pos.span)
   end Intrinsics
 
   /** Produces an inlined version of `call` via its `inlined` method.
@@ -413,7 +413,7 @@ object Inlines:
         if (inlinedMethod == defn.Compiletime_constValue) {
           val constVal = tryConstValue
           if constVal.isEmpty then
-            val msg = em"not a constant type: ${callTypeArgs.head}; cannot take constValue"
+            val msg = NotConstant("cannot take constValue", callTypeArgs.head.tpe)
             return ref(defn.Predef_undefined).withSpan(call.span).withType(ErrorType(msg))
           else
             return constVal

@@ -103,20 +103,20 @@ class Synthesizer(typer: Typer)(using @constructorOnly c: Context):
         def functionTypeEqual(baseFun: Type, actualArgs: List[Type],
             actualRet: Type, expected: Type) =
           expected =:= defn.FunctionOf(actualArgs, actualRet,
-            defn.isContextFunctionType(baseFun), defn.isErasedFunctionType(baseFun))
+            defn.isContextFunctionType(baseFun))
         val arity: Int =
-          if defn.isErasedFunctionType(fun) || defn.isErasedFunctionType(fun) then -1 // TODO support?
-          else if defn.isFunctionType(fun) then
+          if fun.derivesFrom(defn.ErasedFunctionClass) then -1 // TODO support?
+          else if defn.isFunctionNType(fun) then
             // TupledFunction[(...) => R, ?]
-            fun.dropDependentRefinement.dealias.argInfos match
+            fun.functionArgInfos match
               case funArgs :+ funRet
               if functionTypeEqual(fun, defn.tupleType(funArgs) :: Nil, funRet, tupled) =>
                 // TupledFunction[(...funArgs...) => funRet, ?]
                 funArgs.size
               case _ => -1
-          else if defn.isFunctionType(tupled) then
+          else if defn.isFunctionNType(tupled) then
             // TupledFunction[?, (...) => R]
-            tupled.dropDependentRefinement.dealias.argInfos match
+            tupled.functionArgInfos match
               case tupledArgs :: funRet :: Nil =>
                 defn.tupleTypes(tupledArgs.dealias) match
                   case Some(funArgs) if functionTypeEqual(tupled, funArgs, funRet, fun) =>
@@ -166,7 +166,7 @@ class Synthesizer(typer: Typer)(using @constructorOnly c: Context):
 
       def cmpWithBoxed(cls1: ClassSymbol, cls2: ClassSymbol) =
         cls2 == defn.NothingClass
-        || cls2 == defn.boxedType(cls1.typeRef).symbol
+        || cls2 == defn.boxedClass(cls1)
         || cls1.isNumericValueClass && cls2.derivesFrom(defn.BoxedNumberClass)
 
       if cls1.isPrimitiveValueClass then

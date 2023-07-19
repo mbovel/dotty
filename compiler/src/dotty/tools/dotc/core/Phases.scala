@@ -212,6 +212,7 @@ object Phases {
     private var mySbtExtractDependenciesPhase: Phase = _
     private var myPicklerPhase: Phase = _
     private var myInliningPhase: Phase = _
+    private var myStagingPhase: Phase = _
     private var mySplicingPhase: Phase = _
     private var myFirstTransformPhase: Phase = _
     private var myCollectNullableFieldsPhase: Phase = _
@@ -237,6 +238,7 @@ object Phases {
     final def sbtExtractDependenciesPhase: Phase = mySbtExtractDependenciesPhase
     final def picklerPhase: Phase = myPicklerPhase
     final def inliningPhase: Phase = myInliningPhase
+    final def stagingPhase: Phase = myStagingPhase
     final def splicingPhase: Phase = mySplicingPhase
     final def firstTransformPhase: Phase = myFirstTransformPhase
     final def collectNullableFieldsPhase: Phase = myCollectNullableFieldsPhase
@@ -265,6 +267,7 @@ object Phases {
       mySbtExtractDependenciesPhase = phaseOfClass(classOf[sbt.ExtractDependencies])
       myPicklerPhase = phaseOfClass(classOf[Pickler])
       myInliningPhase = phaseOfClass(classOf[Inlining])
+      myStagingPhase = phaseOfClass(classOf[Staging])
       mySplicingPhase = phaseOfClass(classOf[Splicing])
       myFirstTransformPhase = phaseOfClass(classOf[FirstTransform])
       myCollectNullableFieldsPhase = phaseOfClass(classOf[CollectNullableFields])
@@ -322,12 +325,12 @@ object Phases {
     def run(using Context): Unit
 
     /** @pre `isRunnable` returns true */
-    def runOn(units: List[CompilationUnit])(using Context): List[CompilationUnit] =
+    def runOn(units: List[CompilationUnit])(using runCtx: Context): List[CompilationUnit] =
       units.map { unit =>
-        val unitCtx = ctx.fresh.setPhase(this.start).setCompilationUnit(unit).withRootImports
-        try run(using unitCtx)
-        catch case ex: Throwable =>
-          println(s"$ex while running $phaseName on $unit")
+        given unitCtx: Context = runCtx.fresh.setPhase(this.start).setCompilationUnit(unit).withRootImports
+        try run
+        catch case ex: Throwable if !ctx.run.enrichedErrorMessage =>
+          println(ctx.run.enrichErrorMessage(s"unhandled exception while running $phaseName on $unit"))
           throw ex
         unitCtx.compilationUnit
       }
@@ -426,8 +429,8 @@ object Phases {
     final def prev: Phase =
       if (id > FirstPhaseId) myBase.phases(start - 1) else NoPhase
 
-    final def prevMega(using Context): Phase =
-      ctx.base.fusedContaining(ctx.phase.prev)
+    final def megaPhase(using Context): Phase =
+      ctx.base.fusedContaining(this)
 
     final def next: Phase =
       if (hasNext) myBase.phases(end + 1) else NoPhase
@@ -440,8 +443,8 @@ object Phases {
     final def monitor(doing: String)(body: => Unit)(using Context): Unit =
       try body
       catch
-        case NonFatal(ex) =>
-          report.echo(s"exception occurred while $doing ${ctx.compilationUnit}")
+        case NonFatal(ex) if !ctx.run.enrichedErrorMessage =>
+          report.echo(ctx.run.enrichErrorMessage(s"exception occurred while $doing ${ctx.compilationUnit}"))
           throw ex
 
     override def toString: String = phaseName
@@ -453,6 +456,7 @@ object Phases {
   def sbtExtractDependenciesPhase(using Context): Phase = ctx.base.sbtExtractDependenciesPhase
   def picklerPhase(using Context): Phase                = ctx.base.picklerPhase
   def inliningPhase(using Context): Phase               = ctx.base.inliningPhase
+  def stagingPhase(using Context): Phase               = ctx.base.stagingPhase
   def splicingPhase(using Context): Phase               = ctx.base.splicingPhase
   def firstTransformPhase(using Context): Phase         = ctx.base.firstTransformPhase
   def refchecksPhase(using Context): Phase              = ctx.base.refchecksPhase

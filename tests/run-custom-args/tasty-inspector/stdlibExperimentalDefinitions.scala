@@ -1,5 +1,6 @@
 import scala.quoted.*
 import scala.tasty.inspector.*
+import scala.language.experimental.erasedDefinitions
 
 val experimentalDefinitionInLibrary = Set(
 
@@ -52,21 +53,27 @@ val experimentalDefinitionInLibrary = Set(
   "scala.annotation.internal.requiresCapability",
   "scala.annotation.retains",
   "scala.annotation.retainsByName",
+  "scala.Pure",
   "scala.caps",
   "scala.caps$",
 
   //// New feature: into
   "scala.annotation.allowConversions",
 
-  //// New APIs: Mirror
-  // Can be stabilized in 3.3.0 or later.
-  "scala.deriving.Mirror$.fromProductTyped", // This API is a bit convoluted. We may need some more feedback before we can stabilize it.
-
   //// New feature: Macro annotations
   "scala.annotation.MacroAnnotation",
 
+  //// New feature: -Ysafe-init-global
+  "scala.annotation.init",
+  "scala.annotation.init$",
+  "scala.annotation.init$.widen",
+  "scala.annotation.init$.region",
+
    //// New APIs: Quotes
-  // Can be stabilized in 3.3.0 (unsure) or later
+  // Should be stabilized in 3.4.0
+  "scala.quoted.Quotes.reflectModule.defnModule.FunctionClass",
+  "scala.quoted.Quotes.reflectModule.FlagsModule.AbsOverride",
+  // Can be stabilized in 3.4.0 (unsure) or later
   "scala.quoted.Quotes.reflectModule.CompilationInfoModule.XmacroSettings",
   "scala.quoted.Quotes.reflectModule.FlagsModule.JavaAnnotation",
   // Cant be stabilized yet.
@@ -78,6 +85,29 @@ val experimentalDefinitionInLibrary = Set(
   "scala.quoted.Quotes.reflectModule.SymbolModule.newModule",
   "scala.quoted.Quotes.reflectModule.SymbolModule.freshName",
   "scala.quoted.Quotes.reflectModule.SymbolMethods.info",
+  // Quotes for functions with erased parameters.
+  "scala.quoted.Quotes.reflectModule.MethodTypeMethods.erasedParams",
+  "scala.quoted.Quotes.reflectModule.MethodTypeMethods.hasErasedParams",
+  "scala.quoted.Quotes.reflectModule.TermParamClauseMethods.erasedArgs",
+  "scala.quoted.Quotes.reflectModule.TermParamClauseMethods.hasErasedArgs",
+  "scala.quoted.Quotes.reflectModule.defnModule.ErasedFunctionClass",
+
+  // New feature: functions with erased parameters.
+  // Need erasedDefinitions enabled.
+  "scala.runtime.ErasedFunction",
+  "scala.quoted.Quotes.reflectModule.MethodTypeMethods.erasedParams",
+  "scala.quoted.Quotes.reflectModule.MethodTypeMethods.hasErasedParams",
+  "scala.quoted.Quotes.reflectModule.TermParamClauseMethods.erasedArgs",
+  "scala.quoted.Quotes.reflectModule.TermParamClauseMethods.hasErasedArgs",
+  "scala.quoted.Quotes.reflectModule.defnModule.ErasedFunctionClass",
+
+  // New feature: reverse method on Tuple
+  "scala.Tuple.reverse",
+  "scala.Tuple$.Helpers",
+  "scala.Tuple$.Helpers$",
+  "scala.Tuple$.Helpers$.ReverseImpl",
+  "scala.Tuple$.Reverse",
+  "scala.runtime.Tuples$.reverse"
 )
 
 

@@ -51,6 +51,8 @@ object HTML:
 
   val div = Tag("div")
   val span = Tag("span")
+  val em = Tag("em")
+  val strong = Tag("strong")
   val a = Tag("a")
   val p = Tag("p")
   val h1 = Tag("h1")
@@ -108,6 +110,7 @@ object HTML:
   val onclick=Attr("onclick")
   val titleAttr =Attr("title")
   val onkeyup = Attr("onkeyup")
+  val target = Attr("target")
 
   def raw(content: String): AppliedTag = new AppliedTag(content)
   def raw(content: StringBuilder): AppliedTag = content
