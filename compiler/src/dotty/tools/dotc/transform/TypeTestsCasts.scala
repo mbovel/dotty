@@ -336,7 +336,7 @@ object TypeTestsCasts {
             evalOnce(expr) { e =>
               // e.isInstanceOf[baseType] && qualifier(e.asInstanceOf[baseType])
               transformTypeTest(e, baseType, flagUnrelated)
-                .and(BetaReduce(qualifier, List(e.asInstance(baseType))))
+                .and(BetaReduce(qualifier, List(List(e.asInstance(baseType)))))
             }
           case defn.MultiArrayOf(elem, ndims) if isGenericArrayElement(elem, isScala2 = false) =>
             def isArrayTest(arg: Tree) =
