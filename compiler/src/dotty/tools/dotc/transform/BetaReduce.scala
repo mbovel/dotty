@@ -105,6 +105,12 @@ object BetaReduce:
       case _ =>
         tree
 
+  def apply(ddef: DefDef, argss: List[List[Tree]])(using Context): Tree =
+    val bindings = new ListBuffer[DefTree]()
+    val expansion1 = BetaReduce.reduceApplication(ddef, argss, bindings)
+    val bindings1 = bindings.result()
+    seq(bindings1, expansion1)
+
   /** Beta-reduces a call to `ddef` with arguments `args` and registers new bindings */
   def reduceApplication(ddef: DefDef, argss: List[List[Tree]], bindings: ListBuffer[DefTree])(using Context): Tree =
     val (targs, args) = argss.flatten.partition(_.isType)

@@ -59,14 +59,10 @@ class InlinePatterns extends MiniPhase:
       case Block(TypeDef(_, template: Template) :: Nil, Apply(Select(New(_),_), Nil)) if template.constr.rhs.isEmpty =>
         template.body match
           case List(ddef @ DefDef(`name`, _, _, _)) =>
-            val bindings = new ListBuffer[DefTree]()
-            val expansion1 = BetaReduce.reduceApplication(ddef, argss, bindings)
-            val bindings1 = bindings.result()
-            seq(bindings1, expansion1)
+            BetaReduce(ddef, argss)
           case _ => tree
       case _ => tree
 
 object InlinePatterns:
   val name: String = "inlinePatterns"
   val description: String = "remove placeholders of inlined patterns"
-
