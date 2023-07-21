@@ -317,7 +317,7 @@ object TypeTestsCasts {
          *  The transform happens before erasure of `testType`, thus cannot be merged
          *  with `transformIsInstanceOf`, which depends on erased type of `testType`.
          */
-        def transformTypeTest(expr: Tree, testType: Type, flagUnrelated: Boolean): Tree = testType.dealiasKeepAnnots match { //TODO: Change this to one that only keeps qualified types
+        def transformTypeTest(expr: Tree, testType: Type, flagUnrelated: Boolean): Tree = testType.dealiasKeepQualifyingAnnots match {
           case tref: TermRef if tref.symbol == defn.EmptyTupleModule =>
             ref(defn.RuntimeTuples_isInstanceOfEmptyTuple).appliedTo(expr)
           case _: SingletonType =>
