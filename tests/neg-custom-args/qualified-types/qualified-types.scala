@@ -36,3 +36,14 @@ object postfixLambda:
   // TODO: fix the following ?
   def f: Int => Boolean = x => true
   type Call = Int with f // error
+
+
+object ShouldFailQualChecking:
+  import language.experimental.setNotation
+  trait BoundedUnsignedInt[A]:
+    val bound: A
+    val natBound: Int = asNat(bound) // circular reasoning ! Already fails if natBound is instead a `BoundedNat`
+
+    type BoundedNat = {x: Int with x <= natBound}
+
+    def asNat(x: A): BoundedNat
