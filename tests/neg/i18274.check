@@ -1,0 +1,4 @@
+-- Error: tests/neg/i18274.scala:1:7 -----------------------------------------------------------------------------------
+1 |object Foo extends AnyVal // error
+  |       ^
+  |       A module cannot extends AnyVal

@@ -738,7 +738,10 @@ object Checking {
               for (p <- params if !p.is(Erased))
                 report.error("value class can only have one non `erased` parameter", p.srcPos)
           case Nil =>
-            report.error(ValueClassNeedsOneValParam(clazz), clazz.srcPos)
+            if clazz.is(Module) then
+              report.error("A module cannot extends AnyVal",clazz.srcPos)
+            else
+              report.error(ValueClassNeedsOneValParam(clazz), clazz.srcPos)
         }
       }
       stats.foreach(checkValueClassMember)
