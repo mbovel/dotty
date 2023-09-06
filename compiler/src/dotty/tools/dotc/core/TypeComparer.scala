@@ -26,7 +26,8 @@ import annotation.constructorOnly
 import cc.{CapturingType, derivedCapturingType, CaptureSet, stripCapturing, isBoxedCapturing, boxed, boxedUnlessFun, boxedIfTypeParam, isAlwaysPure}
 import NameKinds.WildcardParamName
 
-import dotty.tools.dotc.qualifiers.{QualifierExpr, QualifiedType, stripRefinements, derivedQualifiedType}
+import dotty.tools.dotc.qualifiers.{QualifierExprs, QualifiedType, stripRefinements, derivedQualifiedType}
+import dotty.tools.dotc.qualifiers.QualifierExpr
 import dotty.tools.dotc.qualifiers.solver.QualifierSolver
 
 /** Provides methods to compare types.
@@ -553,7 +554,7 @@ class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling
         else thirdTry
       case tp1 @ QualifiedType(parent1, refinement1) =>
         if recur(tp1.stripRefinements, tp2.stripRefinements) then
-          ctx.qualifierSolver.tryImply(QualifierExpr.ofType(tp1), QualifierExpr.ofType(tp2))
+          ctx.qualifierSolver.tryImply(QualifierExprs.ofType(tp1), QualifierExprs.ofType(tp2))
         else
           thirdTry
       case tp1: AnnotatedType if !tp1.isRefining =>
@@ -875,7 +876,7 @@ class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling
         given QualifierSolver = ctx.qualifierSolver
         if recur(tp1.stripRefinements, tp2.stripRefinements) then
           //println(f"Check refinements implication (tp2): ${tp1.show} <:< ${tp2.show}")
-          ctx.qualifierSolver.tryImply(QualifierExpr.ofType(tp1), QualifierExpr.ofType(tp2))
+          ctx.qualifierSolver.tryImply(QualifierExprs.ofType(tp1), QualifierExprs.ofType(tp2))
         else
           fourthTry
       case tp2: AnnotatedType if tp2.isRefining =>

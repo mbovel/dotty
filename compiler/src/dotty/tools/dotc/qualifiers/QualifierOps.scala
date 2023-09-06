@@ -5,8 +5,6 @@ package qualifiers
 import core.*
 import Types.*, Symbols.*, Contexts.*, ast.tpd.*
 
-import dotty.tools.dotc.qualifiers.QualifierExpr
-
 extension (tp: Type)
   /** @pre `tp` is a QualifiedType */
   def derivedQualifiedType(parent: Type, refinement: QualifierExpr)(using Context): Type =

@@ -1,44 +1,102 @@
-package dotty.tools
-package dotc
-package qualifiers
+package dotty.tools.dotc.qualifiers
 package solver
+
+import collection.mutable
 
 import org.junit.Test
 import org.junit.Assert.*
 
 import QualifierExpr.*
-import org.junit.runner.Description
+import dotty.tools.dotc.qualifiers.utils.EqClasses
 
 final class NaiveQualifierSolverTest extends QualifierSolverTest(NaiveQualifierSolver()):
   @Test def `it == 5 can imply 5 == it` =
-    assertTrue(Equal(IntConst(5), predArg).tryImply(Equal(predArg, IntConst(5))))
+    assertImplies(Equal(IntConst(5), PredArg), Equal(PredArg, IntConst(5)))
 
   @Test def `it == 5 cannot imply it == 6` =
-    assertFalse(Equal(predArg, IntConst(5)).tryImply(Equal(predArg, IntConst(6))))
+    assertNotImplies(Equal(PredArg, IntConst(5)), Equal(PredArg, IntConst(6)))
 
-  @Test def `it == 5 cannot imply it < 6 (current limitation)` =
-    assertFalse(Equal(predArg, IntConst(5)).tryImply(LessThan(predArg, IntConst(6))))
+  @Test def `it == 5 can imply it < 6` =
+    assertImplies(Equal(PredArg, IntConst(5)), LessThan(PredArg, IntConst(6)))
 
   @Test def `p or q can imply r if p implies and q implies r` =
-    val p = Equal(predArg, IntConst(5))
-    val q = Equal(IntConst(5), predArg)
+    val p = Equal(PredArg, IntConst(5))
+    val q = Equal(IntConst(5), PredArg)
     val r = Equal(IntConst(5), IntConst(5))
-    assertTrue(Or(Set(p, q)).tryImply(r))
+    assertImplies(Or(List(p, q)), r)
 
-  @Test def `p or q cannot imply r if q cannot imply r ` =
-    val p = Equal(predArg, IntConst(5))
-    val q = Equal(predArg, IntConst(6))
-    val r = Equal(predArg, IntConst(5))
-    assertFalse(Or(Set(p, q)).tryImply(r))
+  @Test def `p or q cannot imply r if q cannot imply r` =
+    val p = Equal(PredArg, IntConst(5))
+    val q = Equal(PredArg, IntConst(6))
+    val r = Equal(PredArg, IntConst(5))
+    assertNotImplies(Or(List(p, q)), r)
 
   @Test def `p and q can imply r if p implies or q implies r` =
-    val p = Equal(predArg, IntConst(5))
-    val q = Equal(predArg, IntConst(6))
-    val r = Equal(predArg, IntConst(5))
-    assertTrue(And(Set(p, q)).tryImply(r))
+    val p = Equal(PredArg, IntConst(5))
+    val q = Equal(PredArg, IntConst(6))
+    val r = Equal(PredArg, IntConst(5))
+    assertImplies(And(List(p, q)), r)
 
-  @Test def `p and q cannot imply r if nor p nor q can imply r ` =
-    val p = Equal(predArg, IntConst(5))
-    val q = Equal(predArg, IntConst(6))
-    val r = Equal(predArg, IntConst(7))
-    assertFalse(And(Set(p, q)).tryImply(r))
+  @Test def `p and q cannot imply r if nor p nor q can imply r` =
+    val p = Equal(PredArg, IntConst(5))
+    val q = Equal(PredArg, IntConst(6))
+    val r = Equal(PredArg, IntConst(7))
+    assertNotImplies(And(List(p, q)), r)
+
+  @Test def `p and q can imply p and q` =
+    val p = Equal(PredArg, IntConst(5))
+    val q = Equal(PredArg, IntConst(6))
+    assertImplies(And(List(p, q)), And(List(p, q)))
+
+  @Test def `p or q can imply p or q` =
+    val p = Equal(PredArg, IntConst(5))
+    val q = Equal(PredArg, IntConst(6))
+    assertImplies(Or(List(p, q)), Or(List(p, q)))
+
+  @Test def `given p implies v, v cannot imply q` =
+    val p = Equal(PredArg, IntConst(5))
+    val q = Equal(PredArg, IntConst(6))
+    assertImplies(p, v)
+    assertNotImplies(v, q)
+
+  @Test def `given v implies q, p cannot imply v` =
+    val p = Equal(PredArg, IntConst(5))
+    val q = Equal(PredArg, IntConst(6))
+    assertImplies(v, q)
+    assertNotImplies(p, v)
+
+
+  /*----------*/
+  /* Equality */
+  /*----------*/
+
+  private def assertEquivalent(eqs: EqClasses[QualifierExpr])(exprs: QualifierExpr*) =
+    assertEquals(1, exprs.map(eqs.repr).distinct.length)
+
+  @Test def eqClassesSingle() =
+    val eq = Equal(PredArg, IntConst(5))
+    val (eqRewritten, eqs) = NaiveQualifierSolver.getEqClasses(eq)
+    assertEquals(And(List(True)), eqRewritten)
+    assertEquivalent(eqs)(PredArg, IntConst(5))
+
+  @Test def eqClassesTransitivity() =
+    val eq = and(Equal(x, y), Equal(y, z))
+    val (eqRewritten, eqs) = NaiveQualifierSolver.getEqClasses(eq)
+    assertEquals(And(List(True)), eqRewritten)
+    assertEquivalent(eqs)(x, y, z)
+
+  @Test def eqClassesTransitivity2() =
+    val eq = and(Equal(x, z), Equal(z, y))
+    val (eqRewritten, eqs) = NaiveQualifierSolver.getEqClasses(eq)
+    assertEquals(And(List(True)), eqRewritten)
+    assertEquivalent(eqs)(x, y, z)
+
+  @Test def eqClassesTransitivity3() =
+    val eq = and(Equal(y, x), Equal(z, x))
+    val (eqRewritten, eqs) = NaiveQualifierSolver.getEqClasses(eq)
+    assertEquals(And(List(True)), eqRewritten)
+    assertEquivalent(eqs)(x, y, z)
+
+  @Test def transitiveEquality() =
+    val eq = and(Equal(x, y), Equal(y, z))
+    assertImplies(eq, Equal(x, z))

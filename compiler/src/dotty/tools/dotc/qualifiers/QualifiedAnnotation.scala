@@ -8,9 +8,12 @@ import scala.collection.mutable
 import dotty.tools.dotc.printing.Printer
 import dotty.tools.dotc.printing.Texts.Text
 
-import dotty.tools.dotc.qualifiers.QualifierExpr
+import dotty.tools.dotc.ast.Trees.EmptyTree
+
 case class QualifiedAnnotation(pred: QualifierExpr) extends Annotation:
-  override def tree(using Context): tpd.Tree = ???
+
+  // TODO(mbovel): create the right tree
+  override def tree(using Context): tpd.Tree = EmptyTree()
 
   override def symbol(using Context) = defn.QualifiedAnnot
 

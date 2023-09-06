@@ -1,45 +1,50 @@
-package dotty.tools
-package dotc
-package qualifiers
+package dotty.tools.dotc.qualifiers
 package solver
-
-import core.*
-import Symbols.*, util.Spans.NoCoord
 
 import org.junit.Test
 import org.junit.Assert.*
+import org.junit.FixMethodOrder
+import org.junit.runners.MethodSorters
 
 import QualifierExpr.*
 
-trait QualifierSolverTest(val solver: QualifierSolver):
-  val v = Var(1)
-  val v2 = Var(2)
-  val v3 = Var(3)
-  val x = LambdaArg(0, 0)
-  val y = LambdaArg(0, 1)
+@FixMethodOrder(MethodSorters.JVM)
+abstract class QualifierSolverTest(solver: QualifierSolver):
+  // Note: JUnit4 creates a new instance of the test class before calling each
+  // test method. Therefore, we get a fresh solver and fresh expressions for
+  // each test.
+  val v = solver.freshVar()
+  val v2 = solver.freshVar()
+  val v3 = solver.freshVar()
+  val x = solver.freshRef("x")
+  val y = solver.freshRef("y")
+  val z = solver.freshRef("z")
+  val one = IntConst(1)
+  val two = IntConst(2)
 
-  extension (p: QualifierExpr) def tryImply(q: QualifierExpr) = solver.tryImply(p, q)
+  protected def assertImplies(from: QualifierExpr, to: QualifierExpr) =
+    assertTrue(s"expected $from to imply $to", solver.tryImply(from, to))
+
+  protected def assertNotImplies(from: QualifierExpr, to: QualifierExpr) =
+    assertFalse(s"expected $from not to imply $to", solver.tryImply(from, to))
 
   @Test def trueCannotImplyFalse =
-    assertFalse(True.tryImply(False))
+    assertNotImplies(True, False)
 
   @Test def falseCanImplyTrue =
-    assert(False.tryImply(True))
-
-  @Test def varCanImplyItself =
-    assert(v.tryImply(v))
+    assertImplies(False, True)
 
   @Test def varCanImplyVar =
-    assert(Var(1).tryImply(Var(2)))
+    assertImplies(v, v2)
 
   @Test def trueCannotImplyEq =
-    assertFalse(True.tryImply(Equal(x, y)))
+    assertNotImplies(True, Equal(x, y))
 
   @Test def trueVarCannotImplyEq =
-    assert(True.tryImply(v))
-    assertFalse(v.tryImply(Equal(x, y)))
+    assertImplies(True, v)
+    assertNotImplies(v, Equal(x, y))
 
   @Test def canBacktrack =
-    assert(v2.tryImply(Equal(x, y))) // v2 is not empty
-    assert(True.tryImply(or(and(v, v2), v3)))
-    assert(v.tryImply(Equal(x, y))) // v is not empty
+    assertImplies(v2, Equal(x, y)) // v2 is not empty
+    assertImplies(True, or(and(v, v2), v3))
+    assertImplies(v, Equal(x, y)) // v is not empty

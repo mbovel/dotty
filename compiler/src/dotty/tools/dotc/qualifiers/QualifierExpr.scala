@@ -1,20 +1,8 @@
-package dotty.tools
-package dotc
-package qualifiers
+package dotty.tools.dotc.qualifiers
 
-import core.*
-import Types.*, Symbols.*, Contexts.*, Names.*, ast.tpd.*
-import StdNames.nme
-import util.Property.Key
-
-import scala.collection.mutable
-import dotty.tools.dotc.printing.Showable
-import dotty.tools.dotc.printing.Printer
-import dotty.tools.dotc.printing.Texts.Text
-import dotty.tools.dotc.core.Constants.Constant
-
-import math.Ordering.Implicits.seqOrdering
 import scala.annotation.threadUnsafe
+import scala.collection.mutable
+import math.Ordering.Implicits.{seqOrdering, infixOrderingOps}
 
 enum QualifierExpr:
   import QualifierExpr.*
@@ -23,22 +11,17 @@ enum QualifierExpr:
   case Var(i: Int)
   case True
   case False
-  case And(args: Set[QualifierExpr])
-  case Or(args: Set[QualifierExpr])
+  case And(args: List[QualifierExpr])
+  case Or(args: List[QualifierExpr])
   case Not(arg: QualifierExpr)
-  case IfThenElse(cond: QualifierExpr, thn: QualifierExpr, els: QualifierExpr)
   case Equal(l: QualifierExpr, right: QualifierExpr)
   case LessThan(left: QualifierExpr, right: QualifierExpr)
-  case IsInstanceOf(t: QualifierExpr, tp: QualifierExpr)
-  case ForAll(lambda: QualifierExpr)
-  case Exists(lambda: QualifierExpr)
 
   // General expressions:
-  case Ref(index: Symbol)
-  case Get(ref: QualifierExpr, prop: QualifierExpr)
+  case PredArg
+  case Ref(id: Int, name: String)
   case App(fun: QualifierExpr, args: List[QualifierExpr])
-  case Lambda(index: Int, body: QualifierExpr)
-  case LambdaArg(lambdaIndex: Int, argIndex: Int)
+  case Lambda(params: List[Ref], body: QualifierExpr)
   case IntSum(const: Int, args: List[QualifierExpr])
   case IntProduct(const: Int, args: List[QualifierExpr])
   case IntConst(value: Int)
@@ -46,66 +29,68 @@ enum QualifierExpr:
   case StringConst(value: String)
 
   override def toString(): String =
-    def showApp(name: String, args: Iterable[QualifierExpr]): String =
-      f"$name(${args.mkString(", ")})"
+    def showApp(name: String, args: Iterable[QualifierExpr]): String = f"$name(${args.mkString(", ")})"
     this match
-      case Var(i)                           => f"?$i"
-      case True                             => "true"
-      case False                            => "false"
-      case And(args)                        => showApp("and", args)
-      case Or(args)                         => showApp("or", args)
-      case Not(arg)                         => f"not(${arg})"
-      case IfThenElse(cond, thn, els)       => f"if ${cond} then ${thn} else ${els}"
-      case Equal(left, right)               => f"${left} == ${right}"
-      case LessThan(left, right)            => f"${left} < ${right}"
-      case IsInstanceOf(t, tp)              => f"${t}.isInstanceOf($tp)"
-      case ForAll(lambda)                   => f"forall($lambda)"
-      case Exists(lambda)                   => f"exists($lambda)"
-      case IntConst(value)                  => value.toString
-      case DoubleConst(value)               => value.toString
-      case StringConst(value)               => value.toString
-      case Ref(sym)                         => f"${sym}"
-      case Get(ref, prop)                   => f"${ref}[${prop}]"
-      case App(fun, args)                   => showApp(fun.toString, args)
-      case Lambda(index, body)              => f"x$index => ${body}"
-      case LambdaArg(lambdaIndex, argIndex) => if this == predArg then "it" else f"x$lambdaIndex($argIndex)"
-      case IntSum(const, args)              => showApp("sum", IntConst(const) :: args)
-      case IntProduct(const, args)          => showApp("prod", IntConst(const) :: args)
+      case Var(i)                  => f"?$i"
+      case True                    => "true"
+      case False                   => "false"
+      case And(args)               => showApp("and", args)
+      case Or(args)                => showApp("or", args)
+      case Not(arg)                => f"not(${arg})"
+      case Equal(left, right)      => f"${left} == ${right}"
+      case LessThan(left, right)   => f"${left} < ${right}"
+      case IntConst(value)         => value.toString
+      case DoubleConst(value)      => value.toString
+      case StringConst(value)      => value.toString
+      case PredArg                 => "it"
+      case Ref(n, name)            => name
+      case App(fun, args)          => showApp(fun.toString, args)
+      case Lambda(params, body)    => f"(${params.mkString(",")}) => ${body}"
+      case IntSum(const, args)     => showApp("sum", IntConst(const) :: args)
+      case IntProduct(const, args) => showApp("prod", IntConst(const) :: args)
 
   def map(f: QualifierExpr => QualifierExpr): QualifierExpr =
     this match
-      case Var(_)                           => f(this)
-      case True                             => f(this)
-      case False                            => f(this)
-      case And(args)                        => f(args.map(_.map(f)).foldLeft(True)(and))
-      case Or(args)                         => f(args.map(_.map(f)).foldLeft(False)(or))
-      case Not(arg)                         => f(not(arg.map(f)))
-      case IfThenElse(cond, thn, els)       => f(ifThenElse(cond.map(f), thn.map(f), els.map(f)))
-      case Equal(left, right)               => f(equal(left.map(f), right.map(f)))
-      case LessThan(left, right)            => f(lessThan(left.map(f), right.map(f)))
-      case IsInstanceOf(t, tp)              => f(IsInstanceOf(t.map(f), tp))
-      case ForAll(lambda)                   => f(ForAll(lambda.map(f)))
-      case Exists(lambda)                   => f(Exists(lambda.map(f)))
-      case IntConst(_)                      => f(this)
-      case DoubleConst(_)                   => f(this)
-      case StringConst(_)                   => f(this)
-      case Ref(sym)                         => f(this)
-      case Get(ref, prop)                   => f(Get(ref.map(f), prop.map(f)))
-      case App(fun, args)                   => f(App(fun.map(f), args.map(_.map(f))))
-      case Lambda(index, body)              => f(Lambda(index, body.map(f)))
-      case LambdaArg(lambdaIndex, argIndex) => f(this)
-      case IntSum(const, args)              => f(args.map(_.map(f)).foldLeft(IntConst(const))(intSum))
-      case IntProduct(const, args)          => f(args.map(_.map(f)).foldLeft(IntConst(const))(intProduct))
+      case Var(_)                  => f(this)
+      case True                    => f(this)
+      case False                   => f(this)
+      case And(args)               => f(args.map(_.map(f)).foldLeft(True)(and))
+      case Or(args)                => f(args.map(_.map(f)).foldLeft(False)(or))
+      case Not(arg)                => f(not(arg.map(f)))
+      case Equal(left, right)      => f(equal(left.map(f), right.map(f)))
+      case LessThan(left, right)   => f(lessThan(left.map(f), right.map(f)))
+      case IntConst(value)         => f(this)
+      case DoubleConst(value)      => f(this)
+      case StringConst(value)      => f(this)
+      case PredArg                 => f(this)
+      case Ref(id, name)           => f(this)
+      case App(fun, args)          => f(App(fun.map(f), args.map(_.map(f))))
+      case Lambda(params, body)    => f(Lambda(params, body.map(f)))
+      case IntSum(const, args)     => f(args.map(_.map(f)).foldLeft(IntConst(const))(intSum))
+      case IntProduct(const, args) => f(args.map(_.map(f)).foldLeft(IntConst(const))(intProduct))
+
+
+  def foreach(f: QualifierExpr => Unit): Unit =
+    f(this)
+    this match
+      case And(args)               => args.foreach(_.foreach(f))
+      case Or(args)                => args.foreach(_.foreach(f))
+      case Not(arg)                => arg.foreach(f)
+      case Equal(left, right)      => left.foreach(f); right.foreach(f)
+      case LessThan(left, right)   => left.foreach(f); right.foreach(f)
+      case App(fun, args)          => fun.foreach(f); args.foreach(_.foreach(f))
+      case Lambda(params, body)    => body.foreach(f)
+      case IntSum(const, args)     => args.foreach(_.foreach(f))
+      case IntProduct(const, args) => args.foreach(_.foreach(f))
+      case _                       => ()
+
 
   // TODO(mbovel): optimize allocations. Ideally, map(identity) shouldn't
   // allocate anything. This would require optimized copy methods (aka .derived)
   // and collections .map. Worth it?
 
   def equiv(that: QualifierExpr): Boolean =
-    this == that || this.normalized() == that.normalized()
-
-  def normalized(): QualifierExpr =
-    this.map(_.shallowNormalized())
+    this == that || this.simplify() == that.simplify()
 
   def approxVarsToTrue(): QualifierExpr =
     this.map {
@@ -115,56 +100,48 @@ enum QualifierExpr:
 
   @threadUnsafe lazy val hasVars: Boolean =
     this match
-      case Var(i) => true
-      case True => false
-      case False => false
-      case And(args) => args.exists(_.hasVars)
-      case Or(args) => args.exists(_.hasVars)
-      case Not(arg) => arg.hasVars
-      case IfThenElse(cond, thn, els) => cond.hasVars || thn.hasVars || els.hasVars
-      case Equal(l, right) => l.hasVars || right.hasVars
-      case LessThan(left, right) => left.hasVars || right.hasVars
-      case IsInstanceOf(t, tp) => t.hasVars || tp.hasVars
-      case ForAll(lambda) => lambda.hasVars
-      case Exists(lambda) => lambda.hasVars
-      case Ref(index) => false
-      case Get(ref, prop) => ref.hasVars || prop.hasVars
-      case App(fun, args) => fun.hasVars || args.exists(_.hasVars)
-      case Lambda(index, body) => body.hasVars
-      case LambdaArg(lambdaIndex, argIndex) => false
-      case IntSum(const, args) => args.exists(_.hasVars)
+      case Var(i)                  => true
+      case True                    => false
+      case False                   => false
+      case And(args)               => args.exists(_.hasVars)
+      case Or(args)                => args.exists(_.hasVars)
+      case Not(arg)                => arg.hasVars
+      case Equal(l, right)         => l.hasVars || right.hasVars
+      case LessThan(left, right)   => left.hasVars || right.hasVars
+      case PredArg                 => false
+      case Ref(id, name)           => false
+      case App(fun, args)          => fun.hasVars || args.exists(_.hasVars)
+      case Lambda(params, body)    => body.hasVars
+      case IntSum(const, args)     => args.exists(_.hasVars)
       case IntProduct(const, args) => args.exists(_.hasVars)
-      case IntConst(value) => false
-      case DoubleConst(value) => false
-      case StringConst(value) => false
-
+      case IntConst(value)         => false
+      case DoubleConst(value)      => false
+      case StringConst(value)      => false
 
   @threadUnsafe lazy val vars: List[Var] =
     this match
-      case v: Var => List(v)
-      case True => Nil
-      case False => Nil
-      case And(args) => args.toList.flatMap(_.vars)
-      case Or(args) => args.toList.flatMap(_.vars)
-      case Not(arg) => arg.vars
-      case IfThenElse(cond, thn, els) => cond.vars ++ thn.vars ++ els.vars
-      case Equal(l, right) => l.vars ++ right.vars
-      case LessThan(left, right) => left.vars ++ right.vars
-      case IsInstanceOf(t, tp) => t.vars ++ tp.vars
-      case ForAll(lambda) => lambda.vars
-      case Exists(lambda) => lambda.vars
-      case Ref(index) => Nil
-      case Get(ref, prop) => ref.vars ++ prop.vars
-      case App(fun, args) => fun.vars ++ args.flatMap(_.vars)
-      case Lambda(index, body) => body.vars
-      case LambdaArg(lambdaIndex, argIndex) => Nil
-      case IntSum(const, args) => args.flatMap(_.vars)
+      case v: Var                  => List(v)
+      case True                    => Nil
+      case False                   => Nil
+      case And(args)               => args.toList.flatMap(_.vars)
+      case Or(args)                => args.toList.flatMap(_.vars)
+      case Not(arg)                => arg.vars
+      case Equal(l, right)         => l.vars ++ right.vars
+      case LessThan(left, right)   => left.vars ++ right.vars
+      case PredArg                 => Nil
+      case Ref(id, name)           => Nil
+      case App(fun, args)          => fun.vars ++ args.flatMap(_.vars)
+      case Lambda(params, body)    => body.vars
+      case IntSum(const, args)     => args.flatMap(_.vars)
       case IntProduct(const, args) => args.flatMap(_.vars)
-      case IntConst(value) => Nil
-      case DoubleConst(value) => Nil
-      case StringConst(value) => Nil
+      case IntConst(value)         => Nil
+      case DoubleConst(value)      => Nil
+      case StringConst(value)      => Nil
 
-  private def shallowNormalized(): QualifierExpr =
+  def simplify(): QualifierExpr =
+    this.map(_.shallowSimplify())
+
+  private def shallowSimplify(): QualifierExpr =
     this match
       case And(args) =>
         if args.exists(arg => args.contains(Not(arg))) then False
@@ -202,11 +179,11 @@ enum QualifierExpr:
             .filter((args, c) => c != 0 && !args.isEmpty)
             .map((args, c) => IntProduct(c, args.toList.sortBy(_.hashCode())))
             .toList
-            .sortBy(_.hashCode())
+            .sorted
         if newConst == 0 && newArgs.length == 1 then newArgs.head
         else IntSum(groups.getOrElse(Set.empty, 0) + const, newArgs)
       case IntProduct(const, args) =>
-        val newArgs = args.toList.sortBy(_.hashCode())
+        val newArgs = args.toList.sorted
         IntProduct(const, newArgs)
       case _ =>
         this
@@ -214,7 +191,12 @@ enum QualifierExpr:
 object QualifierExpr:
   import QualifierExpr.*
 
-  val predArg = LambdaArg(0, 0)
+  type Const = IntConst | DoubleConst | StringConst
+
+  def topAnd(expr: QualifierExpr): And =
+    expr match
+      case expr: And => expr
+      case _         => And(expr :: Nil)
 
   def and(l: QualifierExpr, r: QualifierExpr): QualifierExpr =
     (l, r) match
@@ -222,9 +204,9 @@ object QualifierExpr:
       case (_, True)                => l
       case (True, _)                => r
       case (And(lArgs), And(rArgs)) => And(lArgs ++ rArgs)
-      case (And(lArgs), _)          => And(lArgs + r)
-      case (_, And(rArgs))          => And(rArgs + l)
-      case _                        => And(Set(l, r))
+      case (And(lArgs), _)          => And(lArgs :+ r) // TODO(mbovel): warning: inefficient
+      case (_, And(rArgs))          => And(rArgs :+ l)
+      case _                        => And(List(l, r))
 
   def or(l: QualifierExpr, r: QualifierExpr): QualifierExpr =
     (l, r) match
@@ -232,10 +214,10 @@ object QualifierExpr:
       case (_, False)             => l
       case (False, _)             => r
       case (Or(lArgs), Or(rArgs)) => Or(lArgs ++ rArgs)
-      case (Or(lArgs), _)         => Or(lArgs + l)
-      case (_, Or(rArgs))         => Or(rArgs + l)
+      case (Or(lArgs), _)         => Or(lArgs :+ l)
+      case (_, Or(rArgs))         => Or(rArgs :+ l)
       case _ if r == l            => l
-      case _                      => Or(Set(l, r))
+      case _                      => Or(List(l, r))
 
   def not(arg: QualifierExpr) =
     arg match
@@ -244,15 +226,11 @@ object QualifierExpr:
       case Not(arg1) => arg1
       case arg1      => Not(arg1)
 
-  def ifThenElse(cond: QualifierExpr, thn: QualifierExpr, els: QualifierExpr) =
-    cond match
-      case True  => thn
-      case False => els
-      case _     => IfThenElse(cond, thn, els)
-
   def equal(l: QualifierExpr, r: QualifierExpr) =
     if l == r then True
-    else if l.hashCode > r.hashCode then Equal(r, l)
+    else if l == True || r == True then l
+    else if l == False || r == False then not(l)
+    else if l < r then Equal(r, l)
     else Equal(l, r)
 
   def lessThan(l: QualifierExpr, r: QualifierExpr) =
@@ -270,7 +248,7 @@ object QualifierExpr:
       case (IntConst(lC), _)                      => IntSum(lC, List(r))
       case (_, IntSum(rC, rArgs))                 => IntSum(rC, l :: rArgs)
       case (_, IntConst(rC))                      => IntSum(rC, List(l))
-      case _                                      => IntSum(1, List(l, r))
+      case _                                      => IntSum(0, List(l, r))
 
   def intProduct(l: QualifierExpr, r: QualifierExpr): QualifierExpr =
     (l, r) match
@@ -290,67 +268,67 @@ object QualifierExpr:
       case IntConst(c)         => IntConst(-c)
       case _                   => IntProduct(-1, List(x))
 
-  private val cache = mutable.HashMap[Type, QualifierExpr]()
+  extension (x: Int)
+    // Spaceship operator
+    inline def <=>(inline y: Int) =
+      if x != 0 then x else y
 
-  def ofType(tp: Type)(using Context): QualifierExpr =
-    // TODO(mbovel): cache
-    // cache.getOrElseUpdate(tp, computeOfType(tp))
-    val res = computeOfType(tp)
-    // println(f"ofType(${tp.show}) == ${res.show}")
-    res
-
-  private def computeOfType(tp: Type)(using Context): QualifierExpr =
-    import QualifierExpr.*
-    tp.dealias match
-      case QualifiedType(parent, pred) => and(ofType(parent), pred)
-      case AndType(tp1, tp2)           => and(ofType(tp1), ofType(tp2))
-      case OrType(tp1, tp2) if tp1 frozen_=:= tp2            => or(ofType(tp1), ofType(tp2))
-      case tp: TypeProxy               => ofType(tp.underlying)
-      case _                           => True
-
-  val intBinOps: Set[Name] =
-    Set(nme.EQ, nme.NE, nme.GT, nme.GE, nme.LT, nme.LE, nme.ADD, nme.MINUS, nme.MUL, nme.DIV)
-
-  def fromClosure(tree: Tree)(using Context): QualifierExpr =
-    // TODO(mbovel): cache
-    tree match
-      case closureDef(meth) =>
-        val res = fromTree(meth.rhs)(using meth.paramss(0)(0).symbol)
-        res
-      case _ => throw new Error(f"Cannot translate ${tree}")
-
-  def fromTree(tree: Tree)(using predArgSymbol: Symbol)(using Context): QualifierExpr =
-    tree match
-      case id: Ident =>
-        if id.symbol == predArgSymbol then predArg
-        else Ref(id.symbol)
-      case Apply(fun, args) =>
-        fun match
-          case Select(qualifier, name)
-              if intBinOps.contains(name) && qualifier.tpe <:< defn.IntType =>
-            val lhs = fromTree(qualifier)
-            val rhs = fromTree(args(0))
-            name match
-              case nme.EQ  => Equal(lhs, rhs)
-              case nme.NE  => Not(Equal(lhs, rhs))
-              case nme.GT  => and(Not(Equal(lhs, rhs)), Not(LessThan(lhs, rhs)))
-              case nme.GE  => Not(LessThan(lhs, rhs))
-              case nme.LT  => LessThan(lhs, rhs)
-              case nme.LE  => and(Not(Equal(lhs, rhs)), LessThan(lhs, rhs))
-              case nme.ADD => intSum(lhs, rhs)
-              case nme.SUB => intSum(lhs, intNegate(rhs))
-              case nme.MUL => intProduct(lhs, rhs)
-          case _ =>
-            App(fromTree(fun), args.map(fromTree))
-      case Select(qualifier, name) =>
-        Get(fromTree(qualifier), StringConst(name.toString))
-      case Literal(c) if fromConst.isDefinedAt(c) =>
-        fromConst(c)
-      case _ =>
-        throw new Error(f"Cannot translate ${tree}")
-
-  val fromConst: PartialFunction[Constant, QualifierExpr] = {
-    case Constant(value: Int)    => IntConst(value)
-    case Constant(value: Double) => DoubleConst(value)
-    case Constant(value: String) => StringConst(value)
-  }
+  given ordering: Ordering[QualifierExpr] =
+    import math.Ordered.orderingToOrdered
+    (a, b) =>
+      (a, b) match
+        case (True, True) => 0
+        case (True, _) => -1
+        case (_, True) => 1
+        case (False, False) => 0
+        case (False, _) => -1
+        case (_, False) => 1
+        case (Not(x), Not(y)) => x.compareTo(y)
+        case (Not(_), _) => -1
+        case (_, Not(_)) => 1
+        case (IntConst(x), IntConst(y)) => x.compareTo(y)
+        case (IntConst(_), _) => -1
+        case (_, IntConst(_)) => 1
+        case (DoubleConst(x), DoubleConst(y)) => x.compareTo(y)
+        case (DoubleConst(_), _) => -1
+        case (_, DoubleConst(_)) => 1
+        case (StringConst(x), StringConst(y)) => x.compareTo(y)
+        case (StringConst(_), _) => -1
+        case (_, StringConst(_)) => 1
+        case (IntSum(xConst, xArgs), IntSum(yConst, yArgs)) =>
+          xConst.compareTo(yConst) <=> xArgs.compareTo(yArgs)
+        case (IntSum(_, _), _) => -1
+        case (_, IntSum(_, _)) => 1
+        case (IntProduct(xConst, xArgs), IntProduct(yConst, yArgs)) =>
+          xConst.compareTo(yConst) <=> xArgs.compareTo(yArgs)
+        case (IntProduct(_, _), _) => -1
+        case (_, IntProduct(_, _)) => 1
+        case (And(xArgs), And(yArgs)) => xArgs.compareTo(yArgs)
+        case (And(_), _) => -1
+        case (_, And(_)) => 1
+        case (Or(xArgs), Or(yArgs)) => xArgs.compareTo(yArgs)
+        case (Or(_), _) => -1
+        case (_, Or(_)) => 1
+        case (Equal(xLeft, xRight), Equal(yLeft, yRight)) =>
+          xLeft.compareTo(yLeft) <=> xRight.compareTo(yRight)
+        case (Equal(_, _), _) => -1
+        case (_, Equal(_, _)) => 1
+        case (LessThan(xLeft, xRight), LessThan(yLeft, yRight)) =>
+          xLeft.compareTo(yLeft) <=> xRight.compareTo(yRight)
+        case (LessThan(_, _), _) => -1
+        case (_, LessThan(_, _)) => 1
+        case (App(xFun, xArgs), App(yFun, yArgs)) =>
+          xFun.compareTo(yFun) <=> xArgs.compareTo(yArgs)
+        case (Var(x), Var(y)) => x.compareTo(y)
+        case (Var(_), _) => -1
+        case (_, Var(_)) => 1
+        case (PredArg, PredArg) => 0
+        case (PredArg, _) => -1
+        case (_, PredArg) => 1
+        case (Ref(id, name), Ref(id2, name2)) => id.compareTo(id2)
+        case (Ref(_, _), _) => -1
+        case (_, Ref(_, _)) => 1
+        case (App(_, _), _) => -1
+        case (_, App(_, _)) => 1
+        case (Lambda(xParams, xBody), Lambda(yParams, yBody)) =>
+          xParams.compareTo(yParams) <=> xBody.compareTo(yBody)

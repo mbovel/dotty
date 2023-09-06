@@ -37,8 +37,9 @@ import reporting.{trace, Message}
 import java.lang.ref.WeakReference
 import compiletime.uninitialized
 import cc.{CapturingType, CaptureSet, derivedCapturingType, isBoxedCapturing, EventuallyCapturingType, boxedUnlessFun}
-import qualifiers.{derivedQualifiedType, QualifierExpr, QualifiedType}
 import CaptureSet.{CompareResult, IdempotentCaptRefMap, IdentityCaptRefMap}
+import qualifiers.{derivedQualifiedType, QualifiedType}
+import qualifiers.QualifierExpr
 
 import scala.annotation.internal.sharable
 import scala.annotation.threadUnsafe

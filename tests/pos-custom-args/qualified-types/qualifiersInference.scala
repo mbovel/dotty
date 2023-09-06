@@ -48,7 +48,9 @@ def test() =
   app(x11, takePQ)
   appBoth(x1, x10, takeP)
   appBoth(x1, x11, takeP)
-  appBoth[P](x10, x1, takeP) // Cannot infer because T is inferred to be P & Q
+  appBoth(x10, x1, takeP) // Cannot infer because T is inferred to be P & Q
+  //val x13 = appBoth(x10, x1, takeP) // Cannot infer because T is inferred to be P & Q
+
   appBoth(x11, x1, takeP)
   appBoth(x10, x11, takeP)
   //appBoth(x1, x10, takePQ) // Only works because we are not checking predicates

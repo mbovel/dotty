@@ -262,6 +262,10 @@ abstract class Recheck extends Phase, SymTransformer:
           case _ => mapOver(t)
       formals.mapConserve(tm)
 
+    /** Hook for argument type check */
+    protected def recheckArg(arg: Tree, pt: Type, argSym: Symbol)(using Context): Type =
+      recheck(arg, pt)
+
     /** Hook for method type instantiation */
     protected def instantiate(mt: MethodType, argTypes: List[Type], sym: Symbol)(using Context): Type =
       mt.instantiate(argTypes)
@@ -278,7 +282,9 @@ abstract class Recheck extends Phase, SymTransformer:
             else fntpe.paramInfos
           def recheckArgs(args: List[Tree], formals: List[Type], prefs: List[ParamRef]): List[Type] = args match
             case arg :: args1 =>
-              val argType = recheck(arg, formals.head.mapExprType)
+              // TODO(mbovel): how to do that properly?
+              val argSym = tree.fun.symbol.paramSymss.flatten.find(_.name == prefs.head.paramName).get
+              val argType = recheckArg(arg, formals.head.mapExprType, argSym)
               val formals1 =
                 if fntpe.isParamDependent
                 then formals.tail.map(_.substParam(prefs.head, argType))
