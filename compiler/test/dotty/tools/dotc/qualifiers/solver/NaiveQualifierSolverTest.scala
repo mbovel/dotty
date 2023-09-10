@@ -7,7 +7,6 @@ import org.junit.Test
 import org.junit.Assert.*
 
 import QualifierExpr.*
-import dotty.tools.dotc.qualifiers.utils.EqClasses
 
 final class NaiveQualifierSolverTest extends QualifierSolverTest(NaiveQualifierSolver()):
   @Test def `it == 5 can imply 5 == it` =
@@ -66,36 +65,12 @@ final class NaiveQualifierSolverTest extends QualifierSolverTest(NaiveQualifierS
     assertNotImplies(p, v)
 
 
+  @Test def baseline =
+    assertEquals(4, 2 + 2)
+
   /*----------*/
   /* Equality */
   /*----------*/
-
-  private def assertEquivalent(eqs: EqClasses[QualifierExpr])(exprs: QualifierExpr*) =
-    assertEquals(1, exprs.map(eqs.repr).distinct.length)
-
-  @Test def eqClassesSingle() =
-    val eq = Equal(PredArg, IntConst(5))
-    val (eqRewritten, eqs) = NaiveQualifierSolver.getEqClasses(eq)
-    assertEquals(And(List(True)), eqRewritten)
-    assertEquivalent(eqs)(PredArg, IntConst(5))
-
-  @Test def eqClassesTransitivity() =
-    val eq = and(Equal(x, y), Equal(y, z))
-    val (eqRewritten, eqs) = NaiveQualifierSolver.getEqClasses(eq)
-    assertEquals(And(List(True)), eqRewritten)
-    assertEquivalent(eqs)(x, y, z)
-
-  @Test def eqClassesTransitivity2() =
-    val eq = and(Equal(x, z), Equal(z, y))
-    val (eqRewritten, eqs) = NaiveQualifierSolver.getEqClasses(eq)
-    assertEquals(And(List(True)), eqRewritten)
-    assertEquivalent(eqs)(x, y, z)
-
-  @Test def eqClassesTransitivity3() =
-    val eq = and(Equal(y, x), Equal(z, x))
-    val (eqRewritten, eqs) = NaiveQualifierSolver.getEqClasses(eq)
-    assertEquals(And(List(True)), eqRewritten)
-    assertEquivalent(eqs)(x, y, z)
 
   @Test def transitiveEquality() =
     val eq = and(Equal(x, y), Equal(y, z))

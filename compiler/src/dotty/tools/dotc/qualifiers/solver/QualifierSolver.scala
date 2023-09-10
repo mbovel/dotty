@@ -4,7 +4,18 @@ package solver
 import QualifierExpr.*
 
 abstract class QualifierSolver:
-  def tryImply(p: QualifierExpr, q: QualifierExpr): Boolean
+  def assume(p: QualifierExpr): Unit
+  def check(p: QualifierExpr): Boolean
+  def push(): Unit
+  def pop(): Unit
+
+  def tryImply(p: QualifierExpr, q: QualifierExpr): Boolean =
+    push()
+    assume(p)
+    val res = check(q)
+    pop()
+    res
+
   def instantiate(p: QualifierExpr): QualifierExpr
 
   var maxVarIndex: Int = 0

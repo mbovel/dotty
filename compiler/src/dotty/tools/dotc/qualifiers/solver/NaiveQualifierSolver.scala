@@ -4,70 +4,62 @@ package solver
 import collection.mutable
 import QualifierExpr.*
 import math.Ordering.Implicits.{seqOrdering, infixOrderingOps}
-import utils.EqClasses
 
 class NaiveQualifierSolver extends QualifierSolver:
   import NaiveQualifierSolver.*
 
-  override final def tryImply(from: QualifierExpr, to: QualifierExpr): Boolean =
-    val res = _tryImply(from, to, frozen = true) || _tryImply(from, to, frozen = false)
+  final var contextStack = List(NaiveQualifierSolverContext())
+
+  override final def push(): Unit = contextStack = contextStack.head :: contextStack
+  override final def pop(): Unit = contextStack = contextStack.tail
+
+  override final def assume(p: QualifierExpr): Unit =
+    contextStack = contextStack.head.assume(p) :: contextStack.tail
+
+  override final def check(toRaw: QualifierExpr): Boolean =
+    val from = contextStack.head.premise
+    val to = contextStack.head.rewrite(toRaw)
+    val res = tryImplyRec(from, to, frozen = true) || tryImplyRec(from, to, frozen = false)
     log(s"tryImply($from, $to) == $res\n---")
     res
 
-  private final def _tryImply(from: QualifierExpr, to: QualifierExpr, frozen: Boolean): Boolean =
+  private final def tryImplyRec(from: QualifierExpr, to: QualifierExpr, frozen: Boolean): Boolean =
     val res = maybeRollback {
       to match
         case to: Var =>
           hasImplicationToVar(from, to) || (!frozen && tryAddImplicationToVar(from, to))
         case to: And =>
-          to.args.forall(_tryImply(from, _, frozen))
+          to.args.forall(tryImplyRec(from, _, frozen))
         case _ =>
           from match
             case from: Or =>
-              from.args.forall(_tryImply(_, to, frozen))
-            case from: And if from.hasVars =>
-              from.args.exists(_tryImply(_, to, frozen))
+              from.args.forall(tryImplyRec(_, to, frozen))
+            case from: And =>
+              from.args.exists(tryImplyRec(_, to, frozen))
             case _ =>
               to match
                 case to: Or =>
-                  to.args.exists(_tryImply(from, _, frozen))
+                  to.args.exists(tryImplyRec(from, _, frozen))
                 case _ =>
                   assert(!to.hasVars)
                   from match
                     case from: Var =>
-                      hasImplicationToLeaf(from, to) || (!frozen && tryAddImplicationToLeaf(
-                        from,
-                        to
-                      ))
+                      hasImplicationToLeaf(from, to)
+                      || (!frozen && tryAddImplicationToLeaf(from, to))
                     case _ =>
                       assert(!from.hasVars)
                       leafImplies(from, to, frozen)
     }
-    log(s"_tryImply($from, $to, frozen = $frozen) == $res")
+    log(s"tryImplyRec($from, $to, frozen = $frozen) == $res")
     res
 
   protected def leafImplies(
-      rootFrom: QualifierExpr /* with !it.hasVars */,
-      rootTo: QualifierExpr /* with !it.hasVars */,
+      from: QualifierExpr /* with !it.hasVars */,
+      to: QualifierExpr /* with !it.hasVars */,
       frozen: Boolean
   ): Boolean =
-    log(s"leafImplies($rootFrom, $rootTo, frozen = $frozen)")
-
-    def recur(from: QualifierExpr /* with !it.hasVars */, to: QualifierExpr /* with !it.hasVars */): Boolean =
-      to.equiv(True) || (
-        from match
-          case from: And =>
-            from.args.exists(recur(_, to))
-          case _ =>
-            from.equiv(rootTo) || from.equiv(False)
-      )
-
-    def tryRewrite(): Boolean =
-      log(s"tryRewrite")
-      val (rewrittenFrom, eqs) = getEqClasses(rootFrom)
-      recur(rewrittenFrom, rewrite(rootTo, eqs))
-
-    recur(rootFrom, rootTo) || tryRewrite()
+    log(s"leafImplies($from, $to, frozen = $frozen)")
+    to == True || from == False || from == to
 
   /*------------*/
   /* Vars state */
@@ -76,18 +68,15 @@ class NaiveQualifierSolver extends QualifierSolver:
   private case class ImplicationToVar(premise: QualifierExpr, conclusion: Var)
   private case class ImplicationToLeaf(premise: Var, conclusion: QualifierExpr /* with !it.hasVars */ )
 
-  /** The value associated to a given key is an array of all ImplicationToVar that have this key as
-    * their conclusion.
+  /** The value associated to a given key is an array of all ImplicationToVar that have this key as their conclusion.
     */
   private val implicationsToVars = mutable.Map.empty[Var, Set[ImplicationToVar]]
 
-  /** The value associated to a given key is an array of all ImplicationToVar that have this key in
-    * their premise.
+  /** The value associated to a given key is an array of all ImplicationToVar that have this key in their premise.
     */
   private val dependencies = mutable.Map.empty[Var, Set[ImplicationToVar]]
 
-  /** The value associated to a given key is an array of all ImplicationToLeaf that have this key in
-    * their premise.
+  /** The value associated to a given key is an array of all ImplicationToLeaf that have this key in their premise.
     */
   private val implicationsToLeafs = mutable.Map.empty[Var, Set[ImplicationToLeaf]]
 
@@ -122,9 +111,9 @@ class NaiveQualifierSolver extends QualifierSolver:
 
     val canAdd =
       implicationsToLeafs.getOrElse(conclusion, Set.empty)
-        .forall(impl => _tryImply(premise, impl.conclusion, frozen = false))
+        .forall(impl => tryImplyRec(premise, impl.conclusion, frozen = false))
         && dependencies.getOrElse(conclusion, Set.empty)
-          .forall(impl => _tryImply(impl.premise.map(instantiate), premise, frozen = false))
+          .forall(impl => tryImplyRec(impl.premise.map(instantiate), premise, frozen = false))
 
     if canAdd then
       for premiseVar <- premise.vars do
@@ -153,7 +142,7 @@ class NaiveQualifierSolver extends QualifierSolver:
       conclusion: QualifierExpr /* with !it.hasVars */
   ): Boolean =
     val implication = ImplicationToLeaf(premise, conclusion)
-    val canAdd = _tryImply(premise.map(instantiate), conclusion, frozen = false)
+    val canAdd = tryImplyRec(premise.map(instantiate), conclusion, frozen = false)
     if canAdd then
       val previousImplications = implicationsToLeafs.getOrElse(premise, Set.empty)
       implicationsToLeafs.update(premise, previousImplications + implication)
@@ -184,34 +173,6 @@ class NaiveQualifierSolver extends QualifierSolver:
     res
 
 object NaiveQualifierSolver:
-  /*----------*/
-  /* Equality */
-  /*----------*/
-
-  private[solver] final def rewrite(expr: QualifierExpr, eqs: EqClasses[QualifierExpr]): QualifierExpr =
-    val result = expr.map(eqs.repr)
-    log(s"rewrite($expr, $eqs) == $result")
-    if result != expr then rewrite(result, eqs) else result
-
-  private[solver] final def getEqClasses(startFrom: QualifierExpr): (And, EqClasses[QualifierExpr]) =
-    val eqClasses = EqClasses[QualifierExpr]()
-    var from: And = topAnd(startFrom)
-    var changed = true
-    while changed do
-      changed = false
-      from.foreach {
-        case Equal(from, to) => changed |= eqClasses.addEq(from, to)
-        case _ => ()
-      }
-      from = topAnd(rewrite(from, eqClasses))
-      log(s"getEqClasses step: $eqClasses")
-    (from, eqClasses)
-
-  /*-------*/
-  /* Utils */
-  /*-------*/
-
   private inline def log(inline msg: => String): Unit =
     println(msg)
     ()
-
