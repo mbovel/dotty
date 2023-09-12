@@ -86,3 +86,14 @@ final class NaiveQualifierSolverContextTest:
     assertEquivalent(f(x), z)
     assertEquivalent(g(f(y)), g(z))
 
+  @Test def nested5 =
+    addEq(f(y), f(z))
+    addEq(x, z)
+    assertEquals(2, ctx.nClasses())
+    assertEquivalent(f(y), f(z))
+
+  @Test def nested6 =
+    addEq(f(y), f(z))
+    addEq(x, z)
+    assertEquals(2, ctx.nClasses())
+    assertEquivalent(f(x), f(y))

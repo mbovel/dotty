@@ -25,26 +25,26 @@ final class NaiveQualifierSolverTest extends QualifierSolverTest(NaiveQualifierS
     assertImplies(Or(List(p, q)), r)
 
   @Test def `p or q cannot imply r if q cannot imply r` =
-    val p = Equal(PredArg, IntConst(5))
-    val q = Equal(PredArg, IntConst(6))
-    val r = Equal(PredArg, IntConst(5))
+    val p = Equal(x, IntConst(5))
+    val q = Equal(y, IntConst(6))
+    val r = Equal(x, IntConst(5))
     assertNotImplies(Or(List(p, q)), r)
 
   @Test def `p and q can imply r if p implies or q implies r` =
-    val p = Equal(PredArg, IntConst(5))
-    val q = Equal(PredArg, IntConst(6))
-    val r = Equal(PredArg, IntConst(5))
+    val p = Equal(x, IntConst(5))
+    val q = Equal(y, IntConst(6))
+    val r = Equal(x, IntConst(5))
     assertImplies(And(List(p, q)), r)
 
   @Test def `p and q cannot imply r if nor p nor q can imply r` =
-    val p = Equal(PredArg, IntConst(5))
-    val q = Equal(PredArg, IntConst(6))
-    val r = Equal(PredArg, IntConst(7))
+    val p = Equal(x, IntConst(5))
+    val q = Equal(y, IntConst(6))
+    val r = Equal(z, IntConst(7))
     assertNotImplies(And(List(p, q)), r)
 
   @Test def `p and q can imply p and q` =
-    val p = Equal(PredArg, IntConst(5))
-    val q = Equal(PredArg, IntConst(6))
+    val p = Equal(x, IntConst(5))
+    val q = Equal(y, IntConst(6))
     assertImplies(And(List(p, q)), And(List(p, q)))
 
   @Test def `p or q can imply p or q` =
@@ -66,6 +66,7 @@ final class NaiveQualifierSolverTest extends QualifierSolverTest(NaiveQualifierS
 
 
   @Test def baseline =
+    // Just used to check if MUnit reported time is useful. It's not.
     assertEquals(4, 2 + 2)
 
   /*----------*/

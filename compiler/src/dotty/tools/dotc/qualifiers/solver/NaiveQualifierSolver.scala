@@ -3,11 +3,10 @@ package solver
 
 import collection.mutable
 import QualifierExpr.*
+import QualifierLogging.log
 import math.Ordering.Implicits.{seqOrdering, infixOrderingOps}
 
 class NaiveQualifierSolver extends QualifierSolver:
-  import NaiveQualifierSolver.*
-
   final var contextStack = List(NaiveQualifierSolverContext())
 
   override final def push(): Unit = contextStack = contextStack.head :: contextStack
@@ -16,9 +15,9 @@ class NaiveQualifierSolver extends QualifierSolver:
   override final def assume(p: QualifierExpr): Unit =
     contextStack = contextStack.head.assume(p) :: contextStack.tail
 
-  override final def check(toRaw: QualifierExpr): Boolean =
+  override final def check(rawTo: QualifierExpr): Boolean =
     val from = contextStack.head.premise
-    val to = contextStack.head.rewrite(toRaw)
+    val to = contextStack.head.rewrite(rawTo)
     val res = tryImplyRec(from, to, frozen = true) || tryImplyRec(from, to, frozen = false)
     log(s"tryImply($from, $to) == $res\n---")
     res
@@ -171,8 +170,3 @@ class NaiveQualifierSolver extends QualifierSolver:
         removeImplicationToLeaf(premise, conclusion)
       implicationsToLeafJournal.takeInPlace(prevImplicationsToLeafJournalSize)
     res
-
-object NaiveQualifierSolver:
-  private inline def log(inline msg: => String): Unit =
-    println(msg)
-    ()

@@ -14,7 +14,7 @@ enum QualifierExpr:
   case And(args: List[QualifierExpr])
   case Or(args: List[QualifierExpr])
   case Not(arg: QualifierExpr)
-  case Equal(l: QualifierExpr, right: QualifierExpr)
+  case Equal(left: QualifierExpr, right: QualifierExpr)
   case LessThan(left: QualifierExpr, right: QualifierExpr)
 
   // General expressions:
@@ -50,6 +50,10 @@ enum QualifierExpr:
       case IntProduct(const, args) => showApp("prod", IntConst(const) :: args)
 
   def map(f: QualifierExpr => QualifierExpr): QualifierExpr =
+    // TODO(mbovel): optimize allocations. `map(x => x)` shouldn't allocate
+    // anything. This would require optimized copy methods (aka .derived) on
+    // `QualifierExpr` and collection mapping, for example using using
+    // `.mapConserve` instead of `.map`. Should benchmark.
     this match
       case Var(_)                  => f(this)
       case True                    => f(this)
@@ -66,8 +70,8 @@ enum QualifierExpr:
       case Ref(id, name)           => f(this)
       case App(fun, args)          => f(App(fun.map(f), args.map(_.map(f))))
       case Lambda(params, body)    => f(Lambda(params, body.map(f)))
-      case IntSum(const, args)     => f(args.map(_.map(f)).foldLeft(IntConst(const))(intSum))
-      case IntProduct(const, args) => f(args.map(_.map(f)).foldLeft(IntConst(const))(intProduct))
+      case IntSum(const, args)     => f(args.map(_.map(f)).foldRight(IntConst(const))(intSum))
+      case IntProduct(const, args) => f(args.map(_.map(f)).foldRight(IntConst(const))(intProduct))
 
 
   def foreach(f: QualifierExpr => Unit): Unit =
@@ -84,13 +88,11 @@ enum QualifierExpr:
       case IntProduct(const, args) => args.foreach(_.foreach(f))
       case _                       => ()
 
-
-  // TODO(mbovel): optimize allocations. Ideally, map(identity) shouldn't
-  // allocate anything. This would require optimized copy methods (aka .derived)
-  // and collections .map. Worth it?
-
   def equiv(that: QualifierExpr): Boolean =
-    this == that || this.simplify() == that.simplify()
+    // Used to also check if `this.map(_.shallowNormalize()) ==
+    // that.map(_.shallowNormalize())`. Now, it assumes that the caller has
+    // already normalized the expressions.
+    this == that
 
   def approxVarsToTrue(): QualifierExpr =
     this.map {
@@ -138,16 +140,19 @@ enum QualifierExpr:
       case DoubleConst(value)      => Nil
       case StringConst(value)      => Nil
 
-  def simplify(): QualifierExpr =
-    this.map(_.shallowSimplify())
-
-  private def shallowSimplify(): QualifierExpr =
+  def shallowNormalize(): QualifierExpr =
     this match
       case And(args) =>
         if args.exists(arg => args.contains(Not(arg))) then False
         else this
       case Or(args) =>
         if args.exists(arg => args.contains(Not(arg))) then True
+        else this
+      case Equal(left, right) =>
+        if right < left then Equal(right, left)
+        else this
+      case LessThan(left, right) =>
+        if right < left then LessThan(right, left)
         else this
       case IntSum(const, args) =>
         /*
@@ -227,22 +232,25 @@ object QualifierExpr:
       case arg1      => Not(arg1)
 
   def equal(l: QualifierExpr, r: QualifierExpr) =
-    if l == r then True
-    else if l == True || r == True then l
-    else if l == False || r == False then not(l)
-    else if l < r then Equal(r, l)
-    else Equal(l, r)
+    (l, r) match
+      case _ if l == r => True
+      case (l, True)   => l
+      case (True, r) => r
+      case (l, False) => not(l)
+      case (False, r) => not(r)
+      case _ => Equal(l, r)
 
   def lessThan(l: QualifierExpr, r: QualifierExpr) =
     (l, r) match
       case (IntConst(x), IntConst(y)) => if x < y then True else False
-      case _                          => LessThan(l, r)
+      case _ if l == r                => False
+      case _ => LessThan(l, r)
 
   def intSum(l: QualifierExpr, r: QualifierExpr): QualifierExpr =
     (l, r) match
       case (IntSum(lC, lArgs), IntSum(rC, rArgs)) => IntSum(lC + rC, lArgs ++ rArgs)
       case (IntSum(lC, lArgs), IntConst(rC))      => IntSum(lC + rC, lArgs)
-      case (IntSum(lC, lArgs), _)                 => IntSum(lC, r :: lArgs)
+      case (IntSum(lC, lArgs), _)                 => IntSum(lC, lArgs :+ r)
       case (IntConst(lC), IntSum(rC, rArgs))      => IntSum(lC + rC, rArgs)
       case (IntConst(lC), IntConst(rC))           => IntConst(lC + rC)
       case (IntConst(lC), _)                      => IntSum(lC, List(r))
@@ -254,7 +262,7 @@ object QualifierExpr:
     (l, r) match
       case (IntProduct(lC, lArgs), IntProduct(rC, rArgs)) => IntProduct(lC * rC, lArgs ++ rArgs)
       case (IntProduct(lC, lArgs), IntConst(rC))          => IntProduct(lC * rC, lArgs)
-      case (IntProduct(lC, lArgs), _)                     => IntProduct(lC, r :: lArgs)
+      case (IntProduct(lC, lArgs), _)                     => IntProduct(lC, lArgs :+ r)
       case (IntConst(lC), IntProduct(rC, rArgs))          => IntProduct(lC * rC, rArgs)
       case (IntConst(lC), IntConst(rC))                   => IntConst(lC * rC)
       case (IntConst(lC), _)                              => IntProduct(lC, List(r))
