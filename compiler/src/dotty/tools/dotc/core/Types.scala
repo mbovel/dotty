@@ -1454,6 +1454,10 @@ object Types {
     /** Like `dealiasKeepAnnots`, but keeps only refining annotations */
     final def dealiasKeepRefiningAnnots(using Context): Type = dealias1(keepIfRefining, keepOpaques = false)
 
+    /** Like `dealiasKeepAnnots`, but keeps only qualifying annotations */
+    final def dealiasKeepQualifyingAnnots(using Context): Type = dealias1(keepIfQualifying, keepOpaques = false)
+
+
     /** Follow non-opaque aliases and dereferences LazyRefs, annotated types and instantiated
      *  TypeVars until type is no longer alias type, annotated type, LazyRef,
      *  or instantiated type variable.
@@ -6618,6 +6622,7 @@ object Types {
   private val keepAlways: AnnotatedType => Context ?=> Boolean = _ => true
   private val keepNever: AnnotatedType => Context ?=> Boolean = _ => false
   private val keepIfRefining: AnnotatedType => Context ?=> Boolean = _.isRefining
+  private val keepIfQualifying: AnnotatedType => Context ?=> Boolean = {case refine.EventuallyQualifiedType(_) => true case _ => false}
 
   val isBounds: Type => Boolean = _.isInstanceOf[TypeBounds]
 }

@@ -306,17 +306,18 @@ object TypeTestsCasts {
 
         /** Transform isInstanceOf
          *
-         *    expr.isInstanceOf[A | B]          ~~>  expr.isInstanceOf[A] | expr.isInstanceOf[B]
-         *    expr.isInstanceOf[A & B]          ~~>  expr.isInstanceOf[A] & expr.isInstanceOf[B]
-         *    expr.isInstanceOf[Tuple]          ~~>  scala.runtime.Tuples.isInstanceOfTuple(expr)
-         *    expr.isInstanceOf[EmptyTuple]     ~~>  scala.runtime.Tuples.isInstanceOfEmptyTuple(expr)
-         *    expr.isInstanceOf[NonEmptyTuple]  ~~>  scala.runtime.Tuples.isInstanceOfNonEmptyTuple(expr)
-         *    expr.isInstanceOf[*:[_, _]]       ~~>  scala.runtime.Tuples.isInstanceOfNonEmptyTuple(expr)
+         *    expr.isInstanceOf[A | B]                  ~~>  expr.isInstanceOf[A] || expr.isInstanceOf[B]
+         *    expr.isInstanceOf[A & B]                  ~~>  expr.isInstanceOf[A] && expr.isInstanceOf[B]
+         *    expr.isInstanceOf[{x: A with qualifier}]  ~~>  expr.isInstanceOf[A] && qualifier(expr.asInstanceOf[A])
+         *    expr.isInstanceOf[Tuple]                  ~~>  scala.runtime.Tuples.isInstanceOfTuple(expr)
+         *    expr.isInstanceOf[EmptyTuple]             ~~>  scala.runtime.Tuples.isInstanceOfEmptyTuple(expr)
+         *    expr.isInstanceOf[NonEmptyTuple]          ~~>  scala.runtime.Tuples.isInstanceOfNonEmptyTuple(expr)
+         *    expr.isInstanceOf[*:[_, _]]               ~~>  scala.runtime.Tuples.isInstanceOfNonEmptyTuple(expr)
          *
          *  The transform happens before erasure of `testType`, thus cannot be merged
          *  with `transformIsInstanceOf`, which depends on erased type of `testType`.
          */
-        def transformTypeTest(expr: Tree, testType: Type, flagUnrelated: Boolean): Tree = testType.dealias match {
+        def transformTypeTest(expr: Tree, testType: Type, flagUnrelated: Boolean): Tree = testType.dealiasKeepQualifyingAnnots match {
           case tref: TermRef if tref.symbol == defn.EmptyTupleModule =>
             ref(defn.RuntimeTuples_isInstanceOfEmptyTuple).appliedTo(expr)
           case _: SingletonType =>
@@ -330,6 +331,12 @@ object TypeTestsCasts {
             evalOnce(expr) { e =>
               transformTypeTest(e, tp1, flagUnrelated)
                 .and(transformTypeTest(e, tp2, flagUnrelated))
+            }
+          case refine.EventuallyQualifiedType(baseType, closureDef(qualifier: DefDef)) =>
+            evalOnce(expr) { e =>
+              // e.isInstanceOf[baseType] && qualifier(e.asInstanceOf[baseType])
+              transformTypeTest(e, baseType, flagUnrelated)
+                .and(BetaReduce(qualifier, List(List(e.asInstance(baseType)))))
             }
           case defn.MultiArrayOf(elem, ndims) if isGenericArrayElement(elem, isScala2 = false) =>
             def isArrayTest(arg: Tree) =

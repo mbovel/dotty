@@ -736,7 +736,7 @@ object PatternMatcher {
               .select(defn.Seq_length.matchingMember(scrutinee.tpe))
               .select(if (exact) defn.Int_== else defn.Int_>=)
               .appliedTo(Literal(Constant(len)))
-        case TypeTest(tpt, trusted) =>
+        case TypeTest(tpt, trusted) => //here ?
           val expectedTp = tpt.tpe
 
           def typeTest(scrut: Tree, expected: Type): Tree =

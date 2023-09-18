@@ -29,10 +29,15 @@ object postfixLambda:
 
   type MultipleWildcards = Int with _ > _ // error: Qualified type's qualifier contains 2 wildcards ('_'), when the maximum is 1
 
-  def foo(x: Int with y => x > 0) = ???// error: Cyclic reference involving val x
+  def foo(x: Int with y => x > 0) = ??? // error: Cyclic reference involving val x
 
   type Nesting = Int with { val y: Int with _ > 0 = ??? ; _ > y } // error
 
   // TODO: fix the following ?
   def f: Int => Boolean = x => true
   type Call = Int with f // error
+
+  class A:
+    private val b: Boolean = true
+
+    type myInt = Int with b // error: non-private refers to private
