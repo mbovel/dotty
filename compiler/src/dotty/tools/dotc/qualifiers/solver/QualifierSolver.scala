@@ -29,3 +29,5 @@ abstract class QualifierSolver:
     val res: Ref = Ref(maxRefIndex, name)
     maxRefIndex = maxRefIndex + 1
     res
+
+  def debug(): Unit

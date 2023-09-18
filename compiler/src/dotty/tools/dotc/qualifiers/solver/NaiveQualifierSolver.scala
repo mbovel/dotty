@@ -7,17 +7,23 @@ import QualifierLogging.log
 import math.Ordering.Implicits.{seqOrdering, infixOrderingOps}
 
 class NaiveQualifierSolver extends QualifierSolver:
-  final var contextStack = List(NaiveQualifierSolverContext())
+  final var contextStack = List(True)
 
-  override final def push(): Unit = contextStack = contextStack.head :: contextStack
-  override final def pop(): Unit = contextStack = contextStack.tail
+  override final def push(): Unit = contextStack =
+    log("push()")
+    contextStack.head :: contextStack
+
+  override final def pop(): Unit = contextStack =
+    log("pop()")
+    contextStack.tail
 
   override final def assume(p: QualifierExpr): Unit =
-    contextStack = contextStack.head.assume(p) :: contextStack.tail
+    val head = and(contextStack.head, p)
+    log(s"assume($p) ->> $head")
+    contextStack = head :: contextStack.tail
 
-  override final def check(rawTo: QualifierExpr): Boolean =
-    val from = contextStack.head.premise
-    val to = contextStack.head.rewrite(rawTo)
+  override final def check(to: QualifierExpr): Boolean =
+    val from = contextStack.head
     val res = tryImplyRec(from, to, frozen = true) || tryImplyRec(from, to, frozen = false)
     log(s"tryImply($from, $to) == $res\n---")
     res
@@ -33,7 +39,7 @@ class NaiveQualifierSolver extends QualifierSolver:
           from match
             case from: Or =>
               from.args.forall(tryImplyRec(_, to, frozen))
-            case from: And =>
+            case from: And if from.hasVars =>
               from.args.exists(tryImplyRec(_, to, frozen))
             case _ =>
               to match
@@ -53,12 +59,26 @@ class NaiveQualifierSolver extends QualifierSolver:
     res
 
   protected def leafImplies(
-      from: QualifierExpr /* with !it.hasVars */,
-      to: QualifierExpr /* with !it.hasVars */,
+      rootFrom: QualifierExpr /* with !it.hasVars */,
+      rootTo: QualifierExpr /* with !it.hasVars */,
       frozen: Boolean
   ): Boolean =
-    log(s"leafImplies($from, $to, frozen = $frozen)")
-    to == True || from == False || from == to
+    def rec(from: QualifierExpr, to: QualifierExpr): Boolean =
+      to == True || from == False || (
+        from match
+          case from: And =>
+            from.args.exists(rec(_, to))
+          case _ =>
+            from == to
+      )
+
+    val res = rec(rootFrom, rootTo) || {
+      val eqs = NaiveQualifierEquivalenceEngine(rootFrom)
+      rec(eqs.premise, eqs.rewrite(rootTo))
+    }
+
+    log(s"leafImplies($rootFrom, $rootTo, frozen = $frozen) == $res")
+    res
 
   /*------------*/
   /* Vars state */
@@ -170,3 +190,9 @@ class NaiveQualifierSolver extends QualifierSolver:
         removeImplicationToLeaf(premise, conclusion)
       implicationsToLeafJournal.takeInPlace(prevImplicationsToLeafJournalSize)
     res
+
+  override def debug(): Unit =
+    println("Vars state:")
+    println(s"implicationsToVars" + implicationsToVars.mkString("\n  ", ",\n  ", "\n"))
+    println(s"implicationsToLeafs" + implicationsToLeafs.mkString("\n  ", ",\n  ", "\n"))
+    println()

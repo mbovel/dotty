@@ -35,7 +35,7 @@ class CheckQualifiedTypes extends Recheck:
       qual.println(i"checkQualifiedTypes solver:\n${ctx.qualifierSolver.getClass()}")
       qual.println(i"checkQualifiedTypes setup:\n${Recheck.addRecheckedTypes.transform(ctx.compilationUnit.tpdTree)}")
       super.checkUnit(unit)
-      instantiateTraverser.traverse(ctx.compilationUnit.tpdTree)
+      //instantiateTraverser.traverse(ctx.compilationUnit.tpdTree)
 
     val instantiateTraverser = new TreeTraverser:
       override def traverse(tree: Tree)(using Context) =
@@ -63,7 +63,7 @@ class CheckQualifiedTypes extends Recheck:
               case _                   => foldOver(acc, tp)
           )
 
-    private final var facts = True
+    private final var argsQualifier = True
     //private final var argTrees = collection.mutable.ArrayBuffer[Tree]()
     private final var argRefs = collection.mutable.ArrayBuffer[Ref]()
     private final var paramRefs = collection.mutable.ArrayBuffer[Ref]()
@@ -99,14 +99,19 @@ class CheckQualifiedTypes extends Recheck:
         case pred    => pred
       }
       qual.println(f"fact: $fact")
-      facts = QualifierExpr.and(facts, fact)
+      argsQualifier = QualifierExpr.and(argsQualifier, fact)
       argTp
 
     override protected def instantiate(mt: MethodType, argTypes: List[Type], sym: Symbol)(using Context): Type =
       val tp = super.instantiate(mt, argTypes, sym)
       qual.println(i"instantiated: $tp")
-      qual.println(i"facts: $facts")
-      substQualifierParams(tp)
+      qual.println(i"facts: $argsQualifier")
+      substQualifierParams(tp) match
+        case QualifiedType(parent, qualifier) =>
+          tp.derivedQualifiedType(parent, QualifierExpr.and(qualifier, argsQualifier))
+        case res => res
+
+
 
     override def recheckApply(tree: tpd.Apply, pt: Type)(using Context): Type =
       val savedArgRefs = argRefs
@@ -119,7 +124,7 @@ class CheckQualifiedTypes extends Recheck:
       res
 
     override def checkConformsExpr(actual: Type, expected: Type, tree: tpd.Tree)(using Context): Unit =
-      qual.println(i"facts: $facts")
+      qual.println(i"facts: $argsQualifier")
       qual.println(i"checkConformsExpr: $actual <:< $expected")
       super.checkConformsExpr(actual, expected, tree)
 

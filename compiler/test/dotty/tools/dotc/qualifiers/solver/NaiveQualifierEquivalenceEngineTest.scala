@@ -9,11 +9,11 @@ import org.junit.FixMethodOrder
 import org.junit.runners.MethodSorters
 
 import QualifierExpr.*
-import dotty.tools.dotc.qualifiers.solver.NaiveQualifierSolverContext.*
+import NaiveQualifierEquivalenceEngine.*
 
 @FixMethodOrder(MethodSorters.JVM)
-final class NaiveQualifierSolverContextTest:
-  var ctx = NaiveQualifierSolverContext()
+final class NaiveQualifierEquivalenceEngineTest:
+  var ctx = NaiveQualifierEquivalenceEngine()
 
   val x = Ref(0, "x")
   val y = Ref(1, "y")
