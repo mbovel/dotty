@@ -98,6 +98,7 @@ class CheckQualifiedTypes extends Recheck:
         case PredArg => freshRef
         case pred    => pred
       }
+      ctx.qualifierSolver.assume(fact)
       qual.println(f"fact: $fact")
       argsQualifier = QualifierExpr.and(argsQualifier, fact)
       argTp
@@ -118,7 +119,9 @@ class CheckQualifiedTypes extends Recheck:
       val savedParamSyms = paramRefs
       argRefs = collection.mutable.ArrayBuffer()
       paramRefs = collection.mutable.ArrayBuffer()
+      ctx.qualifierSolver.push()
       val res = super.recheckApply(tree, pt)
+      ctx.qualifierSolver.pop()
       argRefs = savedArgRefs
       paramRefs = savedParamSyms
       res
