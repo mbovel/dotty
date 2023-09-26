@@ -93,11 +93,7 @@ class CheckQualifiedTypes extends Recheck:
       argRefs += freshRef
       paramRefs += QualifierExprs.fromSymbol(argSym)
       val argTp = super.recheckArg(arg, substQualifierParams(pt), argSym)
-      // TODO(mbovel): WRONG, should not need to instantiate here
-      val fact = ctx.qualifierSolver.instantiate(QualifierExprs.ofType(argTp)).map {
-        case PredArg => freshRef
-        case pred    => pred
-      }
+      val fact = QualifierExprs.ofType(argTp).subst(PredArg, freshRef)
       ctx.qualifierSolver.assume(fact)
       qual.println(f"fact: $fact")
       argsQualifier = QualifierExpr.and(argsQualifier, fact)

@@ -19,7 +19,7 @@ class NaiveQualifierSolver extends QualifierSolver:
 
   override final def assume(p: QualifierExpr): Unit =
     val head = and(contextStack.head, p)
-    log(s"assume($p) ->> $head")
+    log(s"assume($p) --> $head")
     contextStack = head :: contextStack.tail
 
   override final def check(to: QualifierExpr): Boolean =
@@ -31,7 +31,7 @@ class NaiveQualifierSolver extends QualifierSolver:
   private final def tryImplyRec(from: QualifierExpr, to: QualifierExpr, frozen: Boolean): Boolean =
     val res = maybeRollback {
       to match
-        case to: Var =>
+        case to: ApplyVar =>
           hasImplicationToVar(from, to) || (!frozen && tryAddImplicationToVar(from, to))
         case to: And =>
           to.args.forall(tryImplyRec(from, _, frozen))
@@ -39,8 +39,6 @@ class NaiveQualifierSolver extends QualifierSolver:
           from match
             case from: Or =>
               from.args.forall(tryImplyRec(_, to, frozen))
-            case from: And if from.hasVars =>
-              from.args.exists(tryImplyRec(_, to, frozen))
             case _ =>
               to match
                 case to: Or =>
@@ -48,7 +46,7 @@ class NaiveQualifierSolver extends QualifierSolver:
                 case _ =>
                   assert(!to.hasVars)
                   from match
-                    case from: Var =>
+                    case from if from.hasVars =>
                       hasImplicationToLeaf(from, to)
                       || (!frozen && tryAddImplicationToLeaf(from, to))
                     case _ =>
@@ -84,20 +82,20 @@ class NaiveQualifierSolver extends QualifierSolver:
   /* Vars state */
   /*------------*/
 
-  private case class ImplicationToVar(premise: QualifierExpr, conclusion: Var)
-  private case class ImplicationToLeaf(premise: Var, conclusion: QualifierExpr /* with !it.hasVars */ )
+  private case class ImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar)
+  private case class ImplicationToLeaf(premise: QualifierExpr, conclusion: QualifierExpr /* with !it.hasVars */ )
 
-  /** The value associated to a given key is an array of all ImplicationToVar that have this key as their conclusion.
+  /** The value associated to a given key is the set of ImplicationToVar that have this key as their conclusion.
     */
-  private val implicationsToVars = mutable.Map.empty[Var, Set[ImplicationToVar]]
+  private val implicationsToVars = mutable.Map.empty[Int, Set[ImplicationToVar]]
 
-  /** The value associated to a given key is an array of all ImplicationToVar that have this key in their premise.
+  /** The value associated to a given key is the set of ImplicationToVar that have this key in their premise.
     */
-  private val dependencies = mutable.Map.empty[Var, Set[ImplicationToVar]]
+  private val dependencies = mutable.Map.empty[Int, Set[ImplicationToVar]]
 
-  /** The value associated to a given key is an array of all ImplicationToLeaf that have this key in their premise.
+  /** The value associated to a given key is the set of ImplicationToLeaf that have this key in their premise.
     */
-  private val implicationsToLeafs = mutable.Map.empty[Var, Set[ImplicationToLeaf]]
+  private val implicationsToLeafs = mutable.Map.empty[Int, Set[ImplicationToLeaf]]
 
   /** Journal of all implicationsToVar that have been added. Used to rollback if needed. */
   private val implicationsToVarJournal = mutable.ArrayBuffer[ImplicationToVar]()
@@ -108,73 +106,75 @@ class NaiveQualifierSolver extends QualifierSolver:
   override final def instantiate(p: QualifierExpr): QualifierExpr =
     // TODO(mbovel): memoize (and invalidate when adding premises).
     p.map {
-      case v: Var =>
+      case v: ApplyVar =>
         implicationsToVars
-          .getOrElse(v, Set.empty)
-          .map(impl => instantiate(impl.premise))
+          .getOrElse(v.i, Set.empty)
+          .map(impl => instantiate(impl.premise.subst(impl.conclusion.arg, v.arg)))
           .fold(False)(or)
       case p =>
         p
     }
 
-  final def hasImplicationToVar(premise: QualifierExpr, conclusion: Var): Boolean =
-    implicationsToVars.getOrElse(conclusion, Set.empty).contains(ImplicationToVar(
+  final def hasImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar): Boolean =
+    implicationsToVars.getOrElse(conclusion.i, Set.empty).contains(ImplicationToVar(
       premise,
       conclusion
     ))
 
-  final def tryAddImplicationToVar(premise: QualifierExpr, conclusion: Var): Boolean =
+  final def tryAddImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar): Boolean =
     val implication = ImplicationToVar(premise, conclusion)
-    val previousImplications = implicationsToVars.getOrElse(conclusion, Set.empty)
-    implicationsToVars.update(conclusion, previousImplications + implication)
+    val previousImplications = implicationsToVars.getOrElse(conclusion.i, Set.empty)
+    implicationsToVars.update(conclusion.i, previousImplications + implication)
 
     val canAdd =
-      implicationsToLeafs.getOrElse(conclusion, Set.empty)
-        .forall(impl => tryImplyRec(premise, impl.conclusion, frozen = false))
-        && dependencies.getOrElse(conclusion, Set.empty)
-          .forall(impl => tryImplyRec(impl.premise.map(instantiate), premise, frozen = false))
+      implicationsToLeafs.getOrElse(conclusion.i, Set.empty)
+        .forall(impl => tryImplyRec(instantiate(impl.premise), impl.conclusion, frozen = false))
+        && dependencies.getOrElse(conclusion.i, Set.empty)
+          .forall(impl => tryImplyRec(instantiate(impl.premise), impl.conclusion, frozen = false))
 
     if canAdd then
       for premiseVar <- premise.vars do
-        dependencies.update(premiseVar, dependencies.getOrElse(premiseVar, Set.empty) + implication)
+        dependencies.update(premiseVar.i, dependencies.getOrElse(premiseVar.i, Set.empty) + implication)
       implicationsToVarJournal.append(implication)
     else
-      implicationsToVars.update(conclusion, previousImplications)
+      implicationsToVars.update(conclusion.i, previousImplications)
 
     log(s"tryAddImplicationToVar($premise, $conclusion) == $canAdd")
     canAdd
 
-  private final def removeImplicationToVar(premise: QualifierExpr, conclusion: Var): Unit =
+  private final def removeImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar): Unit =
     val implication = ImplicationToVar(premise, conclusion)
-    implicationsToVars.update(conclusion, implicationsToVars(conclusion) - implication)
+    implicationsToVars.update(conclusion.i, implicationsToVars(conclusion.i) - implication)
     for premiseVar <- premise.vars do
-      dependencies.update(premiseVar, dependencies(premiseVar) - implication)
+      dependencies.update(premiseVar.i, dependencies(premiseVar.i) - implication)
 
-  final def hasImplicationToLeaf(premise: Var, conclusion: QualifierExpr /* with !it.hasVars */ ): Boolean =
-    implicationsToLeafs.getOrElse(premise, Set.empty).contains(ImplicationToLeaf(
-      premise,
-      conclusion
-    ))
+  final def hasImplicationToLeaf(premise: QualifierExpr /* with it.hasVars */, conclusion: QualifierExpr /* with !it.hasVars */ ): Boolean =
+    val firstVar = premise.vars.head
+    implicationsToLeafs
+      .getOrElse(firstVar.i, Set.empty)
+      .contains(ImplicationToLeaf(premise, conclusion))
 
   final def tryAddImplicationToLeaf(
-      premise: Var,
+      premise: QualifierExpr /* with it.hasVars */,
       conclusion: QualifierExpr /* with !it.hasVars */
   ): Boolean =
     val implication = ImplicationToLeaf(premise, conclusion)
-    val canAdd = tryImplyRec(premise.map(instantiate), conclusion, frozen = false)
+    val canAdd = tryImplyRec(instantiate(premise), conclusion, frozen = false)
     if canAdd then
-      val previousImplications = implicationsToLeafs.getOrElse(premise, Set.empty)
-      implicationsToLeafs.update(premise, previousImplications + implication)
+      for premiseVar <- premise.vars do
+        val previousImplications = implicationsToLeafs.getOrElse(premiseVar.i, Set.empty)
+        implicationsToLeafs.update(premiseVar.i, previousImplications + implication)
       implicationsToLeafJournal.append(implication)
     log(s"tryAddImplicationToLeaf($premise, $conclusion) == $canAdd")
     canAdd
 
   private final def removeImplicationToLeaf(
-      premise: Var,
+      premise: QualifierExpr,
       conclusion: QualifierExpr /* with !it.hasVars */
   ): Unit =
     val implication = ImplicationToLeaf(premise, conclusion)
-    implicationsToLeafs.update(premise, implicationsToLeafs(premise) - implication)
+    for premiseVar <- premise.vars do
+      implicationsToLeafs.update(premiseVar.i, implicationsToLeafs(premiseVar.i) - implication)
 
   inline def maybeRollback(inline f: => Boolean): Boolean =
     val prevImplicationsToVarJournalSize = implicationsToVarJournal.size

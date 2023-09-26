@@ -8,7 +8,7 @@ enum QualifierExpr:
   import QualifierExpr.*
 
   // Predicates:
-  case Var(i: Int)
+  case ApplyVar(i: Int, arg: QualifierExpr = PredArg)
   case True
   case False
   case And(args: List[QualifierExpr])
@@ -31,7 +31,7 @@ enum QualifierExpr:
   override def toString(): String =
     def showApp(name: String, args: Iterable[QualifierExpr]): String = f"$name(${args.mkString(", ")})"
     this match
-      case Var(i)                  => f"?$i"
+      case ApplyVar(i, arg)                  => f"?$i($arg)"
       case True                    => "true"
       case False                   => "false"
       case And(args)               => showApp("and", args)
@@ -55,7 +55,7 @@ enum QualifierExpr:
     // `QualifierExpr` and collection mapping, for example using using
     // `.mapConserve` instead of `.map`. Should benchmark.
     this match
-      case Var(_)                  => f(this)
+      case ApplyVar(i, arg)                  => f(ApplyVar(i, arg.map(f)))
       case True                    => f(this)
       case False                   => f(this)
       case And(args)               => f(args.map(_.map(f)).foldLeft(True)(and))
@@ -96,13 +96,19 @@ enum QualifierExpr:
 
   def approxVarsToTrue(): QualifierExpr =
     this.map {
-      case _: Var => True
+      case _: ApplyVar => True
       case _      => this
+    }
+
+  def subst(from: QualifierExpr, to: QualifierExpr): QualifierExpr =
+    this.map {
+      case `from` => to
+      case x      => x
     }
 
   @threadUnsafe lazy val hasVars: Boolean =
     this match
-      case Var(i)                  => true
+      case ApplyVar(i, arg)                  => true
       case True                    => false
       case False                   => false
       case And(args)               => args.exists(_.hasVars)
@@ -120,9 +126,9 @@ enum QualifierExpr:
       case DoubleConst(value)      => false
       case StringConst(value)      => false
 
-  @threadUnsafe lazy val vars: List[Var] =
+  @threadUnsafe lazy val vars: List[ApplyVar] =
     this match
-      case v: Var                  => List(v)
+      case v: ApplyVar                  => List(v)
       case True                    => Nil
       case False                   => Nil
       case And(args)               => args.toList.flatMap(_.vars)
@@ -210,7 +216,7 @@ object QualifierExpr:
       case (True, _)                => r
       case (And(lArgs), And(rArgs)) => And(lArgs ++ rArgs)
       case (And(lArgs), _)          => And(lArgs :+ r) // TODO(mbovel): warning: inefficient
-      case (_, And(rArgs))          => And(rArgs :+ l)
+      case (_, And(rArgs))          => And(rArgs :+ l) // TODO(mbovel): wrong order
       case _                        => And(List(l, r))
 
   def or(l: QualifierExpr, r: QualifierExpr): QualifierExpr =
@@ -327,16 +333,17 @@ object QualifierExpr:
         case (_, LessThan(_, _)) => 1
         case (App(xFun, xArgs), App(yFun, yArgs)) =>
           xFun.compareTo(yFun) <=> xArgs.compareTo(yArgs)
-        case (Var(x), Var(y)) => x.compareTo(y)
-        case (Var(_), _) => -1
-        case (_, Var(_)) => 1
+        case (App(_, _), _) => -1
+        case (_, App(_, _)) => 1
+        case (ApplyVar(x, xArg), ApplyVar(y, yArg)) =>
+          x.compareTo(y) <=> xArg.compareTo(yArg)
+        case (ApplyVar(_, _), _) => -1
+        case (_, ApplyVar(_, _)) => 1
         case (PredArg, PredArg) => 0
         case (PredArg, _) => -1
         case (_, PredArg) => 1
         case (Ref(id, name), Ref(id2, name2)) => id.compareTo(id2)
         case (Ref(_, _), _) => -1
         case (_, Ref(_, _)) => 1
-        case (App(_, _), _) => -1
-        case (_, App(_, _)) => 1
         case (Lambda(xParams, xBody), Lambda(yParams, yBody)) =>
           xParams.compareTo(yParams) <=> xBody.compareTo(yBody)

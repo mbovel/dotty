@@ -19,8 +19,8 @@ abstract class QualifierSolver:
   def instantiate(p: QualifierExpr): QualifierExpr
 
   var maxVarIndex: Int = 0
-  def freshVar(): Var =
-    val res: Var = Var(maxVarIndex)
+  def freshVar(): ApplyVar =
+    val res: ApplyVar = ApplyVar(maxVarIndex)
     maxVarIndex = maxVarIndex + 1
     res
 
