@@ -9,17 +9,17 @@ import math.Ordering.Implicits.{seqOrdering, infixOrderingOps}
 class NaiveQualifierSolver extends QualifierSolver:
   final var contextStack = List(True)
 
-  override final def push(): Unit = contextStack =
+  override final def push(): Unit =
     log("push()")
-    contextStack.head :: contextStack
+    contextStack = contextStack.head :: contextStack
 
-  override final def pop(): Unit = contextStack =
-    log("pop()")
-    contextStack.tail
+  override final def pop(): Unit =
+    log(f"pop(${contextStack.head}) --> ${contextStack.tail}")
+    contextStack = contextStack.tail
 
   override final def assume(p: QualifierExpr): Unit =
     val head = and(contextStack.head, p)
-    log(s"assume($p) --> $head")
+    log(f"assume($p) --> $head")
     contextStack = head :: contextStack.tail
 
   override final def check(to: QualifierExpr): Boolean =

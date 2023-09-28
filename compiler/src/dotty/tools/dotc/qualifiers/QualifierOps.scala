@@ -6,6 +6,14 @@ import core.*
 import Types.*, Symbols.*, Contexts.*, ast.tpd.*
 
 extension (tp: Type)
+
+  def withQualifier(newQualifier: QualifierExpr)(using Context) =
+    tp match
+        case QualifiedType(parent, qualifier) =>
+          tp.derivedQualifiedType(parent, QualifierExpr.and(qualifier, newQualifier))
+        case res =>
+          QualifiedType(res, newQualifier)
+
   /** @pre `tp` is a QualifiedType */
   def derivedQualifiedType(parent: Type, refinement: QualifierExpr)(using Context): Type =
     tp match

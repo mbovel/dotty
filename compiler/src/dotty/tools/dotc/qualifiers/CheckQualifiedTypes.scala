@@ -15,6 +15,7 @@ import annotation.constructorOnly
 import ast.tpd
 import solver.QualifierSolver
 import QualifierExpr.*
+import dotty.tools.dotc.qualifiers.QualifierLogging.log
 
 class CheckQualifiedTypes extends Recheck:
   thisPhase =>
@@ -32,8 +33,8 @@ class CheckQualifiedTypes extends Recheck:
       */
     override def checkUnit(unit: CompilationUnit)(using Context) =
       SetupQualifiedTypes(preRecheckPhase, thisPhase, recheckDef).traverse(ctx.compilationUnit.tpdTree)
-      qual.println(i"checkQualifiedTypes solver:\n${ctx.qualifierSolver.getClass()}")
-      qual.println(i"checkQualifiedTypes setup:\n${Recheck.addRecheckedTypes.transform(ctx.compilationUnit.tpdTree)}")
+      log(i"checkQualifiedTypes solver:\n${ctx.qualifierSolver.getClass()}")
+      log(i"checkQualifiedTypes setup:\n${Recheck.addRecheckedTypes.transform(ctx.compilationUnit.tpdTree)}")
       super.checkUnit(unit)
       //instantiateTraverser.traverse(ctx.compilationUnit.tpdTree)
 
@@ -78,7 +79,7 @@ class CheckQualifiedTypes extends Recheck:
                   if paramRefs.contains(expr) then
                     //val replacement = fromTree(argTrees(paramSyms.indexOf(sym)))(using NoSymbol)
                     val replacement = argRefs(paramRefs.indexOf(expr))
-                    qual.println(i"substQualifierParams: $expr --> $replacement")
+                    log(i"substQualifierParams: $expr --> $replacement")
                     replacement
                   else
                     expr
@@ -95,36 +96,44 @@ class CheckQualifiedTypes extends Recheck:
       val argTp = super.recheckArg(arg, substQualifierParams(pt), argSym)
       val fact = QualifierExprs.ofType(argTp).subst(PredArg, freshRef)
       ctx.qualifierSolver.assume(fact)
-      qual.println(f"fact: $fact")
       argsQualifier = QualifierExpr.and(argsQualifier, fact)
       argTp
 
     override protected def instantiate(mt: MethodType, argTypes: List[Type], sym: Symbol)(using Context): Type =
       val tp = super.instantiate(mt, argTypes, sym)
-      qual.println(i"instantiated: $tp")
-      qual.println(i"facts: $argsQualifier")
+      log(i"instantiated: $tp")
+      log(i"facts: $argsQualifier")
       substQualifierParams(tp) match
         case QualifiedType(parent, qualifier) =>
           tp.derivedQualifiedType(parent, QualifierExpr.and(qualifier, argsQualifier))
         case res => res
 
-
-
     override def recheckApply(tree: tpd.Apply, pt: Type)(using Context): Type =
+      log(f"recheckApply(${tree.show}, ${pt.show})")
+      val savedArgsQualifier = argsQualifier
       val savedArgRefs = argRefs
       val savedParamSyms = paramRefs
+      argsQualifier = True
       argRefs = collection.mutable.ArrayBuffer()
       paramRefs = collection.mutable.ArrayBuffer()
       ctx.qualifierSolver.push()
       val res = super.recheckApply(tree, pt)
       ctx.qualifierSolver.pop()
+      argsQualifier = savedArgsQualifier
       argRefs = savedArgRefs
       paramRefs = savedParamSyms
       res
 
+    override def recheckLiteral(tree: tpd.Literal)(using Context): Type =
+      val tp = super.recheckLiteral(tree)
+      if QualifierExprs.fromConst.isDefinedAt(tree.const) then
+        val qualifier = Equal(PredArg, QualifierExprs.fromConst(tree.const))
+        tp.withQualifier(qualifier)
+      else
+        tp
+
     override def checkConformsExpr(actual: Type, expected: Type, tree: tpd.Tree)(using Context): Unit =
-      qual.println(i"facts: $argsQualifier")
-      qual.println(i"checkConformsExpr: $actual <:< $expected")
+      log(i"checkConformsExpr: $actual <:< $expected")
       super.checkConformsExpr(actual, expected, tree)
 
     override def recheckTypeTree(tree: tpd.TypeTree)(using Context): Type =
