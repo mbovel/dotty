@@ -6648,7 +6648,7 @@ object Types {
   private val keepAlways: AnnotatedType => Context ?=> Boolean = _ => true
   private val keepNever: AnnotatedType => Context ?=> Boolean = _ => false
   private val keepIfRefining: AnnotatedType => Context ?=> Boolean = _.isRefining
-  private val keepIfQualifying: AnnotatedType => Context ?=> Boolean = {case refine.EventuallyQualifiedType(_) => true case _ => false}
+  private val keepIfQualifying: AnnotatedType => Context ?=> Boolean = {case qualifiers.EventuallyQualifiedType(_) => true case _ => false}
 
   val isBounds: Type => Boolean = _.isInstanceOf[TypeBounds]
 }

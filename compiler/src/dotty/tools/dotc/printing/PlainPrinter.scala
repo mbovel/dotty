@@ -16,8 +16,7 @@ import scala.util.control.NonFatal
 import scala.annotation.switch
 import config.{Config, Feature}
 import cc.{CapturingType, EventuallyCapturingType, CaptureSet, isBoxed}
-import qualifiers.{EventuallyQualifiedType, QualifiedAnnotation}
-import qualifiers.QualifierExpr
+import qualifiers.{QualifiedAnnotation, QualifiedType, QualifierExpr, QualifierExprs}
 
 class PlainPrinter(_ctx: Context) extends Printer {
 
@@ -225,7 +224,7 @@ class PlainPrinter(_ctx: Context) extends Printer {
         val boxText: Text = Str("box ") provided tp.isBoxed //&& ctx.settings.YccDebug.value
         val refsText = if refs.isUniversal then rootSetText else toTextCaptureSet(refs)
         toTextCapturing(parent, refsText, boxText)
-      case tp @ EventuallyQualifiedType(parent, qualifier) =>
+      case tp @ QualifiedType(parent, qualifier) =>
         if true then
           val instanstiatedQualifer = ctx.qualifierSolver.instantiate(qualifier)
           if instanstiatedQualifer == QualifierExpr.True then toTextLocal(parent)

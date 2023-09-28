@@ -13,16 +13,21 @@ object QualifiedType:
     */
   def unapply(tp: Type)(using Context): Option[(Type, QualifierExpr)] =
     if ctx.phase == Phases.checkQualifiersPhase then
-      EventuallyQualifiedType.unapply(tp)
+      tp match
+        case tp: AnnotatedType if tp.annot.symbol == defn.QualifiedAnnot =>
+          tp.annot match
+            case QualifiedAnnotation(pred) => Some((tp.parent, pred))
+            case _                         => Some((tp.parent,  QualifierExprs.fromClosure(tp.annot.argument(0).get)))
+        case _ => None
     else None
 
 /** An extractor for types that will be refinement types at phase CheckRefinements.
   */
 object EventuallyQualifiedType:
-  def unapply(tp: Type)(using Context): Option[(Type, QualifierExpr)] =
+  def unapply(tp: Type)(using Context): Option[(Type, Tree)] =
     tp match
       case tp: AnnotatedType if tp.annot.symbol == defn.QualifiedAnnot =>
         tp.annot match
-          case QualifiedAnnotation(pred) => Some((tp.parent, pred))
-          case _                         => Some((tp.parent, QualifierExprs.fromClosure(tp.annot.argument(0).get)))
+          case QualifiedAnnotation(pred) => throw new Error("Use QualifierType.unapply instead")
+          case _                         => Some((tp.parent, tp.annot.argument(0).get))
       case _ => None

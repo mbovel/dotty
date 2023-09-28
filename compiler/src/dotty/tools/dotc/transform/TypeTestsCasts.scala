@@ -332,7 +332,7 @@ object TypeTestsCasts {
               transformTypeTest(e, tp1, flagUnrelated)
                 .and(transformTypeTest(e, tp2, flagUnrelated))
             }
-          case refine.EventuallyQualifiedType(baseType, closureDef(qualifier: DefDef)) =>
+          case qualifiers.EventuallyQualifiedType(baseType, closureDef(qualifier: DefDef)) =>
             evalOnce(expr) { e =>
               // e.isInstanceOf[baseType] && qualifier(e.asInstanceOf[baseType])
               transformTypeTest(e, baseType, flagUnrelated)
