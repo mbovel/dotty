@@ -8,12 +8,14 @@ import StdNames.nme
 import util.Property.Key
 
 import scala.collection.mutable
+import dotty.tools.dotc.core.Constants.Constant
 import dotty.tools.dotc.printing.Showable
 import dotty.tools.dotc.printing.Printer
 import dotty.tools.dotc.printing.Texts.Text
-import dotty.tools.dotc.core.Constants.Constant
+import dotty.tools.dotc.qualifiers.QualifierLogging.log
 
 import QualifierExpr.*
+import dotty.tools.dotc.core.Decorators.i
 
 object QualifierExprs:
   private val cache = collection.mutable.HashMap[Type, QualifierExpr]()
@@ -47,7 +49,7 @@ object QualifierExprs:
 
   def fromTree(tree: Tree)(using predArgSymbol: Symbol)(using Context): QualifierExpr =
     // TODO(mbovel): cache
-    tree match
+    val res = tree match
       case id: Ident =>
         if id.symbol == predArgSymbol then PredArg
         else fromSymbol(id.symbol)
@@ -75,6 +77,8 @@ object QualifierExprs:
         fromConst(c)
       case _ =>
         throw new Error(f"Cannot translate ${tree}")
+    log(i"fromTree($tree, $predArgSymbol) == ${res}")
+    res
 
   val fromConst: PartialFunction[Constant, QualifierExpr] = {
     case Constant(value: Int)    => IntConst(value)

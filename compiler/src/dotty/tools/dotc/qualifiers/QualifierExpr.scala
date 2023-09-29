@@ -34,8 +34,8 @@ enum QualifierExpr:
       case ApplyVar(i, arg)                  => f"?$i($arg)"
       case True                    => "true"
       case False                   => "false"
-      case And(args)               => showApp("and", args)
-      case Or(args)                => showApp("or", args)
+      case And(args)               => args.mkString(" and ")
+      case Or(args)                => args.mkString(" or ")
       case Not(arg)                => f"not(${arg})"
       case Equal(left, right)      => f"${left} == ${right}"
       case LessThan(left, right)   => f"${left} < ${right}"
@@ -46,8 +46,8 @@ enum QualifierExpr:
       case Ref(n, name)            => name
       case App(fun, args)          => showApp(fun.toString, args)
       case Lambda(params, body)    => f"(${params.mkString(",")}) => ${body}"
-      case IntSum(const, args)     => showApp("sum", IntConst(const) :: args)
-      case IntProduct(const, args) => showApp("prod", IntConst(const) :: args)
+      case IntSum(const, args)     => (IntConst(const) :: args).mkString(" + ")
+      case IntProduct(const, args) => (IntConst(const) :: args).mkString(" * ")
 
   def map(f: QualifierExpr => QualifierExpr): QualifierExpr =
     // TODO(mbovel): optimize allocations. `map(x => x)` shouldn't allocate

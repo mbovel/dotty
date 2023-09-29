@@ -47,8 +47,7 @@ class NaiveQualifierSolver extends QualifierSolver:
                   assert(!to.hasVars)
                   from match
                     case from if from.hasVars =>
-                      hasImplicationToLeaf(from, to)
-                      || (!frozen && tryAddImplicationToLeaf(from, to))
+                      hasImplicationToLeaf(from, to) || (!frozen && tryAddImplicationToLeaf(from, to))
                     case _ =>
                       assert(!from.hasVars)
                       leafImplies(from, to, frozen)
@@ -82,8 +81,10 @@ class NaiveQualifierSolver extends QualifierSolver:
   /* Vars state */
   /*------------*/
 
-  private case class ImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar)
-  private case class ImplicationToLeaf(premise: QualifierExpr, conclusion: QualifierExpr /* with !it.hasVars */ )
+  private case class ImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar):
+    override def toString(): String = f"$premise ->  $conclusion"
+  private case class ImplicationToLeaf(premise: QualifierExpr, conclusion: QualifierExpr /* with !it.hasVars */ ):
+    override def toString(): String = f"$premise ->  $conclusion"
 
   /** The value associated to a given key is the set of ImplicationToVar that have this key as their conclusion.
     */
@@ -148,7 +149,10 @@ class NaiveQualifierSolver extends QualifierSolver:
     for premiseVar <- premise.vars do
       dependencies.update(premiseVar.i, dependencies(premiseVar.i) - implication)
 
-  final def hasImplicationToLeaf(premise: QualifierExpr /* with it.hasVars */, conclusion: QualifierExpr /* with !it.hasVars */ ): Boolean =
+  final def hasImplicationToLeaf(
+      premise: QualifierExpr /* with it.hasVars */,
+      conclusion: QualifierExpr /* with !it.hasVars */
+  ): Boolean =
     val firstVar = premise.vars.head
     implicationsToLeafs
       .getOrElse(firstVar.i, Set.empty)
@@ -193,6 +197,6 @@ class NaiveQualifierSolver extends QualifierSolver:
 
   override def debug(): Unit =
     println("Vars state:")
-    println(s"implicationsToVars" + implicationsToVars.mkString("\n  ", ",\n  ", "\n"))
-    println(s"implicationsToLeafs" + implicationsToLeafs.mkString("\n  ", ",\n  ", "\n"))
+    println(s"implicationsToVars:" + implicationsToVars.values.flatten.mkString("\n  ", ",\n  ", "\n"))
+    println(s"implicationsToLeafs:" + implicationsToLeafs.values.flatten.mkString("\n  ", ",\n  ", "\n"))
     println()
