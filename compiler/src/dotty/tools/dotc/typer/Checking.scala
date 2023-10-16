@@ -716,6 +716,8 @@ object Checking {
     if (isDerivedValueClass(clazz)) {
       if (clazz.is(Trait))
         report.error(CannotExtendAnyVal(clazz), clazz.srcPos)
+      if clazz.is(Module) then
+        report.error(CannotExtendAnyVal(clazz), clazz.srcPos)
       if (clazz.is(Abstract))
         report.error(ValueClassesMayNotBeAbstract(clazz), clazz.srcPos)
       if (!clazz.isStatic)
@@ -738,10 +740,7 @@ object Checking {
               for (p <- params if !p.is(Erased))
                 report.error("value class can only have one non `erased` parameter", p.srcPos)
           case Nil =>
-            if clazz.is(Module) then
-              report.error("A module cannot extends AnyVal",clazz.srcPos)
-            else
-              report.error(ValueClassNeedsOneValParam(clazz), clazz.srcPos)
+            report.error(ValueClassNeedsOneValParam(clazz), clazz.srcPos)
         }
       }
       stats.foreach(checkValueClassMember)
