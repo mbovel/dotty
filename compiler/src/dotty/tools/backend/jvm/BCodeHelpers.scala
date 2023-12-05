@@ -397,7 +397,13 @@ trait BCodeHelpers extends BCodeIdiomatic {
       atPhase(erasurePhase) {
         val memberTpe =
           if (sym.is(Method)) sym.denot.info
-          else owner.denot.thisType.memberInfo(sym)
+          else
+            val sym0 =
+              if sym.isField && sym.denot.validFor.phaseId > erasurePhase.id then
+                sym.getter.orElse(sym)
+              else
+                sym
+            owner.denot.thisType.memberInfo(sym0)
         getGenericSignatureHelper(sym, owner, memberTpe).orNull
       }
     }
