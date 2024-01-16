@@ -1048,6 +1048,10 @@ object RefChecks {
 
   end checkUnaryMethods
 
+  def checkVolatileUsage(sym: Symbol)(using Context): Unit =
+    if sym.isVolatile && !sym.is(Mutable) then
+      report.warning("only mutable variables can be volatile", sym.srcPos)
+
   /** Verify that references in the user-defined `@implicitNotFound` message are valid.
    *  (i.e. they refer to a type variable that really occurs in the signature of the annotated symbol.)
    */
@@ -1183,6 +1187,7 @@ class RefChecks extends MiniPhase { thisPhase =>
     if tree.symbol.exists then
       checkNoPrivateOverrides(tree)
       val sym = tree.symbol
+      checkVolatileUsage(sym)
       if (sym.exists && sym.owner.isTerm) {
         tree.rhs match {
           case Ident(nme.WILDCARD) => report.error(UnboundPlaceholderParameter(), sym.srcPos)

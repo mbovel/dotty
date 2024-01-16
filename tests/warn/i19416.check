@@ -1,0 +1,4 @@
+-- Warning: tests/warn/i19416.scala:2:16 -------------------------------------------------------------------------------
+2 |  @volatile val x: Int = ??? // warn
+  |                ^
+  |                only mutable variables can be volatile
