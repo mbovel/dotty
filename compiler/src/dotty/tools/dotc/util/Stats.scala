@@ -4,23 +4,25 @@ package util
 
 import scala.annotation.internal.sharable
 
-import core.Contexts._
+import core.Contexts.*
 import collection.mutable
 
 @sharable object Stats {
 
+  // when false, Stats.record and Stats.trackTime are elided.
   inline val enabled = false
+
+  // set to true if only `trackTime` should be recorded by default
+  inline val timerOnly = false
 
   var monitored: Boolean = false
 
   @volatile private var stack: List[String] = Nil
 
-  val hits: mutable.HashMap[String, Int] = new mutable.HashMap[String, Int] {
-    override def default(key: String): Int = 0
-  }
+  val hits: mutable.Map[String, Int] = new mutable.HashMap[String, Int].withDefaultValue(0)
 
-  inline def record(inline fn: String, inline n: Int = 1): Unit =
-    if (enabled) doRecord(fn, n)
+  inline def record(inline fn: String, inline n: Int = 1, inline skip: Boolean = timerOnly): Unit =
+    if (enabled && !skip) doRecord(fn, n)
 
   def doRecord(fn: String, n: Int) =
     if (monitored) {
@@ -28,7 +30,7 @@ import collection.mutable
       hits(name) += n
     }
 
-  def doRecordSize(fn: String, coll: scala.collection.Iterable[_]): coll.type =
+  def doRecordSize(fn: String, coll: scala.collection.Iterable[?]): coll.type =
     doRecord(fn, coll.size)
     coll
 
@@ -38,7 +40,7 @@ import collection.mutable
   def doTrackTime[T](fn: String)(op: => T): T = {
     if (monitored) {
       val start = System.nanoTime
-      try op finally record(fn, ((System.nanoTime - start) / 1000).toInt)
+      try op finally record(fn, ((System.nanoTime - start) / 1000).toInt, skip = false)
     }
     else op
   }

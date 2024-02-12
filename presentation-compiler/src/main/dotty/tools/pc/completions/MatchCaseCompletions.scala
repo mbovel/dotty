@@ -14,6 +14,7 @@ import dotty.tools.dotc.ast.tpd.*
 import dotty.tools.dotc.core.Constants.Constant
 import dotty.tools.dotc.core.Contexts.Context
 import dotty.tools.dotc.core.Definitions
+import dotty.tools.dotc.core.Denotations.Denotation
 import dotty.tools.dotc.core.Flags
 import dotty.tools.dotc.core.Flags.*
 import dotty.tools.dotc.core.StdNames
@@ -74,48 +75,45 @@ object CaseKeywordCompletion:
     val parents: Parents = selector match
       case EmptyTree =>
         val seenFromType = parent match
-          case TreeApply(fun, _) if fun.tpe != null && !fun.tpe.isErroneous =>
-            fun.tpe
-          case _ =>
-            parent.tpe
+          case TreeApply(fun, _) if !fun.typeOpt.isErroneous => fun.typeOpt
+          case _ => parent.typeOpt
         seenFromType.paramInfoss match
           case (head :: Nil) :: _
               if definitions.isFunctionType(head) || head.isRef(
                 definitions.PartialFunctionClass
               ) =>
-            val argTypes =
-              head.argTypes.init
+            val argTypes = head.argTypes.init
             new Parents(argTypes, definitions)
-          case _ =>
-            new Parents(NoType, definitions)
-      case sel => new Parents(sel.tpe, definitions)
+          case _ => new Parents(NoType, definitions)
+      case sel => new Parents(sel.typeOpt, definitions)
 
-    val selectorSym = parents.selector.typeSymbol
+    val selectorSym = parents.selector.widen.metalsDealias.typeSymbol
 
     // Special handle case when selector is a tuple or `FunctionN`.
     if definitions.isTupleClass(selectorSym) || definitions.isFunctionClass(
         selectorSym
       )
     then
-      val label =
-        if patternOnly.isEmpty then s"case ${parents.selector.show} =>"
-        else parents.selector.show
-      List(
-        CompletionValue.CaseKeyword(
-          selectorSym,
-          label,
-          Some(
-            if patternOnly.isEmpty then
+      if patternOnly.isEmpty then
+        val selectorTpe = parents.selector.show
+        val tpeLabel =
+          if !selectorTpe.contains("x$1") then selectorTpe
+          else selector.symbol.info.show
+        val label = s"case ${tpeLabel} =>"
+        List(
+          CompletionValue.CaseKeyword(
+            selectorSym,
+            label,
+            Some(
               if config.isCompletionSnippetsEnabled() then "case ($0) =>"
               else "case () =>"
-            else if config.isCompletionSnippetsEnabled() then "($0)"
-            else "()"
-          ),
-          Nil,
-          range = Some(completionPos.toEditRange),
-          command = config.parameterHintsCommand().asScala
+            ),
+            Nil,
+            range = Some(completionPos.toEditRange),
+            command = config.parameterHintsCommand().nn.asScala,
+          )
         )
-      )
+      else Nil
     else
       val result = ListBuffer.empty[SymbolImport]
       val isVisited = mutable.Set.empty[Symbol]
@@ -153,7 +151,9 @@ object CaseKeywordCompletion:
           if isValid(ts) then visit(autoImportsGen.inferSymbolImport(ts))
         )
       // Step 2: walk through known subclasses of sealed types.
-      val sealedDescs = subclassesForType(parents.selector.widen.bounds.hi)
+      val sealedDescs = subclassesForType(
+        parents.selector.widen.metalsDealias.bounds.hi
+      )
       sealedDescs.foreach { sym =>
         val symbolImport = autoImportsGen.inferSymbolImport(sym)
         visit(symbolImport)
@@ -164,13 +164,17 @@ object CaseKeywordCompletion:
             (si, label)
           }
       }
-      val caseItems = res.map((si, label) =>
-        completionGenerator.toCompletionValue(
-          si.sym,
-          label,
-          autoImportsGen.renderImports(si.importSel.toList)
-        )
-      )
+      val caseItems =
+        if res.isEmpty then completionGenerator.caseKeywordOnly
+        else
+          res.map((si, label) =>
+            completionGenerator.toCompletionValue(
+              si.sym,
+              label,
+              autoImportsGen.renderImports(si.importSel.toList),
+            )
+          )
+
       includeExhaustive match
         // In `List(foo).map { cas@@} we want to provide also `case (exhaustive)` completion
         // which works like exhaustive match.
@@ -241,7 +245,7 @@ object CaseKeywordCompletion:
       completionPos,
       clientSupportsSnippets
     )
-    val tpe = selector.tpe.widen.bounds.hi match
+    val tpe = selector.typeOpt.widen.metalsDealias.bounds.hi match
       case tr @ TypeRef(_, _) => tr.underlying
       case t => t
 
@@ -302,10 +306,7 @@ object CaseKeywordCompletion:
       syms.sortBy(_._1.sym.sourcePos.point)
     else
       val defnSymbols = search
-        .definitionSourceToplevels(
-          SemanticdbSymbols.symbolName(tpe.typeSymbol),
-          uri
-        )
+        .definitionSourceToplevels(SemanticdbSymbols.symbolName(tpe.typeSymbol), uri).nn
         .asScala
         .zipWithIndex
         .toMap
@@ -353,11 +354,7 @@ object CaseKeywordCompletion:
       symTpe <:< tpe
 
     val parents = getParentTypes(tpe, List.empty)
-    parents.toList.map { parent =>
-      // There is an issue in Dotty, `sealedStrictDescendants` ends in an exception for java enums. https://github.com/lampepfl/dotty/issues/15908
-      if parent.isAllOf(JavaEnumTrait) then parent.children
-      else sealedStrictDescendants(parent)
-    } match
+    parents.toList.map(sealedStrictDescendants) match
       case Nil => Nil
       case subcls :: Nil => subcls
       case subcls =>
@@ -407,19 +404,13 @@ class CompletionValueGenerator(
       case None => true
       case Some("") => true
       case Some(Cursor.value) => true
-      case Some(query) =>
-        CompletionFuzzy.matches(
-          query.replace(Cursor.value, ""),
-          name
-        )
+      case Some(query) => CompletionFuzzy.matches(query.replace(Cursor.value, "").nn, name)
 
   def labelForCaseMember(sym: Symbol, name: String)(using
       Context
   ): Option[String] =
     val isModuleLike =
-      sym.is(Flags.Module) || sym.isOneOf(JavaEnumTrait) || sym.isOneOf(
-        JavaEnumValue
-      ) || sym.isAllOf(EnumCase)
+      sym.is(Flags.Module) || sym.isOneOf(JavaEnum) || sym.isOneOf(JavaEnumValue) || sym.isAllOf(EnumCase)
     if isModuleLike && hasBind then None
     else
       val pattern =
@@ -454,8 +445,22 @@ class CompletionValueGenerator(
     end if
   end labelForCaseMember
 
+  def caseKeywordOnly: List[CompletionValue.Keyword] =
+    if patternOnly.isEmpty then
+      val label = "case"
+      val suffix =
+        if clientSupportsSnippets then " $0 =>"
+        else " "
+      List(
+        CompletionValue.Keyword(
+          label,
+          Some(label + suffix),
+        )
+      )
+    else Nil
+
   def toCompletionValue(
-      sym: Symbol,
+      denot: Denotation,
       label: String,
       autoImport: Option[l.TextEdit]
   ): CompletionValue.CaseKeyword =
@@ -463,7 +468,7 @@ class CompletionValueGenerator(
       (if patternOnly.nonEmpty then "" else " ") +
         (if clientSupportsSnippets then "$0" else "")
     CompletionValue.CaseKeyword(
-      sym,
+      denot,
       label,
       Some(label + cursorSuffix),
       autoImport.toList,

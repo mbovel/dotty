@@ -542,7 +542,9 @@ class CompletionCaseSuite extends BaseCompletionSuite:
         |    ca@@
         |  }
         |}""".stripMargin,
-      ""
+      """
+        |case
+        |""".stripMargin
     )
 
   @Test def `private-member-2` =
@@ -657,3 +659,82 @@ class CompletionCaseSuite extends BaseCompletionSuite:
          |case Singing(song) => test.Activity
          |case Sports(time, intensity) => test.Activity""".stripMargin
     )
+
+  @Test def `type-alias-case` =
+    check(
+      s"""|object O:
+          |  type Id[A] = A
+          |
+          |  enum Animal:
+          |    case Cat, Dog
+          |
+          |  val animal: Id[Animal] = ???
+          |
+          |  animal match
+          |    cas@@
+          |""".stripMargin,
+      """|case Animal.Cat =>
+         |case Animal.Dog =>
+         |""".stripMargin,
+    )
+
+  @Test def `type-alias-sealed-trait-case` =
+    check(
+      s"""|object O {
+          | type Id[A] = A
+          |
+          |sealed trait Animal
+          |object Animal {
+          |   case class Cat() extends Animal
+          |   case object Dog extends Animal
+          |}
+          |
+          | val animal: Id[Animal] = ???
+          |
+          |  animal match {
+          |    cas@@
+          |  }
+          |}
+          |""".stripMargin,
+      """|case Cat() => test.O.Animal
+         |case Dog => test.O.Animal
+         |""".stripMargin,
+    )
+  @Test def `for-comp` =
+    check(
+      """|object A {
+         |  val a = for {
+         |    foo <- List("a", "b", "c")
+         |    abc = println("Print!")
+         |  } yield bar@@
+         |
+         |}
+         |""".stripMargin,
+      "",
+    )
+
+  @Test def `lambda-case-tuple` =
+    check(
+      """|object A {
+         |  val a = List((1,2)).foreach {
+         |    case (a,b) => println(a)
+         |    case@@
+         |  }
+         |}
+         |""".stripMargin,
+      "case (Int, Int) => scala",
+    )
+  
+  @Test def `keyword-only` =
+    check(
+      """
+        |sealed trait Alpha
+        |object A {
+        |  List.empty[Alpha].groupBy{
+        |    ca@@
+        |  }
+        |}
+        |""".stripMargin,
+      "case",
+    )
+

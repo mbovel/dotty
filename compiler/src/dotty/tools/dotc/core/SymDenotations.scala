@@ -2,16 +2,16 @@ package dotty.tools
 package dotc
 package core
 
-import Periods._, Contexts._, Symbols._, Denotations._, Names._, NameOps._, Annotations._
-import Types._, Flags._, Decorators._, DenotTransformers._, StdNames._, Scopes._
-import NameOps._, NameKinds._
+import Periods.*, Contexts.*, Symbols.*, Denotations.*, Names.*, NameOps.*, Annotations.*
+import Types.*, Flags.*, Decorators.*, DenotTransformers.*, StdNames.*, Scopes.*
+import NameOps.*, NameKinds.*
 import Phases.{Phase, typerPhase, unfusedPhases}
 import Constants.Constant
 import TypeApplications.TypeParamInfo
 import Scopes.Scope
 import dotty.tools.io.AbstractFile
-import Decorators._
-import ast._
+import Decorators.*
+import ast.*
 import ast.Trees.{LambdaTypeTree, TypeBoundsTree}
 import Trees.Literal
 import Variances.Variance
@@ -21,13 +21,14 @@ import util.Stats
 import java.util.WeakHashMap
 import scala.util.control.NonFatal
 import config.Config
-import reporting._
+import reporting.*
 import collection.mutable
-import transform.TypeUtils._
-import cc.{CapturingType, derivedCapturingType, Setup, EventuallyCapturingType, isEventuallyCapturingType}
+import cc.{CapturingType, derivedCapturingType}
+import transform.TypeUtils.*
 import qualifiers.{QualifiedType, derivedQualifiedType}
 
 import scala.annotation.internal.sharable
+import scala.compiletime.uninitialized
 
 object SymDenotations {
 
@@ -168,12 +169,17 @@ object SymDenotations {
             println(i"${"  " * indent}completed $name in $owner")
           }
         }
-        else {
-          if (myFlags.is(Touched))
-            throw CyclicReference(this)(using ctx.withOwner(symbol))
-          myFlags |= Touched
-          atPhase(validFor.firstPhaseId)(completer.complete(this))
-        }
+        else
+          val traceCycles = CyclicReference.isTraced
+          try
+            if traceCycles then
+              CyclicReference.pushTrace("compute the signature of ", symbol, "")
+            if myFlags.is(Touched) then
+              throw CyclicReference(this)(using ctx.withOwner(symbol))
+            myFlags |= Touched
+            atPhase(validFor.firstPhaseId)(completer.complete(this))
+          finally
+            if traceCycles then CyclicReference.popTrace()
 
     protected[dotc] def info_=(tp: Type): Unit = {
       /* // DEBUG
@@ -673,6 +679,10 @@ object SymDenotations {
     def isPackageObject(using Context): Boolean =
       name.isPackageObjectName && owner.is(Package) && this.is(Module)
 
+    /** Is this symbol a package object containing top-level definitions? */
+    def isTopLevelDefinitionsObject(using Context): Boolean =
+      name.isTopLevelPackageObjectName && owner.is(Package) && this.is(Module)
+
     /** Is this symbol a toplevel definition in a package object? */
     def isWrappedToplevelDef(using Context): Boolean =
       !isConstructor && owner.isPackageObject
@@ -865,6 +875,17 @@ object SymDenotations {
     final def isNullableClassAfterErasure(using Context): Boolean =
       isClass && !isValueClass && !is(ModuleClass) && symbol != defn.NothingClass
 
+    /** Is `pre` the same as C.this, where C is exactly the owner of this symbol,
+     *  or, if this symbol is protected, a subclass of the owner?
+     */
+    def isAccessPrivilegedThisType(pre: Type)(using Context): Boolean = pre match
+      case pre: ThisType =>
+        (pre.cls eq owner) || this.is(Protected) && pre.cls.derivesFrom(owner)
+      case pre: TermRef =>
+        pre.symbol.moduleClass == owner
+      case _ =>
+        false
+
     /** Is this definition accessible as a member of tree with type `pre`?
      *  @param pre          The type of the tree from which the selection is made
      *  @param superAccess  Access is via super
@@ -874,7 +895,7 @@ object SymDenotations {
      *  As a side effect, drop Local flags of members that are not accessed via the ThisType
      *  of their owner.
      */
-    final def isAccessibleFrom(pre: Type, superAccess: Boolean = false, whyNot: StringBuffer | Null = null)(using Context): Boolean = {
+    final def isAccessibleFrom(pre: Type, superAccess: Boolean = false)(using Context): Boolean = {
 
       /** Are we inside definition of `boundary`?
        *  If this symbol is Java defined, package structure is interpreted to be flat.
@@ -889,40 +910,15 @@ object SymDenotations {
         (linked ne NoSymbol) && accessWithin(linked)
       }
 
-      /** Is `pre` the same as C.thisThis, where C is exactly the owner of this symbol,
-       *  or, if this symbol is protected, a subclass of the owner?
-       */
-      def isCorrectThisType(pre: Type): Boolean = pre match {
-        case pre: ThisType =>
-          (pre.cls eq owner) || this.is(Protected) && pre.cls.derivesFrom(owner)
-        case pre: TermRef =>
-          pre.symbol.moduleClass == owner
-        case _ =>
-          false
-      }
-
       /** Is protected access to target symbol permitted? */
       def isProtectedAccessOK: Boolean =
-        inline def fail(str: String): false =
-          if whyNot != null then whyNot.nn.append(str)
-          false
         val cls = owner.enclosingSubClass
         if !cls.exists then
-          if pre.termSymbol.isPackageObject && accessWithin(pre.termSymbol.owner) then
-            true
-          else
-            val encl = if ctx.owner.isConstructor then ctx.owner.enclosingClass.owner.enclosingClass else ctx.owner.enclosingClass
-            fail(i"""
-                 | Access to protected $this not permitted because enclosing ${encl.showLocated}
-                 | is not a subclass of ${owner.showLocated} where target is defined""")
-        else if isType || pre.derivesFrom(cls) || isConstructor || owner.is(ModuleClass) then
+          pre.termSymbol.isPackageObject && accessWithin(pre.termSymbol.owner)
+        else
           // allow accesses to types from arbitrary subclasses fixes #4737
           // don't perform this check for static members
-          true
-        else
-          fail(i"""
-               | Access to protected ${symbol.show} not permitted because prefix type ${pre.widen.show}
-               | does not conform to ${cls.showLocated} where the access takes place""")
+          isType || pre.derivesFrom(cls) || isConstructor || owner.is(ModuleClass)
       end isProtectedAccessOK
 
       if pre eq NoPrefix then true
@@ -934,7 +930,7 @@ object SymDenotations {
         || boundary.isRoot
         || (accessWithin(boundary) || accessWithinLinked(boundary)) &&
              (  !this.is(Local)
-             || isCorrectThisType(pre)
+             || isAccessPrivilegedThisType(pre)
              || canBeLocal(name, flags)
                 && {
                   resetFlag(Local)
@@ -1031,7 +1027,7 @@ object SymDenotations {
 
     /** Is this a Scala 2 macro defined */
     final def isScala2MacroInScala3(using Context): Boolean =
-      is(Macro, butNot = Inline) && is(Erased)
+      is(Macro, butNot = Inline) && flagsUNSAFE.is(Erased) // flag is set initially for macros - we check if it's a scala 2 macro before completing the type constructor so do not force the info to check the flag
       // Consider the macros of StringContext as plain Scala 2 macros when
       // compiling the standard library with Dotty.
       // This should be removed on Scala 3.x
@@ -1041,6 +1037,10 @@ object SymDenotations {
     def isEffectivelyErased(using Context): Boolean =
       isOneOf(EffectivelyErased)
       || is(Inline) && !isRetainedInline && !hasAnnotation(defn.ScalaStaticAnnot)
+
+    /** Is this a member that will become public in the generated binary */
+    def hasPublicInBinary(using Context): Boolean =
+      isTerm && hasAnnotation(defn.PublicInBinaryAnnot)
 
     /** ()T and => T types should be treated as equivalent for this symbol.
      *  Note: For the moment, we treat Scala-2 compiled symbols as loose matching,
@@ -1204,7 +1204,14 @@ object SymDenotations {
      *  is defined in Scala 3 and is neither abstract nor open.
      */
     final def isEffectivelySealed(using Context): Boolean =
-      isOneOf(FinalOrSealed) || isClass && !isOneOf(EffectivelyOpenFlags)
+      isOneOf(FinalOrSealed)
+      || isClass && (!isOneOf(EffectivelyOpenFlags)
+      || isLocalToCompilationUnit)
+
+    final def isLocalToCompilationUnit(using Context): Boolean =
+      is(Private)
+      || owner.ownersIterator.exists(_.isTerm)
+      || accessBoundary(defn.RootClass).isContainedIn(symbol.topLevelClass)
 
     final def isTransparentClass(using Context): Boolean =
       is(TransparentType)
@@ -1354,7 +1361,7 @@ object SymDenotations {
      *
      *                   site: Subtype of both inClass and C
      */
-    final def matchingDecl(inClass: Symbol, site: Type)(using Context): Symbol = {
+    final def matchingDecl(inClass: Symbol, site: Type, name: Name = this.name)(using Context): Symbol = {
       var denot = inClass.info.nonPrivateDecl(name)
       if (denot.isTerm) // types of the same name always match
         denot = denot.matchingDenotation(site, site.memberInfo(symbol), symbol.targetName)
@@ -1706,7 +1713,7 @@ object SymDenotations {
             c.ensureCompleted()
       end completeChildrenIn
 
-      if is(Sealed) || isAllOf(JavaEnumTrait) then
+      if is(Sealed) || isAllOf(JavaEnum) && isClass then
         if !is(ChildrenQueried) then
           // Make sure all visible children are completed, so that
           // they show up in Child annotations. A possible child is visible if it
@@ -2187,7 +2194,7 @@ object SymDenotations {
           Stats.record("basetype cache entries")
           if (!baseTp.exists) Stats.record("basetype cache NoTypes")
         }
-        if (!tp.isProvisional && !CapturingType.isUncachable(tp))
+        if !(tp.isProvisional || CapturingType.isUncachable(tp) || ctx.gadt.isNarrowing) then
           btrCache(tp) = baseTp
         else
           btrCache.remove(tp) // Remove any potential sentinel value
@@ -2445,7 +2452,7 @@ object SymDenotations {
     initPrivateWithin: Symbol)
     extends ClassDenotation(symbol, ownerIfExists, name, initFlags, initInfo, initPrivateWithin) {
 
-    private var packageObjsCache: List[ClassDenotation] = _
+    private var packageObjsCache: List[ClassDenotation] = uninitialized
     private var packageObjsRunId: RunId = NoRunId
     private var ambiguityWarningIssued: Boolean = false
 
@@ -2601,7 +2608,7 @@ object SymDenotations {
       for (sym <- scope.toList.iterator)
         // We need to be careful to not force the denotation of `sym` here,
         // otherwise it will be brought forward to the current run.
-        if (sym.defRunId != ctx.runId && sym.isClass && sym.asClass.assocFile == file)
+        if (sym.defRunId != ctx.runId && sym.isClass && sym.asClass.compUnitInfo != null && sym.asClass.compUnitInfo.nn.associatedFile == file)
           scope.unlink(sym, sym.lastKnownDenotation.name)
     }
   }
@@ -2981,7 +2988,10 @@ object SymDenotations {
     def apply(clsd: ClassDenotation)(implicit onBehalf: BaseData, ctx: Context)
         : (List[ClassSymbol], BaseClassSet) = {
       assert(isValid)
+      val traceCycles = CyclicReference.isTraced
       try
+        if traceCycles then
+          CyclicReference.pushTrace("compute the base classes of ", clsd.symbol, "")
         if (cache != null) cache.uncheckedNN
         else {
           if (locked) throw CyclicReference(clsd)
@@ -2994,7 +3004,9 @@ object SymDenotations {
           else onBehalf.signalProvisional()
           computed
         }
-      finally addDependent(onBehalf)
+      finally
+        if traceCycles then CyclicReference.popTrace()
+        addDependent(onBehalf)
     }
 
     def sameGroup(p1: Phase, p2: Phase) = p1.sameParentsStartId == p2.sameParentsStartId

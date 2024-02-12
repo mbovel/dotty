@@ -293,7 +293,6 @@ class CompletionWorkspaceSuite extends BaseCompletionSuite:
          |""".stripMargin
     )
 
-  // Ignore for Scala 3, since we don't provide completions for null
   @Test def `match-typed` =
     checkEdit(
       """|object Main {
@@ -305,11 +304,12 @@ class CompletionWorkspaceSuite extends BaseCompletionSuite:
       """|import java.util.ArrayDeque
          |object Main {
          |  def foo(): Unit = null match {
-         |    case x: ArrayDeque =>
+         |    case x: ArrayDeque[$0] =>
          |  }
          |}
          |""".stripMargin,
-      filter = _.contains("java.util")
+      filter = _.contains("java.util"),
+      assertSingleItem = false,
     )
 
   @Test def `type` =
@@ -684,7 +684,7 @@ class CompletionWorkspaceSuite extends BaseCompletionSuite:
          |  ): String = ???
          |}
          |""".stripMargin,
-      """|Future[T] java.util.concurrent
+      """|Future[V] java.util.concurrent
          |Future java.util.concurrent
          |Future[T] - scala.concurrent
          |""".stripMargin,
@@ -768,12 +768,33 @@ class CompletionWorkspaceSuite extends BaseCompletionSuite:
          |  def main: Unit = incre@@
          |""".stripMargin,
       """|increment3: Int
-         |increment: Int
-         |increment2: Int
+         |increment - a: Int
+         |increment2 - a.c: Int
          |""".stripMargin
     )
 
-  @Test def `case_class_param` =
+  @Test def `indent-method` =
+    check(
+      """|package a:
+         |  val y = 123
+         |  given intGiven: Int = 123
+         |  type Alpha = String
+         |  class Foo(x: Int)
+         |  object X:
+         |    val x = 123
+         |  def fooBar(x: Int) = x + 1
+         |  package b:
+         |    def fooBar(x: String) = x.length
+         |
+         |package c:
+         |  def main() = foo@@
+         |""".stripMargin,
+      """|fooBar - a(x: Int): Int
+         |fooBar - a.b(x: String): Int
+         |""".stripMargin
+    )
+
+  @Test def `case-class-param` =
     check(
       """|case class Foo(fooBar: Int, gooBar: Int)
          |class Bar(val fooBaz: Int, val fooBal: Int) {
@@ -790,6 +811,7 @@ class CompletionWorkspaceSuite extends BaseCompletionSuite:
          |""".stripMargin,
       """|fooBar: String
          |fooBar: List[Int]
+         |fooBar(n: Int): Int
          |""".stripMargin,
     )
 
@@ -825,3 +847,43 @@ class CompletionWorkspaceSuite extends BaseCompletionSuite:
          |MyType - demo.other""".stripMargin,
     )
 
+  @Test def `method-name-conflict` =
+    checkEdit(
+      """|package demo
+         |
+         |object O {
+         |  def mmmm(x: Int) = x + 3
+         |  class Test {
+         |    val mmmm = "abc"
+         |    val foo = mmmm@@
+         |  }
+         |}
+         |""".stripMargin,
+      """|package demo
+         |
+         |object O {
+         |  def mmmm(x: Int) = x + 3
+         |  class Test {
+         |    val mmmm = "abc"
+         |    val foo = demo.O.mmmm($0)
+         |  }
+         |}
+         |""".stripMargin,
+      filter = _.contains("mmmm - demo.O")
+    )
+
+  @Test def `method-label` =
+    check(
+      """|package demo
+         |
+         |object O {
+         | def method(i: Int): Int = i + 1
+         |}
+         |
+         |object Main {
+         |  val x = meth@@
+         |}
+         |""".stripMargin,
+      """|method - demo.O(i: Int): Int
+         |""".stripMargin
+    )

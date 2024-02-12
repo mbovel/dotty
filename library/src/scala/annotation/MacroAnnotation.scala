@@ -2,7 +2,7 @@
 package scala
 package annotation
 
-import scala.quoted._
+import scala.quoted.*
 
 /** Base trait for macro annotation implementation.
  *  Macro annotations can transform definitions and add new definitions.
@@ -25,7 +25,7 @@ trait MacroAnnotation extends StaticAnnotation:
    *  #### Restrictions
    *   - All definitions in the result must have the same owner. The owner can be recovered from `Symbol.spliceOwner`.
    *     - Special case: an annotated top-level `def`, `val`, `var`, `lazy val` can return a `class`/`object`
-definition that is owned by the package or package object.
+   *                     definition that is owned by the package or package object.
    *   - Can not return a `type`.
    *   - Annotated top-level `class`/`object` can not return top-level `def`, `val`, `var`, `lazy val`.
    *   - Can not see new definition in user written code.
@@ -46,7 +46,7 @@ definition that is owned by the package or package object.
    *
    *  class memoize extends MacroAnnotation:
    *    def transform(using Quotes)(tree: quotes.reflect.Definition): List[quotes.reflect.Definition] =
-   *      import quotes.reflect._
+   *      import quotes.reflect.*
    *      tree match
    *        case DefDef(name, TermParamClause(param  :: Nil) :: Nil, tpt, Some(rhsTree)) =>
    *          (param.tpt.tpe.asType, tpt.tpe.asType) match

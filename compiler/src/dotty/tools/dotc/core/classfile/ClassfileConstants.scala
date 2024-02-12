@@ -73,7 +73,10 @@ object ClassfileConstants {
 
   inline val CONSTANT_METHODHANDLE  = 15
   inline val CONSTANT_METHODTYPE    = 16
+  inline val CONSTANT_DYNAMIC       = 17
   inline val CONSTANT_INVOKEDYNAMIC = 18
+  inline val CONSTANT_MODULE        = 19
+  inline val CONSTANT_PACKAGE       = 20
 
   // tags describing the type of a literal in attribute values
   inline val BYTE_TAG   = 'B'
@@ -331,7 +334,7 @@ object ClassfileConstants {
   inline val impdep1       = 0xfe
   inline val impdep2       = 0xff
 
-  import Flags._
+  import Flags.*
   abstract class FlagTranslation {
 
     protected def baseFlags(jflags: Int): FlagSet = EmptyFlags

@@ -2,39 +2,39 @@ package dotty.tools
 package dotc
 package transform
 
-import core.Phases._
-import core.DenotTransformers._
-import core.Denotations._
-import core.SymDenotations._
-import core.Symbols._
-import core.Contexts._
-import core.Types._
-import core.Names._
-import core.StdNames._
-import core.NameOps._
+import ast.Trees
+import core.Phases.*
+import core.DenotTransformers.*
+import core.Denotations.*
+import core.SymDenotations.*
+import core.Symbols.*
+import core.Contexts.*
+import core.Types.*
+import core.Names.*
+import core.StdNames.*
+import core.NameOps.*
 import core.NameKinds.{AdaptedClosureName, BodyRetainerName, DirectMethName}
 import core.Scopes.newScopeWith
-import core.Decorators._
-import core.Constants._
-import core.Definitions._
+import core.Decorators.*
+import core.Constants.*
+import core.Definitions.*
 import core.Annotations.BodyAnnotation
 import typer.NoChecking
 import inlines.Inlines
-import typer.ProtoTypes._
+import typer.ProtoTypes.*
 import typer.ErrorReporting.errorTree
 import typer.Checking.checkValue
-import core.TypeErasure._
-import core.Decorators._
+import core.TypeErasure.*
+import core.Decorators.*
 import dotty.tools.dotc.ast.{tpd, untpd}
 import ast.TreeTypeMap
 import dotty.tools.dotc.core.{Constants, Flags}
-import ValueClasses._
-import TypeUtils._
-import ContextFunctionResults._
-import ExplicitOuter._
+import ValueClasses.*
+import ContextFunctionResults.*
+import ExplicitOuter.*
 import core.Mode
 import util.Property
-import reporting._
+import reporting.*
 
 class Erasure extends Phase with DenotTransformer {
 
@@ -202,8 +202,8 @@ class Erasure extends Phase with DenotTransformer {
 }
 
 object Erasure {
-  import tpd._
-  import TypeTestsCasts._
+  import tpd.*
+  import TypeTestsCasts.*
 
   val name: String = "erasure"
   val description: String = "rewrite types to JVM model"
@@ -319,7 +319,7 @@ object Erasure {
           cast(tree1, pt)
         case _ =>
           val cls = pt.classSymbol
-          if (cls eq defn.UnitClass) constant(tree, Literal(Constant(())))
+          if (cls eq defn.UnitClass) constant(tree, unitLiteral)
           else {
             assert(cls ne defn.ArrayClass)
             ref(unboxMethod(cls.asClass)).appliedTo(tree)
@@ -541,7 +541,7 @@ object Erasure {
   end Boxing
 
   class Typer(erasurePhase: DenotTransformer) extends typer.ReTyper with NoChecking {
-    import Boxing._
+    import Boxing.*
 
     def isErased(tree: Tree)(using Context): Boolean = tree match {
       case TypeApply(Select(qual, _), _) if tree.symbol == defn.Any_typeCast =>
@@ -679,7 +679,7 @@ object Erasure {
           // Instead, we manually lookup the type of `apply` in the qualifier.
           inContext(preErasureCtx) {
             val qualTp = tree.qualifier.typeOpt.widen
-            if qualTp.derivesFrom(defn.PolyFunctionClass) || qualTp.derivesFrom(defn.ErasedFunctionClass) then
+            if qualTp.derivesFrom(defn.PolyFunctionClass) then
               eraseRefinedFunctionApply(qualTp.select(nme.apply).widen).classSymbol
             else
               NoSymbol
@@ -823,6 +823,11 @@ object Erasure {
         case _ => typedExpr(ntree, pt)
       }
     }
+
+    override def typedBind(tree: untpd.Bind, pt: Type)(using Context): Bind =
+      atPhase(erasurePhase):
+        checkBind(promote(tree))
+      super.typedBind(tree, pt)
 
     /** Besides normal typing, this method does uncurrying and collects parameters
      *  to anonymous functions of arity > 22.
@@ -1040,7 +1045,21 @@ object Erasure {
 
     override def typedClassDef(cdef: untpd.TypeDef, cls: ClassSymbol)(using Context): Tree =
       if cls.is(Flags.Erased) then erasedDef(cls)
-      else super.typedClassDef(cdef, cls)
+      else
+        val typedTree@TypeDef(name, impl @ Template(constr, _, self, _)) = super.typedClassDef(cdef, cls): @unchecked
+        // In the case where a trait extends a class, we need to strip any non trait class from the signature
+        // and accept the first one (see tests/run/mixins.scala)
+        val newTraits = impl.parents.tail.filterConserve: tree =>
+          def isTraitConstructor = tree match
+            case Trees.Block(_, expr) => // Specific management for trait constructors (see tests/pos/i9213.scala)
+              expr.symbol.isConstructor && expr.symbol.owner.is(Flags.Trait)
+            case _ => tree.symbol.isConstructor && tree.symbol.owner.is(Flags.Trait)
+          tree.symbol.is(Flags.Trait) || isTraitConstructor
+
+        val newParents =
+          if impl.parents.tail eq newTraits then impl.parents
+          else impl.parents.head :: newTraits
+        cpy.TypeDef(typedTree)(rhs = cpy.Template(impl)(parents = newParents))
 
     override def typedAnnotated(tree: untpd.Annotated, pt: Type)(using Context): Tree =
       typed(tree.arg, pt)

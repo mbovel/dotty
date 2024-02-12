@@ -4,6 +4,7 @@ import java.net.URI
 
 import scala.meta.internal.jdk.CollectionConverters.*
 import scala.meta.internal.metals.CompilerOffsetParams
+import scala.language.unsafeNulls
 
 import dotty.tools.pc.base.BaseCodeActionSuite
 import dotty.tools.pc.utils.TextEdits
@@ -12,13 +13,6 @@ import org.eclipse.lsp4j as l
 import org.junit.Test
 
 class InsertInferredTypeSuite extends BaseCodeActionSuite:
-
-  // override def extraDependencies(scalaVersion: String): Seq[Dependency] = {
-  //   val binaryVersion = createBinaryVersion(scalaVersion)
-  //   Seq(
-  //     Dependency.of("org.typelevel", s"cats-effect_$binaryVersion", "3.1.1")
-  //   )
-  // }
 
   @Test def `val` =
     checkEdit(
@@ -793,6 +787,28 @@ class InsertInferredTypeSuite extends BaseCodeActionSuite:
          |
          |val m: M => Int = O.get
          |""".stripMargin
+    )
+
+  @Test def `import-rename` =
+    checkEdit(
+      """
+        |package a
+        |import scala.collection.{AbstractMap => AB}
+        |
+        |object Main {
+        |  def test(): AB[Int, String] = ???
+        |  val <<x>> = test()
+        |}
+        |""".stripMargin,
+      """
+        |package a
+        |import scala.collection.{AbstractMap => AB}
+        |
+        |object Main {
+        |  def test(): AB[Int, String] = ???
+        |  val x: AB[Int, String] = test()
+        |}
+        |""".stripMargin
     )
 
   def checkEdit(

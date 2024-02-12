@@ -11,19 +11,19 @@ import java.lang.reflect.{InvocationTargetException, Method => JLRMethod}
 
 import dotty.tools.dotc.ast.tpd
 import dotty.tools.dotc.ast.TreeMapWithImplicits
-import dotty.tools.dotc.core.Annotations._
-import dotty.tools.dotc.core.Constants._
-import dotty.tools.dotc.core.Contexts._
-import dotty.tools.dotc.core.Decorators._
+import dotty.tools.dotc.core.Annotations.*
+import dotty.tools.dotc.core.Constants.*
+import dotty.tools.dotc.core.Contexts.*
+import dotty.tools.dotc.core.Decorators.*
 import dotty.tools.dotc.core.Denotations.staticRef
-import dotty.tools.dotc.core.Flags._
+import dotty.tools.dotc.core.Flags.*
 import dotty.tools.dotc.core.NameKinds.FlatName
-import dotty.tools.dotc.core.Names._
-import dotty.tools.dotc.core.StdNames._
-import dotty.tools.dotc.core.Symbols._
+import dotty.tools.dotc.core.Names.*
+import dotty.tools.dotc.core.StdNames.*
+import dotty.tools.dotc.core.Symbols.*
 import dotty.tools.dotc.core.TypeErasure
-import dotty.tools.dotc.core.Types._
-import dotty.tools.dotc.quoted._
+import dotty.tools.dotc.core.Types.*
+import dotty.tools.dotc.quoted.*
 import dotty.tools.dotc.typer.ImportInfo.withRootImports
 import dotty.tools.dotc.util.SrcPos
 import dotty.tools.dotc.reporting.Message
@@ -32,8 +32,8 @@ import dotty.tools.dotc.core.CyclicReference
 
 /** Tree interpreter for metaprogramming constructs */
 class Interpreter(pos: SrcPos, classLoader0: ClassLoader)(using Context):
-  import Interpreter._
-  import tpd._
+  import Interpreter.*
+  import tpd.*
 
   val classLoader =
     if ctx.owner.topLevelClass.name.startsWith(str.REPL_SESSION_LINE) then
@@ -126,11 +126,13 @@ class Interpreter(pos: SrcPos, classLoader0: ClassLoader)(using Context):
       view.toList
 
     fnType.dealias match
-      case fnType: MethodType if fnType.hasErasedParams => interpretArgs(argss, fnType.resType)
       case fnType: MethodType =>
         val argTypes = fnType.paramInfos
         assert(argss.head.size == argTypes.size)
-        interpretArgsGroup(argss.head, argTypes) ::: interpretArgs(argss.tail, fnType.resType)
+        val nonErasedArgs = argss.head.lazyZip(fnType.erasedParams).collect { case (arg, false) => arg }.toList
+        val nonErasedArgTypes = fnType.paramInfos.lazyZip(fnType.erasedParams).collect { case (arg, false) => arg }.toList
+        assert(nonErasedArgs.size == nonErasedArgTypes.size)
+        interpretArgsGroup(nonErasedArgs, nonErasedArgTypes) ::: interpretArgs(argss.tail, fnType.resType)
       case fnType: AppliedType if defn.isContextFunctionType(fnType) =>
         val argTypes :+ resType = fnType.args: @unchecked
         interpretArgsGroup(argss.head, argTypes) ::: interpretArgs(argss.tail, resType)
@@ -169,7 +171,7 @@ class Interpreter(pos: SrcPos, classLoader0: ClassLoader)(using Context):
     val clazz = inst.getClass
     val name = fn.name.asTermName
     val method = getMethod(clazz, name, paramsSig(fn))
-    stopIfRuntimeException(method.invoke(inst, args: _*), method)
+    stopIfRuntimeException(method.invoke(inst, args*), method)
   }
 
   private def interpretedStaticFieldAccess(sym: Symbol): Object = {
@@ -184,8 +186,8 @@ class Interpreter(pos: SrcPos, classLoader0: ClassLoader)(using Context):
   private def interpretNew(fn: Symbol, args: List[Object]): Object = {
     val className = fn.owner.fullName.mangledString.replaceAll("\\$\\.", "\\$")
     val clazz = loadClass(className)
-    val constr = clazz.getConstructor(paramsSig(fn): _*)
-    constr.newInstance(args: _*).asInstanceOf[Object]
+    val constr = clazz.getConstructor(paramsSig(fn)*)
+    constr.newInstance(args*).asInstanceOf[Object]
   }
 
   private def unexpectedTree(tree: Tree): Object =
@@ -216,7 +218,7 @@ class Interpreter(pos: SrcPos, classLoader0: ClassLoader)(using Context):
 
 
   private def getMethod(clazz: Class[?], name: Name, paramClasses: List[Class[?]]): JLRMethod =
-    try clazz.getMethod(name.toString, paramClasses: _*)
+    try clazz.getMethod(name.toString, paramClasses*)
     catch {
       case _: NoSuchMethodException =>
         val msg = em"Could not find method ${clazz.getCanonicalName}.$name with parameters ($paramClasses%, %)"
@@ -326,10 +328,10 @@ object Interpreter:
   class StopInterpretation(val msg: Message, val pos: SrcPos) extends Exception
 
   object Call:
-    import tpd._
+    import tpd.*
     /** Matches an expression that is either a field access or an application
-    *  It retruns a TermRef containing field accessed or a method reference and the arguments passed to it.
-    */
+     *  It returns a TermRef containing field accessed or a method reference and the arguments passed to it.
+     */
     def unapply(arg: Tree)(using Context): Option[(RefTree, List[List[Tree]])] =
       Call0.unapply(arg).map((fn, args) => (fn, args.reverse))
 
@@ -339,10 +341,8 @@ object Interpreter:
           Some((fn, args))
         case fn: Ident => Some((tpd.desugarIdent(fn).withSpan(fn.span), Nil))
         case fn: Select => Some((fn, Nil))
-        case Apply(f @ Call0(fn, args1), args2) =>
-          if (f.tpe.widenDealias.hasErasedParams) Some((fn, args1))
-          else Some((fn, args2 :: args1))
-        case TypeApply(Call0(fn, args), _) => Some((fn, args))
+        case Apply(f @ Call0(fn, argss), args) => Some((fn, args :: argss))
+        case TypeApply(Call0(fn, argss), _) => Some((fn, argss))
         case _ => None
       }
     }
@@ -353,11 +353,16 @@ object Interpreter:
       if !ctx.compilationUnit.isSuspendable then None
       else targetException match
         case _: NoClassDefFoundError | _: ClassNotFoundException =>
-          val className = targetException.getMessage
-          if className eq null then None
+          val message = targetException.getMessage
+          if message eq null then None
           else
-            val sym = staticRef(className.toTypeName).symbol
-            if (sym.isDefinedInCurrentRun) Some(sym) else None
+            val className = message.replace('/', '.')
+            val sym =
+              if className.endsWith(str.MODULE_SUFFIX) then staticRef(className.toTermName).symbol.moduleClass
+              else staticRef(className.toTypeName).symbol
+            // If the symbol does not a a position we assume that it came from the current run and it has an error
+            if sym.isDefinedInCurrentRun || (sym.exists && !sym.srcPos.span.exists) then Some(sym)
+            else None
         case _ => None
     }
   }

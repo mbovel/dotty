@@ -134,7 +134,7 @@ class HoverTypeSuite extends BaseHoverSuite:
          |class C
          |object Foo:
          |    extension [T](using A)(s: T)(using B)
-         |        def double[G](using C)(times: G) = (s.toString + s.toString) * times
+         |        def double[G <: Int](using C)(times: G) = (s.toString + s.toString) * times
          |    end extension
          |    given A with {}
          |    given B with {}
@@ -142,7 +142,7 @@ class HoverTypeSuite extends BaseHoverSuite:
          |    "".<<doub@@le(1)>>
          |end Foo
          |""".stripMargin,
-      "extension [T](using A)(s: T) def double(using B)[G](using C)(times: G): String".hover
+      "extension [T](using A)(s: T) def double(using B)[G <: Int](using C)(times: G): String".hover
     )
 
   @Test def `extension-methods-complex-binary` =
@@ -277,3 +277,120 @@ class HoverTypeSuite extends BaseHoverSuite:
       """|def scalameta: String
          |""".stripMargin.hover
     )
+
+  @Test def `macro` =
+    check(
+      """|
+         |import scala.quoted.*
+         |
+         |def myMacroImpl(using Quotes) =
+         |  import quotes.reflect.Ident
+         |  def foo = ??? match
+         |    case x: I@@dent => x
+         |
+         |  def bar: Ident = foo
+         |
+         |  ???
+         |
+         |""".stripMargin,
+      """|type Ident: Ident
+         |""".stripMargin.hover,
+    )
+
+  @Test def `macro2` =
+    check(
+      """|
+         |
+         |import scala.quoted.*
+         |
+         |def myMacroImpl(using Quotes) =
+         |  import quotes.reflect.Ident
+         |  def foo = ??? match
+         |    case x: Ident => x
+         |
+         |  def bar: Ide@@nt = foo
+         |
+         |  ???
+         |
+         |""".stripMargin,
+      """|type Ident: Ident
+         |""".stripMargin.hover,
+  )
+
+  @Test def `nested-selectable` =
+    check(
+      """|trait Sel extends Selectable:
+         |  def selectDynamic(name: String): Any = ???
+         |val sel = (new Sel {}).asInstanceOf[Sel { val foo: Sel { def bar: Int } }]
+         |val bar = sel.foo.ba@@r
+         |""".stripMargin,
+      """|def bar: Int
+         |""".stripMargin.hover,
+  )
+
+  @Test def `nested-selectable2` =
+    check(
+      """|class SimpleSelectable(key : String, value: Any) extends Selectable:
+         |  def selectDynamic(name: String): Any =
+         |    if(name == key) value else ???
+         |
+         |type Node[T] = SimpleSelectable { val child: T }
+         |
+         |val leaf = SimpleSelectable("child", ()).asInstanceOf[Node[Unit]]
+         |val node = SimpleSelectable("child", leaf).asInstanceOf[Node[Node[Unit]]]
+         |
+         |val k = node.child.ch@@ild
+         |""".stripMargin,
+      """|val child: Unit
+         |""".stripMargin.hover,
+    )
+
+  @Test def `very-nested-selectable` =
+    check(
+      """|trait Sel extends Selectable:
+         |  def selectDynamic(name: String): Any = ???
+         |val sel = (new Sel {}).asInstanceOf[Sel { val foo: Sel { val bar: Sel { val ddd: Int } } }]
+         |val bar = sel.foo.bar.dd@@d
+         |""".stripMargin,
+      """|val ddd: Int
+         |""".stripMargin.hover,
+    )
+
+  @Test def `infix-extension` =
+    check(
+      """|class MyIntOut(val value: Int)
+         |object MyIntOut:
+         |  extension (i: MyIntOut) def uneven = i.value % 2 == 1
+         |
+         |object Test:
+         |  val a = MyIntOut(1).un@@even
+         |""".stripMargin,
+      """|extension (i: MyIntOut) def uneven: Boolean
+         |""".stripMargin.hover,
+    )
+
+  @Test def `recursive-enum-without-type` =
+    check(
+      """class Wrapper(n: Int):
+        |  extension (x: Int)
+        |    def + (y: Int) = new Wrap@@per(x) + y
+        |""".stripMargin,
+      """```scala
+        |def this(n: Int): Wrapper
+        |```
+        |""".stripMargin
+    )
+
+  @Test def `recursive-enum-without-type-1` =
+    check(
+      """class Wrapper(n: Int):
+        |  def add(x: Int): Wrapper = ???
+        |  extension (x: Int)
+        |    def + (y: Int) = Wrap@@per(x).add(5)
+        |""".stripMargin,
+      """```scala
+        |def this(n: Int): Wrapper
+        |```
+        |""".stripMargin
+    )
+

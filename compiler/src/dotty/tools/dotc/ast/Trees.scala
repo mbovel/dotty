@@ -2,10 +2,10 @@ package dotty.tools
 package dotc
 package ast
 
-import core._
-import Types._, Names._, NameOps._, Flags._, util.Spans._, Contexts._, Constants._
+import core.*
+import Types.*, Names.*, NameOps.*, Flags.*, util.Spans.*, Contexts.*, Constants.*
 import typer.{ ConstFold, ProtoTypes }
-import SymDenotations._, Symbols._, Denotations._, StdNames._, Comments._
+import SymDenotations.*, Symbols.*, Denotations.*, StdNames.*, Comments.*
 import collection.mutable.ListBuffer
 import printing.Printer
 import printing.Texts.Text
@@ -16,7 +16,7 @@ import annotation.internal.sharable
 import annotation.unchecked.uncheckedVariance
 import annotation.constructorOnly
 import compiletime.uninitialized
-import Decorators._
+import Decorators.*
 import staging.StagingLevel.*
 
 object Trees {
@@ -31,6 +31,8 @@ object Trees {
 
   /** Property key for backquoted identifiers and definitions */
   val Backquoted: Property.StickyKey[Unit] = Property.StickyKey()
+
+  val SyntheticUnit: Property.StickyKey[Unit] = Property.StickyKey()
 
   /** Trees take a parameter indicating what the type of their `tpe` field
    *  is. Two choices: `Type` or `Untyped`.
@@ -455,7 +457,7 @@ object Trees {
         val point = span.point
         if name.toTermName == nme.ERROR then
           Span(point)
-        else if qualifier.span.start > span.start then // right associative
+        else if qualifier.span.exists && qualifier.span.start > span.point then // right associative
           val realName = name.stripModuleClassSuffix.lastPart
           Span(span.start, span.start + realName.length, point)
         else
@@ -673,6 +675,9 @@ object Trees {
    */
   case class Inlined[+T <: Untyped] private[ast] (call: tpd.Tree, bindings: List[MemberDef[T]], expansion: Tree[T])(implicit @constructorOnly src: SourceFile)
     extends Tree[T] {
+
+    def inlinedFromOuterScope: Boolean = call.isEmpty
+
     type ThisTree[+T <: Untyped] = Inlined[T]
     override def isTerm = expansion.isTerm
     override def isType = expansion.isType
@@ -767,7 +772,7 @@ object Trees {
   /** A type tree that represents an existing or inferred type */
   case class TypeTree[+T <: Untyped]()(implicit @constructorOnly src: SourceFile)
     extends DenotingTree[T] with TypTree[T] {
-    type ThisTree[+T <: Untyped] = TypeTree[T]
+    type ThisTree[+T <: Untyped] <: TypeTree[T]
     override def isEmpty: Boolean = !hasType
     override def toString: String =
       s"TypeTree${if (hasType) s"[$typeOpt]" else ""}"
@@ -791,7 +796,8 @@ object Trees {
    *    - as a (result-)type of an inferred ValDef or DefDef.
    *  Every TypeVar is created as the type of one InferredTypeTree.
    */
-  class InferredTypeTree[+T <: Untyped](implicit @constructorOnly src: SourceFile) extends TypeTree[T]
+  class InferredTypeTree[+T <: Untyped](implicit @constructorOnly src: SourceFile) extends TypeTree[T]:
+    type ThisTree[+T <: Untyped] <: InferredTypeTree[T]
 
   /** ref.type */
   case class SingletonTypeTree[+T <: Untyped] private[ast] (ref: Tree[T])(implicit @constructorOnly src: SourceFile)
@@ -926,11 +932,11 @@ object Trees {
     def rhs(using Context): Tree[T] = { forceFields(); preRhs.asInstanceOf[Tree[T]] }
 
     def leadingTypeParams(using Context): List[TypeDef[T]] = paramss match
-      case (tparams @ (tparam: TypeDef[_]) :: _) :: _ => tparams.asInstanceOf[List[TypeDef[T]]]
+      case (tparams @ (tparam: TypeDef[?]) :: _) :: _ => tparams.asInstanceOf[List[TypeDef[T]]]
       case _ => Nil
 
     def trailingParamss(using Context): List[ParamClause[T]] = paramss match
-      case ((tparam: TypeDef[_]) :: _) :: paramss1 => paramss1
+      case ((tparam: TypeDef[?]) :: _) :: paramss1 => paramss1
       case _ => paramss
 
     def termParamss(using Context): List[List[ValDef[T]]] =
@@ -1341,10 +1347,17 @@ object Trees {
         case tree: SeqLiteral if (elems eq tree.elems) && (elemtpt eq tree.elemtpt) => tree
         case _ => finalize(tree, untpd.SeqLiteral(elems, elemtpt)(sourceFile(tree)))
       }
-      def Inlined(tree: Tree)(call: tpd.Tree, bindings: List[MemberDef], expansion: Tree)(using Context): Inlined = tree match {
-        case tree: Inlined if (call eq tree.call) && (bindings eq tree.bindings) && (expansion eq tree.expansion) => tree
-        case _ => finalize(tree, untpd.Inlined(call, bindings, expansion)(sourceFile(tree)))
-      }
+      // Positions of trees are automatically pushed down except when we reach an Inlined tree. Therefore, we
+      // make sure the new expansion has a position by copying the one of the original Inlined tree.
+      def Inlined(tree: Inlined)(call: tpd.Tree, bindings: List[MemberDef], expansion: Tree)(using Context): Inlined =
+        if (call eq tree.call) && (bindings eq tree.bindings) && (expansion eq tree.expansion) then tree
+        else
+          // Copy the span from the original Inlined tree if the new expansion doesn't have a span.
+          val expansionWithSpan =
+            if expansion.span.exists then expansion
+            else expansion.withSpan(tree.expansion.span)
+          finalize(tree, untpd.Inlined(call, bindings, expansionWithSpan)(sourceFile(tree)))
+
       def Quote(tree: Tree)(body: Tree, tags: List[Tree])(using Context): Quote = tree match {
         case tree: Quote if (body eq tree.body) && (tags eq tree.tags) => tree
         case _ => finalize(tree, untpd.Quote(body, tags)(sourceFile(tree)))
@@ -1479,7 +1492,7 @@ object Trees {
      *  innermost enclosing call for which the inlined version is currently
      *  processed.
      */
-    protected def inlineContext(call: tpd.Tree)(using Context): Context = ctx
+    protected def inlineContext(tree: Inlined)(using Context): Context = ctx
 
     /** The context to use when mapping or accumulating over a tree */
     def localCtx(tree: Tree)(using Context): Context
@@ -1549,8 +1562,8 @@ object Trees {
               cpy.Try(tree)(transform(block), transformSub(cases), transform(finalizer))
             case SeqLiteral(elems, elemtpt) =>
               cpy.SeqLiteral(tree)(transform(elems), transform(elemtpt))
-            case Inlined(call, bindings, expansion) =>
-              cpy.Inlined(tree)(call, transformSub(bindings), transform(expansion)(using inlineContext(call)))
+            case tree @ Inlined(call, bindings, expansion) =>
+              cpy.Inlined(tree)(call, transformSub(bindings), transform(expansion)(using inlineContext(tree)))
             case TypeTree() =>
               tree
             case SingletonTypeTree(ref) =>
@@ -1586,6 +1599,9 @@ object Trees {
             case tree @ TypeDef(name, rhs) =>
               cpy.TypeDef(tree)(name, transform(rhs))
             case tree @ Template(constr, parents, self, _) if tree.derived.isEmpty =>
+              // Currently we do not have cases where we expect `tree.derived` to contain trees for typed trees.
+              // If it is the case we will fall in `transformMoreCases` and throw an exception there.
+              // In the future we might keep the `derived` clause after typing, in that case we might want to start handling it here.
               cpy.Template(tree)(transformSub(constr), transform(tree.parents), Nil, transformSub(self), transformStats(tree.body, tree.symbol))
             case Import(expr, selectors) =>
               cpy.Import(tree)(transform(expr), selectors)
@@ -1693,8 +1709,8 @@ object Trees {
               this(this(this(x, block), handler), finalizer)
             case SeqLiteral(elems, elemtpt) =>
               this(this(x, elems), elemtpt)
-            case Inlined(call, bindings, expansion) =>
-              this(this(x, bindings), expansion)(using inlineContext(call))
+            case tree @ Inlined(call, bindings, expansion) =>
+              this(this(x, bindings), expansion)(using inlineContext(tree))
             case TypeTree() =>
               x
             case SingletonTypeTree(ref) =>

@@ -2,17 +2,16 @@ package dotty.tools
 package dotc
 package core
 
-import Symbols._, Types._, Contexts._, Flags._, Names._, StdNames._, Phases._
+import Symbols.*, Types.*, Contexts.*, Flags.*, Names.*, StdNames.*, Phases.*
 import Flags.JavaDefined
 import Uniques.unique
 import TypeOps.makePackageObjPrefixExplicit
 import backend.sjs.JSDefinitions
-import transform.ExplicitOuter._
-import transform.ValueClasses._
-import transform.TypeUtils._
-import transform.ContextFunctionResults._
+import transform.ExplicitOuter.*
+import transform.ValueClasses.*
+import transform.ContextFunctionResults.*
 import unpickleScala2.Scala2Erasure
-import Decorators._
+import Decorators.*
 import Definitions.MaxImplementedFunctionArity
 import scala.annotation.tailrec
 
@@ -72,7 +71,7 @@ end SourceLanguage
 object TypeErasure {
 
   private def erasureDependsOnArgs(sym: Symbol)(using Context) =
-    sym == defn.ArrayClass || sym == defn.PairClass || isDerivedValueClass(sym)
+    sym == defn.ArrayClass || sym == defn.PairClass || sym.isDerivedValueClass
 
   /** The arity of this tuple type, which can be made up of EmptyTuple, TupleX and `*:` pairs.
    *
@@ -126,7 +125,7 @@ object TypeErasure {
     case tp: TypeRef =>
       val sym = tp.symbol
       sym.isClass &&
-      (!erasureDependsOnArgs(sym) || isDerivedValueClass(sym)) &&
+      (!erasureDependsOnArgs(sym) || sym.isDerivedValueClass) &&
       !defn.specialErasure.contains(sym) &&
       !defn.isSyntheticFunctionClass(sym)
     case _: TermRef =>
@@ -239,8 +238,7 @@ object TypeErasure {
    *  TermRefs are kept instead of being widened away.
    */
   def erasedRef(tp: Type)(using Context): Type = tp match {
-    case tp: TermRef =>
-      assert(tp.symbol.exists, tp)
+    case tp: TermRef if tp.symbol.exists =>
       val tp1 = makePackageObjPrefixExplicit(tp)
       if (tp1 ne tp) erasedRef(tp1)
       else TermRef(erasedRef(tp.prefix), tp.symbol.asTerm)
@@ -405,7 +403,6 @@ object TypeErasure {
       tp1 // After erasure, T | Nothing is just T and C | Null is just C, if C is a reference type.
     else tp1 match {
       case JavaArrayType(elem1) =>
-        import dotty.tools.dotc.transform.TypeUtils._
         tp2 match {
           case JavaArrayType(elem2) =>
             if (elem1.isPrimitiveValueType || elem2.isPrimitiveValueType)
@@ -560,19 +557,19 @@ object TypeErasure {
     case _ => false
   }
 
-  /** The erasure of `(PolyFunction | ErasedFunction) { def apply: $applyInfo }` */
+  /** The erasure of `PolyFunction { def apply: $applyInfo }` */
   def eraseRefinedFunctionApply(applyInfo: Type)(using Context): Type =
     def functionType(info: Type): Type = info match {
       case info: PolyType =>
         functionType(info.resultType)
       case info: MethodType =>
         assert(!info.resultType.isInstanceOf[MethodicType])
-        defn.FunctionType(n = info.erasedParams.count(_ == false))
+        defn.FunctionType(n = info.nonErasedParamCount)
     }
     erasure(functionType(applyInfo))
 }
 
-import TypeErasure._
+import TypeErasure.*
 
 /**
  *  @param sourceLanguage Adapt our erasure rules to mimic what the given language
@@ -633,7 +630,7 @@ class TypeErasure(sourceLanguage: SourceLanguage, semiEraseVCs: Boolean, isConst
       case tp: TypeRef =>
         val sym = tp.symbol
         if !sym.isClass then this(checkedSuperType(tp))
-        else if semiEraseVCs && isDerivedValueClass(sym) then eraseDerivedValueClass(tp)
+        else if semiEraseVCs && sym.isDerivedValueClass then eraseDerivedValueClass(tp)
         else if defn.isSyntheticFunctionClass(sym) then defn.functionTypeErasure(sym)
         else eraseNormalClassRef(tp)
       case tp: AppliedType =>
@@ -641,7 +638,7 @@ class TypeErasure(sourceLanguage: SourceLanguage, semiEraseVCs: Boolean, isConst
         if (tycon.isRef(defn.ArrayClass)) eraseArray(tp)
         else if (tycon.isRef(defn.PairClass)) erasePair(tp)
         else if (tp.isRepeatedParam) apply(tp.translateFromRepeated(toArray = sourceLanguage.isJava))
-        else if (semiEraseVCs && isDerivedValueClass(tycon.classSymbol)) eraseDerivedValueClass(tp)
+        else if (semiEraseVCs && tycon.classSymbol.isDerivedValueClass) eraseDerivedValueClass(tp)
         else this(checkedSuperType(tp))
       case tp: TermRef =>
         this(underlyingOfTermRef(tp))
@@ -654,7 +651,7 @@ class TypeErasure(sourceLanguage: SourceLanguage, semiEraseVCs: Boolean, isConst
         else SuperType(eThis, eSuper)
       case ExprType(rt) =>
         defn.FunctionType(0)
-      case defn.PolyOrErasedFunctionOf(mt) =>
+      case defn.PolyFunctionOf(mt) =>
         eraseRefinedFunctionApply(mt)
       case tp: TypeVar if !tp.isInstantiated =>
         assert(inSigName, i"Cannot erase uninstantiated type variable $tp")
@@ -728,14 +725,14 @@ class TypeErasure(sourceLanguage: SourceLanguage, semiEraseVCs: Boolean, isConst
                 tr1 :: trs1.filterNot(_.isAnyRef)
               case nil => nil
             }
-          var erasedDecls = decls.filteredScope(sym => !sym.isType || sym.isClass).openForMutations
-          for dcl <- erasedDecls.iterator do
-            if dcl.lastKnownDenotation.unforcedAnnotation(defn.TargetNameAnnot).isDefined
-               && dcl.targetName != dcl.name
-            then
-              if erasedDecls eq decls then erasedDecls = erasedDecls.cloneScope
-              erasedDecls.unlink(dcl)
-              erasedDecls.enter(dcl.targetName, dcl)
+          val erasedDecls = decls.filteredScope(
+              keep = sym => !sym.isType || sym.isClass,
+              rename = sym =>
+                if sym.lastKnownDenotation.unforcedAnnotation(defn.TargetNameAnnot).isDefined
+                  && sym.targetName != sym.name
+                then sym.targetName
+                else null
+            )
           val selfType1 = if cls.is(Module) then cls.sourceModule.termRef else NoType
           tp.derivedClassInfo(NoPrefix, erasedParents, erasedDecls, selfType1)
             // can't replace selftype by NoType because this would lose the sourceModule link
@@ -817,7 +814,8 @@ class TypeErasure(sourceLanguage: SourceLanguage, semiEraseVCs: Boolean, isConst
         eraseResult(tp1.resultType) match
           case rt: MethodType => rt
           case rt => MethodType(Nil, Nil, rt)
-      case tp1 => this(tp1)
+      case tp1 =>
+        this(tp1)
 
   private def eraseDerivedValueClass(tp: Type)(using Context): Type = {
     val cls = tp.classSymbol.asClass
@@ -901,7 +899,7 @@ class TypeErasure(sourceLanguage: SourceLanguage, semiEraseVCs: Boolean, isConst
           if (!info.exists) assert(false, i"undefined: $tp with symbol $sym")
           return sigName(info)
         }
-        if (semiEraseVCs && isDerivedValueClass(sym)) {
+        if (semiEraseVCs && sym.isDerivedValueClass) {
           val erasedVCRef = eraseDerivedValueClass(tp)
           if (erasedVCRef.exists) return sigName(erasedVCRef)
         }
@@ -933,10 +931,10 @@ class TypeErasure(sourceLanguage: SourceLanguage, semiEraseVCs: Boolean, isConst
       case tp: TermRef =>
         sigName(underlyingOfTermRef(tp))
       case ExprType(rt) =>
-        sigName(defn.FunctionOf(Nil, rt))
+        sigName(defn.FunctionNOf(Nil, rt))
       case tp: TypeVar if !tp.isInstantiated =>
         tpnme.Uninstantiated
-      case tp @ defn.PolyOrErasedFunctionOf(_) =>
+      case tp @ defn.PolyFunctionOf(_) =>
         // we need this case rather than falling through to the default
         // because RefinedTypes <: TypeProxy and it would be caught by
         // the case immediately below

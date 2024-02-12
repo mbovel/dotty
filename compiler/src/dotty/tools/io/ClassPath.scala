@@ -21,12 +21,12 @@ import dotc.classpath.{ PackageEntry, ClassPathEntries, PackageName }
   * A representation of the compiler's class- or sourcepath.
   */
 trait ClassPath {
-  import dotty.tools.dotc.classpath._
+  import dotty.tools.dotc.classpath.*
   def asURLs: Seq[URL]
 
   final def hasPackage(pkg: String): Boolean = hasPackage(PackageName(pkg))
   final def packages(inPackage: String): Seq[PackageEntry] = packages(PackageName(inPackage))
-  final def classes(inPackage: String): Seq[ClassFileEntry] = classes(PackageName(inPackage))
+  final def classes(inPackage: String): Seq[BinaryFileEntry] = classes(PackageName(inPackage))
   final def sources(inPackage: String): Seq[SourceFileEntry] = sources(PackageName(inPackage))
   final def list(inPackage: String): ClassPathEntries = list(PackageName(inPackage))
 
@@ -43,7 +43,7 @@ trait ClassPath {
 
   private[dotty] def hasPackage(pkg: PackageName): Boolean
   private[dotty] def packages(inPackage: PackageName): Seq[PackageEntry]
-  private[dotty] def classes(inPackage: PackageName): Seq[ClassFileEntry]
+  private[dotty] def classes(inPackage: PackageName): Seq[BinaryFileEntry]
   private[dotty] def sources(inPackage: PackageName): Seq[SourceFileEntry]
 
   /**
@@ -94,7 +94,7 @@ trait ClassPath {
 
   /** The whole classpath in the form of one String.
     */
-  def asClassPathString: String = ClassPath.join(asClassPathStrings: _*)
+  def asClassPathString: String = ClassPath.join(asClassPathStrings*)
   // for compatibility purposes
   @deprecated("use asClassPathString instead of this one", "2.11.5")
   def asClasspathString: String = asClassPathString
@@ -152,7 +152,7 @@ object ClassPath {
   def join(paths: String*): String  = paths.filterNot(_ == "").mkString(pathSeparator)
 
   /** Split the classpath, apply a transformation function, and reassemble it. */
-  def map(cp: String, f: String => String): String = join(split(cp) map f: _*)
+  def map(cp: String, f: String => String): String = join(split(cp).map(f)*)
 
   /** Expand path and possibly expanding stars */
   def expandPath(path: String, expandStar: Boolean = true): List[String] =

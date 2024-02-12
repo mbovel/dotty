@@ -4,21 +4,20 @@ package interactive
 
 import scala.language.unsafeNulls
 
-import scala.collection._
+import scala.collection.*
 
 import ast.{NavigateAST, Trees, tpd, untpd}
-import core._
-import Decorators._, ContextOps._
-import Contexts._, Flags._, Names._, NameOps._, Symbols._, Trees._, Types._
-import transform.SymUtils._
-import util.Spans._, util.SourceFile, util.SourcePosition
+import core.*
+import Decorators.*, ContextOps.*
+import Contexts.*, Flags.*, Names.*, NameOps.*, Symbols.*, Trees.*, Types.*
+import util.Spans.*, util.SourceFile, util.SourcePosition
 
 /** High-level API to get information out of typed trees, designed to be used by IDEs.
  *
  *  @see `InteractiveDriver` to get typed trees from code.
  */
 object Interactive {
-  import ast.tpd._
+  import ast.tpd.*
 
   object Include {
     case class Set private[Include] (val bits: Int) extends AnyVal {
@@ -283,12 +282,10 @@ object Interactive {
     case nested :: encl :: rest =>
       val outer = contextOfPath(encl :: rest)
       try encl match {
-        case tree @ PackageDef(pkg, stats) =>
-          assert(tree.symbol.exists)
+        case tree @ PackageDef(pkg, stats) if tree.symbol.exists =>
           if (nested `eq` pkg) outer
           else contextOfStat(stats, nested, pkg.symbol.moduleClass, outer.packageContext(tree, tree.symbol))
-        case tree: DefDef =>
-          assert(tree.symbol.exists)
+        case tree: DefDef if tree.symbol.exists =>
           val localCtx = outer.localContext(tree, tree.symbol).setNewScope
           for params <- tree.paramss; param <- params do localCtx.enter(param.symbol)
             // Note: this overapproximates visibility a bit, since value parameters are only visible
@@ -423,6 +420,21 @@ object Interactive {
         false
     }
 
+
+  /** Some information about the trees is lost after Typer such as Extension method construct
+   *  is expanded into methods. In order to support completions in those cases
+   *  we have to rely on untyped trees and only when types are necessary use typed trees.
+   */
+  def resolveTypedOrUntypedPath(tpdPath: List[Tree], pos: SourcePosition)(using Context): List[untpd.Tree] =
+    lazy val untpdPath: List[untpd.Tree] = NavigateAST
+      .pathTo(pos.span, List(ctx.compilationUnit.untpdTree), true).collect:
+        case untpdTree: untpd.Tree => untpdTree
+
+    tpdPath match
+      case (_: Bind) :: _ => tpdPath
+      case (_: untpd.TypTree) :: _ => tpdPath
+      case _ => untpdPath
+
   /**
    * Is this tree using a renaming introduced by an import statement or an alias for `this`?
    *
@@ -438,6 +450,20 @@ object Interactive {
   /** Are the two names the same? */
   def sameName(n0: Name, n1: Name): Boolean =
     n0.stripModuleClassSuffix.toTermName eq n1.stripModuleClassSuffix.toTermName
+
+  /** https://scala-lang.org/files/archive/spec/3.4/02-identifiers-names-and-scopes.html
+   * import java.lang.*
+   * {
+   *   import scala.*
+   *   {
+   *     import Predef.*
+   *     { /* source */ }
+   *   }
+   * }
+   */
+  def isImportedByDefault(sym: Symbol)(using Context): Boolean =
+    val owner = sym.effectiveOwner
+    owner == defn.ScalaPredefModuleClass || owner == defn.ScalaPackageClass || owner == defn.JavaLangPackageClass
 
   private[interactive] def safely[T](op: => List[T]): List[T] =
     try op catch { case ex: TypeError => Nil }

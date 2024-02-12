@@ -43,17 +43,17 @@ colon         ::=  ':'    -- with side conditions explained above
 ## Identifiers
 
 ```ebnf
-op       ::=  opchar {opchar}
-varid    ::=  lower idrest
-boundvarid ::=  varid
-             | ‘`’ varid ‘`’
-alphaid    ::=  upper idrest
-             |  varid
-plainid  ::=  alphaid
-           |  op
-id       ::=  plainid
-           |  ‘`’ { charNoBackQuoteOrNewline | escapeSeq } ‘`’
-idrest   ::=  {letter | digit} [‘_’ op]
+op            ::=  opchar {opchar}
+varid         ::=  lower idrest
+boundvarid    ::=  varid
+                | ‘`’ varid ‘`’
+alphaid       ::=  upper idrest
+                |  varid
+plainid       ::=  alphaid
+                |  op
+id            ::=  plainid
+                |  ‘`’ { charNoBackQuoteOrNewline | escapeSeq } ‘`’
+idrest        ::=  {letter | digit} [‘_’ op]
 escapeSeq     ::= UnicodeEscape | charEscapeSeq
 UnicodeEscape ::= ‘\’ ‘u’ {‘u’} hexDigit hexDigit hexDigit hexDigit
 hexDigit      ::= ‘0’ | ... | ‘9’ | ‘A’ | ... | ‘F’ | ‘a’ | ... | ‘f’
@@ -83,7 +83,7 @@ For this purpose, lower case letters include not only a-z, but also all characte
 
 The following are examples of variable identifiers:
 
-> ```scala
+> ```
 >     x         maxIndex   p2p   empty_?
 >     `yield`   αρετη      _y    dot_product_*
 >     __system  _MAX_LEN_
@@ -92,7 +92,7 @@ The following are examples of variable identifiers:
 
 Some examples of constant identifiers are
 
-> ```scala
+> ```
 >     +    Object  $reserved  ǅul    ǂnûm
 >     ⅰ_ⅲ  Ⅰ_Ⅲ     ↁelerious  ǃqhàà  ʹthatsaletter
 > ```
@@ -104,7 +104,7 @@ User programs should not define identifiers that contain ‘$’ characters.
 
 The following names are reserved words instead of being members of the syntactic class `id` of lexical identifiers.
 
-```scala
+```
 abstract  case      catch     class     def       do        else
 enum      export    extends   false     final     finally   for
 given     if        implicit  import    lazy      match     new
@@ -169,21 +169,19 @@ A newline in a Scala source text is treated as the special token “nl” if the
 
 The tokens that can terminate a statement are: literals, identifiers and the following delimiters and reserved words:
 
-```scala
-this    null    true    false    return    type    <xml-start>
-_       )       ]       }
+```
+this    null    true    false    return    type    given    <xml-start>
+_       )       ]       }        outdent
 ```
 
 The tokens that can begin a statement are all Scala tokens _except_ the following delimiters and reserved words:
 
-```scala
-catch    else    extends    finally    forSome    match
-with    yield    ,    .    ;    :    =    =>    <-    <:    <%
->:    #    [    )    ]    }
 ```
-
-A `case` token can begin a statement only if followed by a
-`class` or `object` token.
+catch    do      else    extends    finally    forSome    macro
+match    then    with    yield
+,    .    ;    :    =    =>    <-    <:    <%    >:    #    =>>    ?=>
+)    ]    }    outdent
+```
 
 A _leading infix operator_ is a symbolic identifier such as `+`, or `approx_==`, or an identifier in backticks that:
 
@@ -218,13 +216,13 @@ Multiple newline tokens are accepted in the following places (note that a semico
 
 - between the condition of a [conditional expression](06-expressions.html#conditional-expressions) or [while loop](06-expressions.html#while-loop-expressions) and the next following expression,
 - between the enumerators of a [for-comprehension](06-expressions.html#for-comprehensions-and-for-loops) and the next following expression, and
-- after the initial `type` keyword in a [type definition or declaration](04-basic-declarations-and-definitions.html#type-declarations-and-type-aliases).
+- after the initial `type` keyword in a [type definition](04-basic-definitions.html#type-member-definitions).
 
 A single new line token is accepted
 
 - in front of an opening brace ‘{’, if that brace is a legal continuation of the current statement or expression,
 - after an [infix operator](06-expressions.html#prefix,-infix,-and-postfix-operations), if the first token on the next line can start an expression,
-- in front of a [parameter clause](04-basic-declarations-and-definitions.html#function-declarations-and-definitions), and
+- in front of a [parameter clause](04-basic-definitions.html#method-definitions), and
 - after an [annotation](11-annotations.html#user-defined-annotations).
 
 > The newline tokens between the two lines are not treated as statement separators.
@@ -334,10 +332,10 @@ Literal  ::=  [‘-’] integerLiteral
 ### Integer Literals
 
 ```ebnf
-integerLiteral  ::=  (decimalNumeral | hexNumeral)
-                       [‘L’ | ‘l’]
+integerLiteral   ::=  (decimalNumeral | hexNumeral | binaryNumeral) [‘L’ | ‘l’]
 decimalNumeral   ::=  ‘0’ | digit [{digit | ‘_’} digit]
 hexNumeral       ::=  ‘0’ (‘x’ | ‘X’) hexDigit [{hexDigit | ‘_’} hexDigit]
+binaryNumeral    ::=  ‘0’ (‘b’ | ‘B’) binaryDigit [{binaryDigit | ‘_’} binaryDigit]
 ```
 
 Values of type `Int` are all integer numbers between $-2\^{31}$ and $2\^{31}-1$, inclusive.
@@ -360,17 +358,16 @@ The numeric ranges given by these types are:
 The digits of a numeric literal may be separated by arbitrarily many underscores for purposes of legibility.
 
 > ```scala
-> 0           21_000      0x7F        -42L        0xFFFF_FFFF
+> 0           21_000      0x7F        -42L        0xFFFF_FFFF        0b0100_0010
 > ```
 
 ### Floating Point Literals
 
 ```ebnf
-floatingPointLiteral
-                 ::=  [decimalNumeral] ‘.’ digit [{digit | ‘_’} digit] [exponentPart] [floatType]
-                   |  decimalNumeral exponentPart [floatType]
-                   |  decimalNumeral floatType
-exponentPart     ::=  (‘E’ | ‘e’) [‘+’ | ‘-’] digit [{digit | ‘_’} digit]
+floatingPointLiteral  ::=  [decimalNumeral] ‘.’ digit [{digit | ‘_’} digit] [exponentPart] [floatType]
+                        |  decimalNumeral exponentPart [floatType]
+                        |  decimalNumeral floatType
+exponentPart          ::=  (‘E’ | ‘e’) [‘+’ | ‘-’] digit [{digit | ‘_’} digit]
 ```
 
 Floating point literals are of type `Float` when followed by a floating point type suffix `F` or `f`, and are of type `Double` otherwise.
@@ -452,7 +449,7 @@ Characters must not necessarily be printable; newlines or other control characte
 >
 > This would produce the string:
 >
-> ```scala
+> ```
 > the present string
 >      spans three
 >      lines.
@@ -469,7 +466,7 @@ Characters must not necessarily be printable; newlines or other control characte
 >
 > evaluates to
 >
-> ```scala
+> ```
 > the present string
 > spans three
 > lines.

@@ -5,9 +5,12 @@ import scala.util.control.NonFatal
 
 import dotty.tools.dotc.core.Contexts.*
 import dotty.tools.dotc.core.Flags.*
+import dotty.tools.dotc.core.NameOps.moduleClassName
 import dotty.tools.dotc.core.Names.*
+import dotty.tools.dotc.core.Scopes.EmptyScope
 import dotty.tools.dotc.core.Symbols.*
 import dotty.tools.dotc.core.Types.*
+import dotty.tools.dotc.interactive.Interactive
 import dotty.tools.dotc.typer.ImportInfo
 import dotty.tools.pc.IndexedContext.Result
 import dotty.tools.pc.utils.MtagsEnrichments.*
@@ -29,15 +32,32 @@ sealed trait IndexedContext:
       case Some(symbols) if symbols.exists(_ == sym) =>
         Result.InScope
       case Some(symbols)
-          if symbols
-            .exists(s => isTypeAliasOf(s, sym) || isTermAliasOf(s, sym)) =>
-        Result.InScope
+          if symbols.exists(s => isNotConflictingWithDefault(s, sym) || isTypeAliasOf(s, sym) || isTermAliasOf(s, sym)) =>
+            Result.InScope
       // when all the conflicting symbols came from an old version of the file
-      case Some(symbols) if symbols.nonEmpty && symbols.forall(_.isStale) =>
-        Result.Missing
+      case Some(symbols) if symbols.nonEmpty && symbols.forall(_.isStale) => Result.Missing
       case Some(_) => Result.Conflict
       case None => Result.Missing
   end lookupSym
+
+  /**
+   * Scala by default imports following packages:
+   * https://scala-lang.org/files/archive/spec/3.4/02-identifiers-names-and-scopes.html
+   * import java.lang.*
+   * {
+   *   import scala.*
+   *   {
+   *     import Predef.*
+   *     { /* source */ }
+   *   }
+   * }
+   *
+   * This check is necessary for proper scope resolution, because when we compare symbols from
+   * index including the underlying type like scala.collection.immutable.List it actually
+   * is in current scope in form of type forwarder imported from Predef.
+   */
+  private def isNotConflictingWithDefault(sym: Symbol, queriedSym: Symbol): Boolean =
+    sym.info.widenDealias =:= queriedSym.info.widenDealias && (Interactive.isImportedByDefault(sym))
 
   final def hasRename(sym: Symbol, as: String): Boolean =
     rename(sym) match
@@ -47,15 +67,15 @@ sealed trait IndexedContext:
   // detects import scope aliases like
   // object Predef:
   //   val Nil = scala.collection.immutable.Nil
-  private def isTermAliasOf(termAlias: Symbol, sym: Symbol): Boolean =
+  private def isTermAliasOf(termAlias: Symbol, queriedSym: Symbol): Boolean =
     termAlias.isTerm && (
-      sym.info match
+      queriedSym.info match
         case clz: ClassInfo => clz.appliedRef =:= termAlias.info.resultType
         case _ => false
     )
 
-  private def isTypeAliasOf(alias: Symbol, sym: Symbol): Boolean =
-    alias.isAliasType && alias.info.metalsDealias.typeSymbol == sym
+  private def isTypeAliasOf(alias: Symbol, queriedSym: Symbol): Boolean =
+    alias.isAliasType && alias.info.metalsDealias.typeSymbol  == queriedSym
 
   final def isEmpty: Boolean = this match
     case IndexedContext.Empty => true
@@ -81,7 +101,6 @@ object IndexedContext:
 
   def apply(ctx: Context): IndexedContext =
     ctx match
-      case null => Empty
       case NoContext => Empty
       case _ => LazyWrapper(using ctx)
 
@@ -170,7 +189,11 @@ object IndexedContext:
       initial ++ fromPackageObjects
 
     def fromImport(site: Type, name: Name)(using Context): List[Symbol] =
-      List(site.member(name.toTypeName), site.member(name.toTermName))
+      List(
+        site.member(name.toTypeName),
+        site.member(name.toTermName),
+        site.member(name.moduleClassName),
+      )
         .flatMap(_.alternatives)
         .map(_.symbol)
 
@@ -200,14 +223,14 @@ object IndexedContext:
     val (symbols, renames) =
       if ctx.isImportContext then
         val (syms, renames) =
-          fromImportInfo(ctx.importInfo)
+          fromImportInfo(ctx.importInfo.nn)
             .map((sym, rename) => (sym, rename.map(r => sym -> r.decoded)))
             .unzip
         (syms, renames.flatten.toMap)
       else if ctx.owner.isClass then
         val site = ctx.owner.thisType
         (accesibleMembers(site), Map.empty)
-      else if ctx.scope != null then (ctx.scope.toList, Map.empty)
+      else if ctx.scope != EmptyScope then (ctx.scope.toList, Map.empty)
       else (List.empty, Map.empty)
 
     val initial = Map.empty[String, List[Symbol]]

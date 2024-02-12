@@ -4,7 +4,6 @@ package inlines
 
 import ast.*, core.*
 import Flags.*, Symbols.*, Types.*, Decorators.*, Constants.*, Contexts.*
-import transform.SymUtils.*
 import StdNames.nme
 import typer.*
 import Names.Name
@@ -28,7 +27,7 @@ import scala.annotation.constructorOnly
 
 /** General support for inlining */
 object Inliner:
-  import tpd._
+  import tpd.*
 
   private[inlines] type DefBuffer = mutable.ListBuffer[ValOrDefDef]
 
@@ -129,7 +128,7 @@ object Inliner:
       new InlinerMap(typeMap, treeMap, oldOwners, newOwners, substFrom, substTo)
 
     override def transformInlined(tree: Inlined)(using Context) =
-      if tree.call.isEmpty then
+      if tree.inlinedFromOuterScope then
         tree.expansion match
           case expansion: TypeTree => expansion
           case _ => tree
@@ -143,8 +142,8 @@ end Inliner
  *  @param  rhsToInline  the body of the inlineable method that replaces the call.
  */
 class Inliner(val call: tpd.Tree)(using Context):
-  import tpd._
-  import Inliner._
+  import tpd.*
+  import Inliner.*
 
   private val methPart = funPart(call)
   protected val callTypeArgs = typeArgss(call).flatten
@@ -497,8 +496,8 @@ class Inliner(val call: tpd.Tree)(using Context):
     // assertAllPositioned(tree)   // debug
     tree.changeOwner(originalOwner, ctx.owner)
 
-  def tryConstValue: Tree =
-    TypeComparer.constValue(callTypeArgs.head.tpe) match {
+  def tryConstValue(tpe: Type): Tree =
+    TypeComparer.constValue(tpe) match {
       case Some(c) => Literal(c).withSpan(call.span)
       case _ => EmptyTree
     }
@@ -549,7 +548,7 @@ class Inliner(val call: tpd.Tree)(using Context):
 
     val inlineTyper = new InlineTyper(ctx.reporter.errorCount)
 
-    val inlineCtx = inlineContext(call).fresh.setTyper(inlineTyper).setNewScope
+    val inlineCtx = inlineContext(Inlined(call, Nil, ref(defn.Predef_undefined))).fresh.setTyper(inlineTyper).setNewScope
 
     def inlinedFromOutside(tree: Tree)(span: Span): Tree =
       Inlined(EmptyTree, Nil, tree)(using ctx.withSource(inlinedMethod.topLevelClass.source)).withSpan(span)
@@ -596,7 +595,7 @@ class Inliner(val call: tpd.Tree)(using Context):
               val inlinedSingleton = singleton(t).withSpan(argSpan)
               inlinedFromOutside(inlinedSingleton)(tree.span)
             case Some(t) if tree.isType =>
-              inlinedFromOutside(TypeTree(t).withSpan(argSpan))(tree.span)
+              inlinedFromOutside(new InferredTypeTree().withType(t).withSpan(argSpan))(tree.span)
             case _ => tree
           }
         case tree @ Select(qual: This, name) if tree.symbol.is(Private) && tree.symbol.isInlineMethod =>
@@ -649,13 +648,13 @@ class Inliner(val call: tpd.Tree)(using Context):
     def treeSize(x: Any): Int =
       var siz = 0
       x match
-        case x: Trees.Inlined[_] =>
+        case x: Trees.Inlined[?] =>
         case x: Positioned =>
           var i = 0
           while i < x.productArity do
             siz += treeSize(x.productElement(i))
             i += 1
-        case x: List[_] =>
+        case x: List[?] =>
           var xs = x
           while xs.nonEmpty do
             siz += treeSize(xs.head)
@@ -734,7 +733,7 @@ class Inliner(val call: tpd.Tree)(using Context):
    */
   class InlineTyper(initialErrorCount: Int, @constructorOnly nestingLevel: Int = ctx.nestingLevel + 1)
   extends ReTyper(nestingLevel):
-    import reducer._
+    import reducer.*
 
     override def ensureAccessible(tpe: Type, superAccess: Boolean, pos: SrcPos)(using Context): Type = {
       tpe match {
@@ -771,7 +770,7 @@ class Inliner(val call: tpd.Tree)(using Context):
 
     override def typedSelect(tree: untpd.Select, pt: Type)(using Context): Tree = {
       val locked = ctx.typerState.ownedVars
-      val qual1 = typed(tree.qualifier, shallowSelectionProto(tree.name, pt, this))
+      val qual1 = typed(tree.qualifier, shallowSelectionProto(tree.name, pt, this, tree.nameSpan))
       val resNoReduce = untpd.cpy.Select(tree)(qual1, tree.name).withType(tree.typeOpt)
       val reducedProjection = reducer.reduceProjection(resNoReduce)
       if reducedProjection.isType then
@@ -793,7 +792,7 @@ class Inliner(val call: tpd.Tree)(using Context):
       typed(tree.cond, defn.BooleanType)(using condCtx) match {
         case cond1 @ ConstantValue(b: Boolean) =>
           val selected0 = if (b) tree.thenp else tree.elsep
-          val selected = if (selected0.isEmpty) tpd.Literal(Constant(())) else typed(selected0, pt)
+          val selected = if (selected0.isEmpty) tpd.unitLiteral else typed(selected0, pt)
           if (isIdempotentExpr(cond1)) selected
           else Block(cond1 :: Nil, selected)
         case cond1 =>
@@ -877,8 +876,12 @@ class Inliner(val call: tpd.Tree)(using Context):
                 }
               case _ => rhs0
             }
-            val (usedBindings, rhs2) = dropUnusedDefs(caseBindings, rhs1)
-            val rhs = seq(usedBindings, rhs2)
+            val rhs2 = rhs1 match {
+              case Typed(expr, tpt) if rhs1.span.isSynthetic => constToLiteral(expr)
+              case _ => constToLiteral(rhs1)
+            }
+            val (usedBindings, rhs3) = dropUnusedDefs(caseBindings, rhs2)
+            val rhs = seq(usedBindings, rhs3)
             inlining.println(i"""--- reduce:
                                 |$tree
                                 |--- to:
@@ -1049,7 +1052,7 @@ class Inliner(val call: tpd.Tree)(using Context):
     }
     val inlinedNormalizer = new TreeMap {
       override def transform(tree: tpd.Tree)(using Context): tpd.Tree = tree match {
-        case Inlined(EmptyTree, Nil, expr) if enclosingInlineds.isEmpty => transform(expr)
+        case tree @ Inlined(_, Nil, expr) if tree.inlinedFromOuterScope && enclosingInlineds.isEmpty => transform(expr)
         case _ => super.transform(tree)
       }
     }
@@ -1067,6 +1070,8 @@ class Inliner(val call: tpd.Tree)(using Context):
         tree match {
           case tree: RefTree if tree.isTerm && level == -1 && tree.symbol.isDefinedInCurrentRun && !tree.symbol.isLocal =>
             foldOver(tree.symbol :: syms, tree)
+          case _: This if level == -1 && tree.symbol.isDefinedInCurrentRun =>
+            tree.symbol :: syms
           case _: TypTree => syms
           case _ => foldOver(syms, tree)
         }

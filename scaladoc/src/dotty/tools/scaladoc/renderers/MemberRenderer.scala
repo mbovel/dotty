@@ -26,7 +26,7 @@ class MemberRenderer(signatureRenderer: SignatureRenderer)(using DocContext) ext
       val headNode = m.inheritedFrom.map(form => signatureRenderer.renderLink(form.name, form.dri))
       val tailNodes = defs.flatMap(renderDef)
       val nodes = headNode.fold(tailNodes.drop(1))(_ +: tailNodes)
-      tableRow("Definition Classes", div(nodes:_*))
+      tableRow("Definition Classes", div(nodes*))
 
     case _ => Nil
 
@@ -250,7 +250,7 @@ class MemberRenderer(signatureRenderer: SignatureRenderer)(using DocContext) ext
     val memberInf = memberInfo(member, withBrief = true)
     val annots = annotations(member)
 
-    div(topLevelAttr:_*)(
+    div(topLevelAttr*)(
       div(cls := "documentableElement-expander")(
         Option.when(annots.nonEmpty || originInf.nonEmpty || memberInf.nonEmpty)(button(cls := "icon-button ar show-content")).toList,
         annots.map(div(_)).toList,
@@ -323,6 +323,7 @@ class MemberRenderer(signatureRenderer: SignatureRenderer)(using DocContext) ext
       val (allInherited, allDefined) = nonExperimental.partition(isInherited)
       val (depDefined, defined) = allDefined.partition(isDeprecated)
       val (depInherited, inherited) = allInherited.partition(isDeprecated)
+      val (abstractInherited, concreteInherited) = inherited.partition(isAbstract)
       val normalizedName = name.toLowerCase
       val definedWithGroup = if Set("methods", "fields").contains(normalizedName) then
           val (abstr, concr) = defined.partition(isAbstract)
@@ -335,7 +336,8 @@ class MemberRenderer(signatureRenderer: SignatureRenderer)(using DocContext) ext
 
       definedWithGroup ++ List(
         actualGroup(s"Deprecated ${normalizedName}", depDefined),
-        actualGroup(s"Inherited ${normalizedName}", inherited),
+        actualGroup(s"Inherited ${normalizedName}", concreteInherited),
+        actualGroup(s"Inherited and Abstract ${normalizedName}", abstractInherited),
         actualGroup(s"Deprecated and Inherited ${normalizedName}", depInherited),
         actualGroup(name = s"Experimental ${normalizedName}", experimental)
       )

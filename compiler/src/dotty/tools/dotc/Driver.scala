@@ -3,12 +3,12 @@ package dotty.tools.dotc
 import dotty.tools.FatalError
 import config.CompilerCommand
 import core.Comments.{ContextDoc, ContextDocstrings}
-import core.Contexts._
+import core.Contexts.*
 import core.{MacroClassLoader, TypeError}
 import dotty.tools.dotc.ast.Positioned
 import dotty.tools.io.AbstractFile
-import reporting._
-import core.Decorators._
+import reporting.*
+import core.Decorators.*
 import config.Feature
 
 import scala.util.control.NonFatal
@@ -54,8 +54,7 @@ class Driver {
       if (ctx.settings.XprintSuspension.value)
         report.echo(i"compiling suspended $suspendedUnits%, %")
       val run1 = compiler.newRun
-      for unit <- suspendedUnits do unit.suspended = false
-      run1.compileUnits(suspendedUnits)
+      run1.compileSuspendedUnits(suspendedUnits)
       finish(compiler, run1)(using MacroClassLoader.init(ctx.fresh))
 
   protected def initCtx: Context = (new ContextBase).initialCtx

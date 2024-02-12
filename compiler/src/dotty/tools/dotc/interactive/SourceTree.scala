@@ -4,9 +4,9 @@ package interactive
 
 
 import ast.tpd
-import core._
-import Contexts._, NameOps._, Symbols._, StdNames._
-import util._, util.Spans._
+import core.*
+import Contexts.*, NameOps.*, Symbols.*, StdNames.*
+import util.*, util.Spans.*
 
 /**
  * A `tree` coming from `source`
@@ -42,7 +42,12 @@ case class SourceTree(tree: tpd.Import | tpd.NameTree, source: SourceFile) {
               (treeSpan.end - nameLength, treeSpan.end)
           Span(start, end, start)
         }
-        source.atSpan(position)
+        // Don't widen the span, only narrow.
+        // E.g. The star in a wildcard export is 1 character,
+        // and that is the span of the type alias that results from it
+        // but the name may very well be larger, which we don't want.
+        val span1 = if treeSpan.contains(position) then position else treeSpan
+        source.atSpan(span1)
       }
     case _ =>
       NoSourcePosition
@@ -55,7 +60,7 @@ object SourceTree {
         !sym.source.exists) // FIXME: We cannot deal with external projects yet
       Nil
     else {
-      import ast.Trees._
+      import ast.Trees.*
       def sourceTreeOfClass(tree: tpd.Tree): Option[SourceTree] = tree match {
         case PackageDef(_, stats) =>
           stats.flatMap(sourceTreeOfClass).headOption

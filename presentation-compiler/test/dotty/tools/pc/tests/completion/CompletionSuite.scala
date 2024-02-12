@@ -1,11 +1,13 @@
 package dotty.tools.pc.tests.completion
 
 import scala.meta.pc.SymbolDocumentation
+import scala.language.unsafeNulls
 
 import dotty.tools.pc.base.BaseCompletionSuite
 import dotty.tools.pc.utils.MockEntries
 
 import org.junit.Test
+import org.junit.Ignore
 
 class CompletionSuite extends BaseCompletionSuite:
 
@@ -25,10 +27,10 @@ class CompletionSuite extends BaseCompletionSuite:
         |}""".stripMargin,
       """
         |List scala.collection.immutable
+        |List[A](elems: A*): List[A]
         |List - java.awt
         |List - java.util
-        |List - scala.collection.immutable
-        |List[A](elems: A*): CC[A]
+        |ListMap[K, V](elems: (K, V)*): ListMap[K, V]
         |""".stripMargin,
       topLines = Some(5)
     )
@@ -108,17 +110,17 @@ class CompletionSuite extends BaseCompletionSuite:
          |tabulate[A](n: Int)(f: Int => A): List[A]
          |unapplySeq[A](x: List[A] @uncheckedVariance): UnapplySeqWrapper[A]
          |unfold[A, S](init: S)(f: S => Option[(A, S)]): List[A]
-         |->[B](y: B): (A, B)
-         |ensuring(cond: Boolean): A
-         |ensuring(cond: A => Boolean): A
-         |ensuring(cond: Boolean, msg: => Any): A
-         |ensuring(cond: A => Boolean, msg: => Any): A
-         |fromSpecific(from: From)(it: IterableOnce[A]): C
-         |fromSpecific(it: IterableOnce[A]): C
-         |nn: x.type & T
-         |toFactory(from: From): Factory[A, C]
+         |->[B](y: B): (List.type, B)
+         |ensuring(cond: Boolean): List.type
+         |ensuring(cond: List.type => Boolean): List.type
+         |ensuring(cond: Boolean, msg: => Any): List.type
+         |ensuring(cond: List.type => Boolean, msg: => Any): List.type
+         |fromSpecific(from: Any)(it: IterableOnce[Nothing]): List[Nothing]
+         |fromSpecific(it: IterableOnce[Nothing]): List[Nothing]
+         |nn: List.type & List.type
+         |toFactory(from: Any): Factory[Nothing, List[Nothing]]
          |formatted(fmtstr: String): String
-         |→[B](y: B): (A, B)
+         |→[B](y: B): (List.type, B)
          |iterableFactory[A]: Factory[A, List[A]]
          |asInstanceOf[X0]: X0
          |equals(x$0: Any): Boolean
@@ -145,6 +147,7 @@ class CompletionSuite extends BaseCompletionSuite:
       "XtensionMethod(a: Int): XtensionMethod"
     )
 
+  @Ignore("This test should be handled by compiler fuzzy search")
   @Test def fuzzy =
     check(
       """
@@ -156,14 +159,14 @@ class CompletionSuite extends BaseCompletionSuite:
          |""".stripMargin
     )
 
+  @Ignore("This test should be handled by compiler fuzzy search")
   @Test def fuzzy1 =
     check(
       """
         |object A {
-        |  new PBuil@@
+        |  new PBuilder@@
         |}""".stripMargin,
-      """|ProcessBuilder java.lang
-         |ProcessBuilder - scala.sys.process
+      """|ProcessBuilder - scala.sys.process
          |ProcessBuilderImpl - scala.sys.process
          |""".stripMargin,
       filter = _.contains("ProcessBuilder")
@@ -177,7 +180,7 @@ class CompletionSuite extends BaseCompletionSuite:
         |  TrieMap@@
         |}""".stripMargin,
       """|TrieMap scala.collection.concurrent
-         |TrieMap[K, V](elems: (K, V)*): CC[K, V]
+         |TrieMap[K, V](elems: (K, V)*): TrieMap[K, V]
          |""".stripMargin
     )
 
@@ -514,8 +517,8 @@ class CompletionSuite extends BaseCompletionSuite:
       """.stripMargin,
       """|until(end: Int): Range
          |until(end: Int, step: Int): Range
-         |until(end: T): Exclusive[T]
-         |until(end: T, step: T): Exclusive[T]
+         |until(end: Long): Exclusive[Long]
+         |until(end: Long, step: Long): Exclusive[Long]
          |""".stripMargin,
       postProcessObtained = _.replace("Float", "Double"),
       stableOrder = false
@@ -539,7 +542,7 @@ class CompletionSuite extends BaseCompletionSuite:
           |  new Foo().bana@@
           |}
           |""".stripMargin,
-      "selectDynamic(field: String): Foo"
+      "banana: Int"
     )
 
   @Test def dynamic2 =
@@ -549,7 +552,7 @@ class CompletionSuite extends BaseCompletionSuite:
           |  val x = new Foo().foo.bana@@
           |}
           |""".stripMargin,
-      "selectDynamic(field: String): Foo"
+      "banana: Int"
     )
 
   @Test def dynamic3 =
@@ -560,7 +563,7 @@ class CompletionSuite extends BaseCompletionSuite:
           |  (foo.bar = 42).bana@@
           |}
           |""".stripMargin,
-      "selectDynamic(field: String): Foo"
+      "banana: Int"
     )
 
   @Test def dynamic4 =
@@ -570,7 +573,7 @@ class CompletionSuite extends BaseCompletionSuite:
           |  val foo = new Foo().foo(x = 42).bana@@
           |}
           |""".stripMargin,
-      "selectDynamic(field: String): Foo"
+      "banana: Int"
     )
 
   @Test def dynamic5 =
@@ -591,7 +594,7 @@ class CompletionSuite extends BaseCompletionSuite:
           |  val foo: ListBuffe@@
           |}
           |""".stripMargin,
-      """|ListBuffer[T] - scala.collection.mutable
+      """|ListBuffer[A] - scala.collection.mutable
          |ListBuffer - scala.collection.mutable
          |""".stripMargin
     )
@@ -602,7 +605,7 @@ class CompletionSuite extends BaseCompletionSuite:
           |  val foo: Map[Int, ListBuffe@@]
           |}
           |""".stripMargin,
-      """|ListBuffer[T] - scala.collection.mutable
+      """|ListBuffer[A] - scala.collection.mutable
          |ListBuffer - scala.collection.mutable
          |""".stripMargin
     )
@@ -617,9 +620,6 @@ class CompletionSuite extends BaseCompletionSuite:
       """|Some(value) scala
          |Some scala
          |Some[A](value: A): Some[A]
-         |SomeToExpr(x: Some[T])(using Quotes): Expr[Some[T]]
-         |SomeToExpr[T: Type: ToExpr]: SomeToExpr[T]
-         |SomeFromExpr[T](using Type[T], FromExpr[T]): SomeFromExpr[T]
          |""".stripMargin
     )
 
@@ -632,9 +632,6 @@ class CompletionSuite extends BaseCompletionSuite:
           |""".stripMargin,
       """|Some scala
          |Some[A](value: A): Some[A]
-         |SomeToExpr(x: Some[T])(using Quotes): Expr[Some[T]]
-         |SomeToExpr[T: Type: ToExpr]: SomeToExpr[T]
-         |SomeFromExpr[T](using Type[T], FromExpr[T]): SomeFromExpr[T]
          |""".stripMargin
     )
 
@@ -669,14 +666,12 @@ class CompletionSuite extends BaseCompletionSuite:
     check(
       s"""|object Main {
           |  Option(1) match {
-          |    case _: S@@
+          |    case _: Som@@
           |}
           |""".stripMargin,
       """|Some[?] scala
-         |Seq scala.collection.immutable
-         |Set scala.collection.immutable
          |""".stripMargin,
-      topLines = Some(3)
+      topLines = Some(1)
     )
 
   @Test def adt3 =
@@ -695,9 +690,8 @@ class CompletionSuite extends BaseCompletionSuite:
           |""".stripMargin,
       """|NotString: Int
          |Number: Regex
-         |Nil scala.collection.immutable
          |""".stripMargin,
-      topLines = Option(3)
+      topLines = Some(2)
     )
 
   @Test def adt4 =
@@ -705,29 +699,24 @@ class CompletionSuite extends BaseCompletionSuite:
       s"""|object Main {
           |  val Number = "".r
           |  "" match {
-          |    case _: N@@
+          |    case _: Numb@@
           |}
           |""".stripMargin,
       """|Number: Regex
-         |Nil scala.collection.immutable
-         |NoManifest scala.reflect
          |""".stripMargin,
-      topLines = Option(3)
+      topLines = Some(1)
     )
 
-  @Test def adt5 =
+  @Test def `no-methods-on-case-type` =
     check(
       s"""|object Main {
           |  val Number = "".r
           |  "" match {
-          |    case _: N@@
+          |    case _: NotImplementedErr@@
           |}
           |""".stripMargin,
-      """|Number: Regex
-         |Nil scala.collection.immutable
-         |NoManifest scala.reflect
+      """|NotImplementedError scala
          |""".stripMargin,
-      topLines = Option(3)
     )
 
   @Test def underscore =
@@ -852,8 +841,8 @@ class CompletionSuite extends BaseCompletionSuite:
       """|dynamics scala.languageFeature
          |existentials scala.languageFeature
          |experimental scala.languageFeature
-         |higherKinds scala.languageFeature
          |implicitConversions scala.languageFeature
+         |postfixOps scala.languageFeature
          |""".stripMargin,
       topLines = Some(5)
     )
@@ -1200,7 +1189,7 @@ class CompletionSuite extends BaseCompletionSuite:
          |  val x = Bar[M](new Foo[Int]{})
          |  x.bar.m@@
          |""".stripMargin,
-      """|map[B](f: A => B): Foo[B]
+      """|map[B](f: Int => B): Foo[B]
          |""".stripMargin,
       topLines = Some(1)
     )
@@ -1250,5 +1239,498 @@ class CompletionSuite extends BaseCompletionSuite:
          |  def foo: String = ${0:???}
          |""".stripMargin,
       assertSingleItem = false,
+    )
+
+  @Test def `type-with-params` =
+    check(
+      s"""|object O {
+          | type TTT[A <: Int] = List[A]
+          | val t: TT@@
+          |}
+          |""".stripMargin,
+      "TTT[A <: Int]",
+      includeDetail = false,
+    )
+
+  @Test def `type-with-params-with-detail` =
+    check(
+      s"""|object O {
+          | type TTT[A <: Int] = List[A]
+          | val t: TT@@
+          |}
+          |""".stripMargin,
+    "TTT[A <: Int] = List[A]"
+    )
+
+  @Test def `type-lambda` =
+    check(
+      s"""|object O {
+          | type TTT = [A <: Int] =>> List[A]
+          | val t: TT@@
+          |}
+          |""".stripMargin,
+      "TTT[A <: Int]",
+      includeDetail = false,
+    )
+
+  @Test def `type-lambda2` =
+    check(
+      s"""|object O {
+          | type TTT[K <: Int] = [V] =>> Map[K, V]
+          | val t: TT@@
+          |}
+          |""".stripMargin,
+      "TTT[K <: Int]",
+      includeDetail = false,
+    )
+
+  @Test def `type-lambda2-with-detail` =
+    check(
+      s"""|object O {
+          | type TTT[K <: Int] = [V] =>> Map[K, V]
+          | val t: TT@@
+          |}
+          |""".stripMargin,
+      "TTT[K <: Int] = [V] =>> Map[K, V]",
+    )
+
+  @Test def `type-bound` =
+    check(
+      s"""|trait O {
+          | type TTT <: Int
+          | val t: TT@@
+          |}
+          |""".stripMargin,
+      "TTT <: Int"
+    )
+
+  @Test def `class-with-params` =
+    check(
+      s"""|object O {
+          | class AClass[A <: Int]
+          | object AClass
+          | val v: ACla@@
+          |}
+          |""".stripMargin,
+      """|AClass[A <: Int] test.O
+         |AClass test.O
+         |AbstractTypeClassManifest - scala.reflect.ClassManifestFactory
+         """.stripMargin
+    )
+
+  @Test def `extension-definition-scope` =
+    check(
+      """|trait Foo
+         |object T:
+         |  extension (x: Fo@@)
+         |""".stripMargin,
+      """|Foo test
+         |Font - java.awt
+         |Form - java.text.Normalizer
+         |Format - java.text
+         |FontPeer - java.awt.peer
+         |FormView - javax.swing.text.html
+         |Formatter - java.util
+         |Formatter - java.util.logging
+         |FocusEvent - java.awt.event
+         |FontMetrics - java.awt
+         |Found - scala.collection.Searching
+         |""".stripMargin
+    )
+
+  @Test def `extension-definition-symbol-search` =
+    check(
+      """|object T:
+         |  extension (x: ListBuffe@@)
+         |""".stripMargin,
+      """|ListBuffer[A] - scala.collection.mutable
+         |ListBuffer - scala.collection.mutable
+         |""".stripMargin,
+    )
+
+  @Test def `extension-definition-type-parameter` =
+    check(
+      """|trait Foo
+         |object T:
+         |  extension [A <: Fo@@]
+         |""".stripMargin,
+      """|Foo test
+         |Font - java.awt
+         |Form - java.text.Normalizer
+         |Format - java.text
+         |FontPeer - java.awt.peer
+         |FormView - javax.swing.text.html
+         |Formatter - java.util
+         |Formatter - java.util.logging
+         |FocusEvent - java.awt.event
+         |FontMetrics - java.awt
+         |Found - scala.collection.Searching
+         |""".stripMargin
+    )
+
+  @Test def `extension-definition-type-parameter-symbol-search` =
+    check(
+      """|object T:
+         |  extension [A <: ListBuffe@@]
+         |""".stripMargin,
+      """|ListBuffer[A] - scala.collection.mutable
+         |ListBuffer - scala.collection.mutable
+         |""".stripMargin
+    )
+
+  @Test def `extension-definition-using-param-clause` =
+    check(
+      """|trait Foo
+         |object T:
+         |  extension (using Fo@@)
+         |""".stripMargin,
+      """|Foo test
+         |Font - java.awt
+         |Form - java.text.Normalizer
+         |Format - java.text
+         |FontPeer - java.awt.peer
+         |FormView - javax.swing.text.html
+         |Formatter - java.util
+         |Formatter - java.util.logging
+         |FocusEvent - java.awt.event
+         |FontMetrics - java.awt
+         |Found - scala.collection.Searching
+         |""".stripMargin
+    )
+
+
+  @Test def `extension-definition-mix-1` =
+    check(
+      """|trait Foo
+         |object T:
+         |  extension (x: Int)(using Fo@@)
+         |""".stripMargin,
+      """|Foo test
+         |Font - java.awt
+         |Form - java.text.Normalizer
+         |Format - java.text
+         |FontPeer - java.awt.peer
+         |FormView - javax.swing.text.html
+         |Formatter - java.util
+         |Formatter - java.util.logging
+         |FocusEvent - java.awt.event
+         |FontMetrics - java.awt
+         |Found - scala.collection.Searching
+         |""".stripMargin
+    )
+
+  @Test def `extension-definition-mix-2` =
+    check(
+      """|trait Foo
+         |object T:
+         |  extension (using Fo@@)(x: Int)(using Foo)
+         |""".stripMargin,
+      """|Foo test
+         |Font - java.awt
+         |Form - java.text.Normalizer
+         |Format - java.text
+         |FontPeer - java.awt.peer
+         |FormView - javax.swing.text.html
+         |Formatter - java.util
+         |Formatter - java.util.logging
+         |FocusEvent - java.awt.event
+         |FontMetrics - java.awt
+         |Found - scala.collection.Searching
+         |""".stripMargin
+    )
+
+  @Test def `extension-definition-mix-3` =
+    check(
+      """|trait Foo
+         |object T:
+         |  extension (using Foo)(x: Int)(using Fo@@)
+         |""".stripMargin,
+      """|Foo test
+         |Font - java.awt
+         |Form - java.text.Normalizer
+         |Format - java.text
+         |FontPeer - java.awt.peer
+         |FormView - javax.swing.text.html
+         |Formatter - java.util
+         |Formatter - java.util.logging
+         |FocusEvent - java.awt.event
+         |FontMetrics - java.awt
+         |Found - scala.collection.Searching
+         |""".stripMargin
+    )
+
+  @Test def `extension-definition-mix-4` =
+    check(
+      """|trait Foo
+         |object T:
+         |  extension [A](x: Fo@@)
+         |""".stripMargin,
+      """|Foo test
+         |Font - java.awt
+         |Form - java.text.Normalizer
+         |Format - java.text
+         |FontPeer - java.awt.peer
+         |FormView - javax.swing.text.html
+         |Formatter - java.util
+         |Formatter - java.util.logging
+         |FocusEvent - java.awt.event
+         |FontMetrics - java.awt
+         |Found - scala.collection.Searching
+         |""".stripMargin
+    )
+
+  @Test def `extension-definition-mix-5` =
+    check(
+      """|trait Foo
+         |object T:
+         |  extension [A](using Fo@@)(x: Int)
+         |""".stripMargin,
+      """|Foo test
+         |Font - java.awt
+         |Form - java.text.Normalizer
+         |Format - java.text
+         |FontPeer - java.awt.peer
+         |FormView - javax.swing.text.html
+         |Formatter - java.util
+         |Formatter - java.util.logging
+         |FocusEvent - java.awt.event
+         |FontMetrics - java.awt
+         |Found - scala.collection.Searching
+         |""".stripMargin
+    )
+
+  @Test def `extension-definition-mix-6` =
+    check(
+      """|trait Foo
+         |object T:
+         |  extension [A](using Foo)(x: Fo@@)
+         |""".stripMargin,
+      """|Foo test
+         |Font - java.awt
+         |Form - java.text.Normalizer
+         |Format - java.text
+         |FontPeer - java.awt.peer
+         |FormView - javax.swing.text.html
+         |Formatter - java.util
+         |Formatter - java.util.logging
+         |FocusEvent - java.awt.event
+         |FontMetrics - java.awt
+         |Found - scala.collection.Searching
+         |""".stripMargin
+    )
+
+  @Test def `extension-definition-mix-7` =
+    check(
+      """|trait Foo
+         |object T:
+         |  extension [A](using Foo)(x: Fo@@)(using Foo)
+         |""".stripMargin,
+      """|Foo test
+         |Font - java.awt
+         |Form - java.text.Normalizer
+         |Format - java.text
+         |FontPeer - java.awt.peer
+         |FormView - javax.swing.text.html
+         |Formatter - java.util
+         |Formatter - java.util.logging
+         |FocusEvent - java.awt.event
+         |FontMetrics - java.awt
+         |Found - scala.collection.Searching
+         |""".stripMargin
+    )
+
+  @Test def `extension-definition-select` =
+    check(
+      """|object Test:
+         |  class TestSelect()
+         |object T:
+         |  extension (x: Test.TestSel@@)
+         |""".stripMargin,
+      """|TestSelect test.Test
+         |""".stripMargin
+    )
+
+  @Test def `extension-definition-select-mix-1` =
+    check(
+      """|object Test:
+         |  class TestSelect()
+         |object T:
+         |  extension (using Int)(x: Test.TestSel@@)
+         |""".stripMargin,
+      """|TestSelect test.Test
+         |""".stripMargin
+    )
+
+  @Test def `extension-definition-select-mix-2` =
+    check(
+      """|object Test:
+         |  class TestSelect[T]()
+         |object T:
+         |  extension [T](x: Test.TestSel@@)
+         |""".stripMargin,
+      """|TestSelect[T] test.Test
+         |TestSelect test.Test
+         |""".stripMargin
+    )
+
+  @Test def `no-square-brackets` =
+    checkEdit(
+      """|object O:
+         |  val a = List.appl@@
+         |""".stripMargin,
+      """|object O:
+         |  val a = List.apply($0)
+         |""".stripMargin,
+    )
+
+  @Test def `multiline-comment` =
+   checkEdit(
+     """|package a
+        |object O:
+        |  /*@@
+        |  def f = 1
+        |""".stripMargin,
+     """|package a
+        |object O:
+        |  /* $0 */
+        |  def f = 1
+        |""".stripMargin,
+   )
+
+  @Test def `prepend-instead-of-replace` =
+    checkEdit(
+      """|object O:
+         |  printl@@println()
+         |""".stripMargin,
+      """|object O:
+         |  printlnprintln()
+         |""".stripMargin,
+      assertSingleItem = false
+    )
+
+  @Test def `prepend-instead-of-replace-duplicate-word` =
+    checkEdit(
+      """|object O:
+         |  println@@println()
+         |""".stripMargin,
+      """|object O:
+         |  printlnprintln()
+         |""".stripMargin,
+      assertSingleItem = false
+    )
+
+  @Test def `replace-when-inside` =
+    checkEdit(
+      """|object O:
+         |  print@@ln()
+         |""".stripMargin,
+      """|object O:
+         |  println()
+         |""".stripMargin,
+      assertSingleItem = false
+    )
+
+  @Test def `replace-exact-same` =
+    checkEdit(
+      """|object O:
+         |  println@@()
+         |""".stripMargin,
+      """|object O:
+         |  println()
+         |""".stripMargin,
+      assertSingleItem = false
+    )
+
+
+  @Test def `multi-export` =
+    check(
+      """export scala.collection.{AbstractMap, Set@@}
+        |""".stripMargin,
+      """Set scala.collection
+        |SetOps scala.collection
+        |""".stripMargin
+    )
+
+  @Test def `multi-imports` =
+    check(
+      """import scala.collection.{AbstractMap, Set@@}
+        |""".stripMargin,
+      """Set scala.collection
+        |SetOps scala.collection
+        |""".stripMargin,
+    )
+
+
+  @Test def `multi-imports-empty-query` =
+    check(
+      """import scala.collection.{AbstractMap, @@}
+        |""".stripMargin,
+      """GenIterable scala.collection
+        |GenMap scala.collection
+        |GenSeq scala.collection
+        |GenSet scala.collection
+        |GenTraversable scala.collection
+        |""".stripMargin,
+      topLines = Some(5)
+    )
+
+  @Test def `import-rename` =
+    check(
+      """import scala.collection.{AbstractMap => Set@@}
+        |""".stripMargin,
+      ""
+    )
+
+  @Ignore
+  @Test def `dont-crash-implicit-search` =
+    check(
+      """object M:
+        |  Array[Int].fi@@
+        |""".stripMargin,
+      ""
+    )
+
+  @Test def `extension-definition-type-variable-inference` =
+    check(
+      """|object M:
+         |  extension [T](xs: List[T]) def test(p: T => Boolean): List[T] = ???
+         |  List(1,2,3).tes@@
+         |""".stripMargin,
+      """|test(p: Int => Boolean): List[Int]
+         |""".stripMargin
+    )
+
+  @Test def `old-style-extension-type-variable-inference` =
+    check(
+      """|object M:
+         |  implicit class ListUtils[T](xs: List[T]) {
+         |    def test(p: T => Boolean): List[T] = ???
+         |  }
+         |  List(1,2,3).tes@@
+         |""".stripMargin,
+      """|test(p: Int => Boolean): List[Int]
+         |""".stripMargin
+    )
+
+  @Test def `instantiate-type-vars-in-extra-apply-completions` =
+    check(
+      """|object M:
+         |  val fooBar = List(123)
+         |  foo@@
+         |""".stripMargin,
+      """|fooBar: List[Int]
+         |fooBar(n: Int): Int
+         |""".stripMargin
+    )
+
+  @Test def `show-underlying-type-instead-of-CC` =
+    check(
+      """|object M:
+         |  List@@
+         |""".stripMargin,
+      """|List[A](elems: A*): List[A]
+         |ListMap[K, V](elems: (K, V)*): ListMap[K, V]
+         |""".stripMargin,
+      filter = _.contains("[")
     )
 

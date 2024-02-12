@@ -27,7 +27,7 @@ covtest.Record
 selectDynamic
 148
 172
-5
+6
 find
 Apply
 false
@@ -41,16 +41,16 @@ covtest
 Record
 Class
 covtest.Record
-$anonfun
-159
-163
-5
-_1
+selectDynamic
+148
+176
+6
+get
 Select
 false
 0
 false
-_._1
+elems.find(_._1 == name).get
 
 2
 StructuralTypes.scala
@@ -59,43 +59,9 @@ Record
 Class
 covtest.Record
 selectDynamic
-148
-176
-5
-get
-Select
-false
-0
-false
-elems.find(_._1 == name).get
-
-3
-StructuralTypes.scala
-covtest
-Record
-Class
-covtest.Record
-selectDynamic
-148
-179
-5
-_2
-Select
-false
-0
-false
-elems.find(_._1 == name).get._2
-
-4
-StructuralTypes.scala
-covtest
-Record
-Class
-covtest.Record
-selectDynamic
 109
 126
-5
+6
 selectDynamic
 DefDef
 false
@@ -103,16 +69,16 @@ false
 false
 def selectDynamic
 
-5
+3
 StructuralTypes.scala
 covtest
-StructuralTypes$
+StructuralTypes
 Object
-covtest.StructuralTypes$
+covtest.StructuralTypes
 test
 277
 293
-12
+13
 ->
 Apply
 false
@@ -120,16 +86,16 @@ false
 false
 "name" -> "Emma"
 
-6
+4
 StructuralTypes.scala
 covtest
-StructuralTypes$
+StructuralTypes
 Object
-covtest.StructuralTypes$
+covtest.StructuralTypes
 test
 295
 306
-12
+13
 ->
 Apply
 false
@@ -137,16 +103,16 @@ false
 false
 "age" -> 42
 
-7
+5
 StructuralTypes.scala
 covtest
-StructuralTypes$
+StructuralTypes
 Object
-covtest.StructuralTypes$
+covtest.StructuralTypes
 test
 333
 344
-13
+14
 selectDynamic
 Apply
 false
@@ -154,16 +120,16 @@ false
 false
 person.name
 
-8
+6
 StructuralTypes.scala
 covtest
-StructuralTypes$
+StructuralTypes
 Object
-covtest.StructuralTypes$
+covtest.StructuralTypes
 test
 234
 242
-11
+12
 test
 DefDef
 false

@@ -9,6 +9,7 @@ import scala.meta.pc.*
 import scala.util.control.NonFatal
 
 import dotty.tools.dotc.core.Contexts.*
+import dotty.tools.dotc.core.Flags
 import dotty.tools.dotc.core.Names.*
 import dotty.tools.dotc.core.Symbols.*
 
@@ -17,11 +18,20 @@ class CompilerSearchVisitor(
 )(using ctx: Context, reports: ReportContext)
     extends SymbolSearchVisitor:
 
-  val logger: Logger = Logger.getLogger(classOf[CompilerSearchVisitor].getName)
+  val logger: Logger = Logger.getLogger(classOf[CompilerSearchVisitor].getName().nn).nn
+
+  private def isAccessibleImplicitClass(sym: Symbol) =
+    val owner = sym.maybeOwner
+    owner != NoSymbol && owner.isClass &&
+    owner.is(Flags.Implicit) &&
+    owner.isStatic && owner.isPublic
 
   private def isAccessible(sym: Symbol): Boolean = try
-    sym != NoSymbol && sym.isPublic && sym.isStatic
+    sym != NoSymbol && sym.isPublic && sym.isStatic || isAccessibleImplicitClass(sym)
   catch
+    case err: AssertionError =>
+      logger.log(Level.WARNING, err.getMessage())
+      false
     case NonFatal(e) =>
       reports.incognito.create(
         Report(
@@ -48,6 +58,7 @@ class CompilerSearchVisitor(
               .filter(denot => denot.exists)
               .map(_.symbol)
               .filter(isAccessible)
+              .filter(!_.is(Flags.Given))
           }
           loop(next, tl)
         case Nil => owners
@@ -64,8 +75,14 @@ class CompilerSearchVisitor(
       .stripSuffix("$")
       .split("\\$")
 
-    val added = toSymbols(pkg, innerPath.toList).filter(visitSymbol)
+    val added =
+      try toSymbols(pkg, innerPath.nn.toList.map(_.nn)).filter(visitSymbol)
+      catch
+        case NonFatal(e) =>
+          logger.log(Level.WARNING, e.getMessage(), e)
+          Nil
     added.size
+  end visitClassfile
 
   def visitWorkspaceSymbol(
       path: java.nio.file.Path,
@@ -86,6 +103,6 @@ class CompilerSearchVisitor(
   override def isCancelled: Boolean = false
 
   private def normalizePackage(pkg: String): String =
-    pkg.replace("/", ".").stripSuffix(".")
+    pkg.replace("/", ".").nn.stripSuffix(".")
 
 end CompilerSearchVisitor

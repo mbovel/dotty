@@ -4,6 +4,7 @@ import java.net.URI
 
 import scala.meta.internal.jdk.CollectionConverters.*
 import scala.meta.internal.metals.CompilerOffsetParams
+import scala.language.unsafeNulls
 
 import dotty.tools.pc.base.BaseCodeActionSuite
 import dotty.tools.pc.utils.TextEdits
@@ -368,6 +369,26 @@ class AutoImplementAbstractMembersSuite extends BaseCodeActionSuite:
          |class Main extends JUtil {
          |
          |  override def foo: ju.List[Int] = ???
+         |
+         |}
+         |""".stripMargin
+    )
+
+  @Test def `jutil-multiple-symbols` =
+    checkEdit(
+      """|abstract class JUtil {
+         |  def foo(x: java.util.List[Int]): java.util.List[Int]
+         |}
+         |class <<Main>> extends JUtil {
+         |}
+         |""".stripMargin,
+      """|import java.{util => ju}
+         |abstract class JUtil {
+         |  def foo(x: java.util.List[Int]): java.util.List[Int]
+         |}
+         |class Main extends JUtil {
+         |
+         |  override def foo(x: ju.List[Int]): ju.List[Int] = ???
          |
          |}
          |""".stripMargin
@@ -1179,6 +1200,76 @@ class AutoImplementAbstractMembersSuite extends BaseCodeActionSuite:
          |
          |}
          |""".stripMargin
+    )
+
+  @Test def `end-marker` =
+    checkEdit(
+      """|package a
+         |
+         |object A {
+         |  trait Base:
+         |    def foo(x: Int): Int
+         |    def bar(x: String): String
+         |
+         |  class <<Concrete>> extends Base:
+         |
+         |  end Concrete
+         |
+         |}
+         |""".stripMargin,
+      """|package a
+         |
+         |object A {
+         |  trait Base:
+         |    def foo(x: Int): Int
+         |    def bar(x: String): String
+         |
+         |  class Concrete extends Base:
+         |
+         |    override def foo(x: Int): Int = ???
+         |
+         |    override def bar(x: String): String = ???
+         |
+         |
+         |  end Concrete
+         |
+         |}
+         |""".stripMargin,
+    )
+
+  @Test def `end-marker2` =
+    checkEdit(
+      """|package a
+         |
+         |object A {
+         |  trait Base:
+         |    def foo(x: Int): Int
+         |    def bar(x: String): String
+         |
+         |  class <<Concrete>>(x: Int, y: String) extends Base:
+         |
+         |  end Concrete
+         |
+         |}
+         |""".stripMargin,
+      """|package a
+         |
+         |object A {
+         |  trait Base:
+         |    def foo(x: Int): Int
+         |    def bar(x: String): String
+         |
+         |  class Concrete(x: Int, y: String) extends Base:
+         |
+         |    override def foo(x: Int): Int = ???
+         |
+         |    override def bar(x: String): String = ???
+         |
+         |
+         |  end Concrete
+         |
+         |}
+         |""".stripMargin,
     )
 
   def checkEdit(

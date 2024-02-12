@@ -2,12 +2,12 @@ package dotty.tools
 package dotc
 package config
 
-import core._
-import Contexts._, Symbols._, Names._
+import core.*
+import Contexts.*, Symbols.*, Names.*
 import StdNames.nme
 import Decorators.*
 import util.{SrcPos, NoSourcePosition}
-import SourceVersion._
+import SourceVersion.*
 import reporting.Message
 import NameKinds.QualifiedName
 
@@ -29,7 +29,6 @@ object Feature:
   val fewerBraces = experimental("fewerBraces")
   val saferExceptions = experimental("saferExceptions")
   val clauseInterleaving = experimental("clauseInterleaving")
-  val relaxedExtensionImports = experimental("relaxedExtensionImports")
   val pureFunctions = experimental("pureFunctions")
   val captureChecking = experimental("captureChecking")
   val qualifiedTypes = experimental("qualifiedTypes")
@@ -121,8 +120,8 @@ object Feature:
 
   /** Is captureChecking enabled for any of the currently compiled compilation units? */
   def ccEnabledSomewhere(using Context) =
-    enabledBySetting(captureChecking)
-    || ctx.run != null && ctx.run.nn.ccImportEncountered
+    if ctx.run != null then ctx.run.nn.ccEnabledSomewhere
+    else enabledBySetting(captureChecking)
 
   def sourceVersionSetting(using Context): SourceVersion =
     SourceVersion.valueOf(ctx.settings.source.value)
@@ -152,7 +151,12 @@ object Feature:
 
   def checkExperimentalFeature(which: String, srcPos: SrcPos, note: => String = "")(using Context) =
     if !isExperimentalEnabled then
-      report.error(em"Experimental $which may only be used with a nightly or snapshot version of the compiler$note", srcPos)
+      report.error(
+        em"""Experimental $which may only be used under experimental mode:
+            |  1. In a definition marked as @experimental
+            |  2. Compiling with the -experimental compiler flag
+            |  3. With a nightly or snapshot version of the compiler$note
+          """, srcPos)
 
   private def ccException(sym: Symbol)(using Context): Boolean =
     ccEnabled && defn.ccExperimental.contains(sym)
@@ -177,7 +181,7 @@ object Feature:
     do checkExperimentalFeature(s"feature $setting", NoSourcePosition)
 
   def isExperimentalEnabled(using Context): Boolean =
-    Properties.experimental && !ctx.settings.YnoExperimental.value
+    (Properties.experimental || ctx.settings.experimental.value) && !ctx.settings.YnoExperimental.value
 
   /** Handle language import `import language.<prefix>.<imported>` if it is one
    *  of the global imports `pureFunctions` or `captureChecking`. In this case
@@ -192,7 +196,7 @@ object Feature:
       true
     else if fullFeatureName == captureChecking then
       ctx.compilationUnit.needsCaptureChecking = true
-      if ctx.run != null then ctx.run.nn.ccImportEncountered = true
+      if ctx.run != null then ctx.run.nn.ccEnabledSomewhere = true
       true
     else
       false

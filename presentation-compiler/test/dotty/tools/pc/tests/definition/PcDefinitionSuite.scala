@@ -2,6 +2,7 @@ package dotty.tools.pc.tests.definition
 
 import scala.meta.internal.jdk.CollectionConverters.*
 import scala.meta.pc.OffsetParams
+import scala.language.unsafeNulls
 
 import dotty.tools.pc.base.BasePcDefinitionSuite
 import dotty.tools.pc.utils.MockEntries
@@ -196,6 +197,81 @@ class PcDefinitionSuite extends BasePcDefinitionSuite:
          |object Main {
          |}
          |""".stripMargin
+    )
+
+  @Test def exportType0 =
+    check(
+      """object Foo:
+        |  trait <<Cat>>
+        |object Bar:
+        |  export Foo.*
+        |class Test:
+        |  import Bar.*
+        |  def test = new Ca@@t {}
+        |""".stripMargin
+    )
+
+  @Test def exportType1 =
+    check(
+      """object Foo:
+        |  trait <<Cat>>[A]
+        |object Bar:
+        |  export Foo.*
+        |class Test:
+        |  import Bar.*
+        |  def test = new Ca@@t[Int] {}
+        |""".stripMargin
+    )
+
+  @Test def exportTerm0Nullary =
+    check(
+      """trait Foo:
+        |  def <<meth>>: Int
+        |class Bar(val foo: Foo):
+        |  export foo.*
+        |  def test(bar: Bar) = bar.me@@th
+        |""".stripMargin
+    )
+
+  @Test def exportTerm0 =
+    check(
+      """trait Foo:
+        |  def <<meth>>(): Int
+        |class Bar(val foo: Foo):
+        |  export foo.*
+        |  def test(bar: Bar) = bar.me@@th()
+        |""".stripMargin
+    )
+
+  @Test def exportTerm1 =
+    check(
+      """trait Foo:
+        |  def <<meth>>(x: Int): Int
+        |class Bar(val foo: Foo):
+        |  export foo.*
+        |  def test(bar: Bar) = bar.me@@th(0)
+        |""".stripMargin
+    )
+
+  @Test def exportTerm1Poly =
+    check(
+      """trait Foo:
+        |  def <<meth>>[A](x: A): A
+        |class Bar(val foo: Foo):
+        |  export foo.*
+        |  def test(bar: Bar) = bar.me@@th(0)
+        |""".stripMargin
+    )
+
+  @Test def exportTerm1Overload =
+    check(
+      """trait Foo:
+        |  def <<meth>>(x: Int): Int
+        |  def meth(x: String): String
+        |class Bar(val foo: Foo):
+        |  export foo.*
+        |  def test(bar: Bar) = bar.me@@th(0)
+        |""".stripMargin
     )
 
   @Test def `named-arg-local` =
@@ -400,4 +476,14 @@ class PcDefinitionSuite extends BasePcDefinitionSuite:
          |case class Box[A](value: A) derives Sh@@ow
          |
          |""".stripMargin
+    )
+
+  @Test def `implicit-extension` =
+    check(
+      """|class MyIntOut(val value: Int)
+         |object MyIntOut:
+         |  extension (i: MyIntOut) def <<uneven>> = i.value % 2 == 1
+         |
+         |val a = MyIntOut(1).un@@even
+         |""".stripMargin,
     )

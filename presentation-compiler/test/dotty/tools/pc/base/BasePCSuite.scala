@@ -4,16 +4,19 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 import java.util.Comparator
 import java.util.concurrent.{Executors, ScheduledExecutorService}
+import java.lang.management.ManagementFactory
 
 import scala.collection.immutable
 import scala.meta.internal.jdk.CollectionConverters.*
 import scala.meta.internal.metals.{ClasspathSearch, ExcludedPackagesHandler}
 import scala.meta.internal.pc.PresentationCompilerConfigImpl
 import scala.meta.pc.{PresentationCompiler, PresentationCompilerConfig}
+import scala.language.unsafeNulls
 
 import dotty.tools.pc.*
+import dotty.tools.pc.completions.CompletionSource
 import dotty.tools.pc.ScalaPresentationCompiler
-import dotty.tools.pc.util.BuildInfo
+import dotty.tools.pc.tests.buildinfo.BuildInfo
 import dotty.tools.pc.utils._
 
 import org.eclipse.lsp4j.MarkupContent
@@ -27,6 +30,8 @@ object TestResources:
 
 @RunWith(classOf[ReusableClassRunner])
 abstract class BasePCSuite extends PcAssertions:
+  private val isDebug = ManagementFactory.getRuntimeMXBean.getInputArguments.toString.contains("-agentlib:jdwp")
+
   val tmp = Files.createTempDirectory("stable-pc-tests")
   val executorService: ScheduledExecutorService =
     Executors.newSingleThreadScheduledExecutor()
@@ -51,7 +56,7 @@ abstract class BasePCSuite extends PcAssertions:
       .newInstance("", myclasspath.asJava, scalacOpts.asJava)
 
   protected def config: PresentationCompilerConfig =
-    PresentationCompilerConfigImpl().copy(snippetAutoIndent = false)
+    PresentationCompilerConfigImpl().copy(snippetAutoIndent = false, timeoutDelay = if isDebug then 3600 else 10)
 
   private def inspectDialect(filename: String, code: String) =
     val file = tmp.resolve(filename)
@@ -109,10 +114,13 @@ abstract class BasePCSuite extends PcAssertions:
       " " + e.getRight.getValue
   }.trim
 
-  def sortLines(stableOrder: Boolean, string: String): String =
+  def sortLines(stableOrder: Boolean, string: String, completionSources: List[CompletionSource] = Nil): (String, List[CompletionSource]) =
     val strippedString = string.linesIterator.toList.filter(_.nonEmpty)
-    if (stableOrder) strippedString.mkString("\n")
-    else strippedString.sorted.mkString("\n")
+    if (stableOrder) strippedString.mkString("\n") -> completionSources
+    else
+      val paddedSources = completionSources.padTo(strippedString.size, CompletionSource.Empty)
+      val (sortedCompletions, sortedSources) = (strippedString zip paddedSources).sortBy(_._1).unzip
+      sortedCompletions.mkString("\n") -> sortedSources
 
   extension (s: String)
     def triplequoted: String = s.replace("'''", "\"\"\"")

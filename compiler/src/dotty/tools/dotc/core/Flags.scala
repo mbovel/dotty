@@ -188,7 +188,7 @@ object Flags {
     flag
   }
 
-  def commonFlags(flagss: FlagSet*): FlagSet = union(flagss.map(_.toCommonFlags): _*)
+  def commonFlags(flagss: FlagSet*): FlagSet = union(flagss.map(_.toCommonFlags)*)
 
   /** The empty flag set */
   val EmptyFlags: FlagSet = FlagSet(0)
@@ -242,7 +242,7 @@ object Flags {
   val (AccessorOrSealed @ _, Accessor @ _, Sealed @ _) = newFlags(11, "<accessor>", "sealed")
 
   /** A mutable var, an open class */
-  val (MutableOrOpen @ __, Mutable @ _, Open @ _) = newFlags(12, "mutable", "open")
+  val (MutableOrOpen @ _, Mutable @ _, Open @ _) = newFlags(12, "mutable", "open")
 
   /** Symbol is local to current class (i.e. private[this] or protected[this]
    *  pre: Private or Protected are also set
@@ -308,8 +308,8 @@ object Flags {
    */
   val (_, StableRealizable @ _, _) = newFlags(24, "<stable>")
 
-  /** A case parameter accessor */
-  val (_, CaseAccessor @ _, _) = newFlags(25, "<caseaccessor>")
+  /** A case parameter accessor / an unpickled Scala 2 TASTy (only for Scala 2 stdlib) */
+  val (_, CaseAccessor @ _, Scala2Tasty @ _) = newFlags(25, "<caseaccessor>", "<scala-2-tasty>")
 
   /** A Scala 2x super accessor / an unpickled Scala 2.x class */
   val (SuperParamAliasOrScala2x @ _, SuperParamAlias @ _, Scala2x @ _) = newFlags(26, "<super-param-alias>", "<scala-2.x>")
@@ -363,7 +363,7 @@ object Flags {
   val (Enum @ _, EnumVal @ _, _) = newFlags(40, "enum")
 
   /** An export forwarder */
-  val (Exported @ _, _, _) = newFlags(41, "exported")
+  val (Exported @ _, ExportedTerm @ _, ExportedType @ _) = newFlags(41, "exported")
 
   /** Labeled with `erased` modifier (erased value or class)  */
   val (Erased @ _, _, _) = newFlags(42, "erased")
@@ -404,10 +404,10 @@ object Flags {
   /** Children were queried on this class */
   val (_, _, ChildrenQueried @ _) = newFlags(56, "<children-queried>")
 
-  /** A module variable (Scala 2.x only)
-   *  (re-used as a flag for private parameter accessors in Recheck)
+  /** A module variable (Scala 2.x only) / a capture-checked class
+   *  (Scala2ModuleVar is re-used as a flag for private parameter accessors in Recheck)
    */
-  val (_, Scala2ModuleVar @ _, _) = newFlags(57, "<modulevar>")
+  val (_, Scala2ModuleVar @ _, CaptureChecked @ _) = newFlags(57, "<modulevar>/<cc>")
 
   /** A macro */
   val (Macro @ _, _, _) = newFlags(58, "<macro>")
@@ -532,8 +532,15 @@ object Flags {
   /** Flags that can apply to a module class */
   val RetainedModuleClassFlags: FlagSet = RetainedModuleValAndClassFlags | Enum
 
-  /** Flags retained in export forwarders */
-  val RetainedExportFlags = Given | Implicit | Inline | Transparent
+  /** Flags retained in term export forwarders */
+  val RetainedExportTermFlags = Infix | Given | Implicit | Inline | Transparent | Erased | HasDefaultParams | NoDefaultParams | ExtensionMethod
+
+  val MandatoryExportTermFlags = Exported | Method | Final
+
+  /** Flags retained in type export forwarders */
+  val RetainedExportTypeFlags = Infix
+
+  val MandatoryExportTypeFlags = Exported | Final
 
   /** Flags that apply only to classes */
   val ClassOnlyFlags = Sealed | Open | Abstract.toTypeFlags
@@ -576,7 +583,7 @@ object Flags {
   val InlineMethod: FlagSet                  = Inline | Method
   val InlineParam: FlagSet                   = Inline | Param
   val InlineByNameProxy: FlagSet             = InlineProxy | Method
-  val JavaEnumTrait: FlagSet                 = JavaDefined | Enum                             // A Java enum trait
+  val JavaEnum: FlagSet                      = JavaDefined | Enum                             // A Java enum trait
   val JavaEnumValue: FlagSet                 = JavaDefined | EnumValue                        // A Java enum value
   val StaticProtected: FlagSet               = JavaDefined | JavaStatic | Protected           // Java symbol which is `protected` and `static`
   val JavaModule: FlagSet                    = JavaDefined | Module                           // A Java companion object

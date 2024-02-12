@@ -89,13 +89,13 @@ object OverrideCompletions:
     val name =
       completing
         .fold(fallbackName)(sym => Some(sym.name.show))
-        .map(_.replace(Cursor.value, ""))
+        .map(_.replace(Cursor.value, "").nn)
         .filter(!_.isEmpty())
 
     // not using `td.tpe.abstractTermMembers` because those members includes
     // the abstract members in `td.tpe`. For example, when we type `def foo@@`,
     // `td.tpe.abstractTermMembers` contains `method foo: <error>` and it overrides the parent `foo` method.
-    val overridables = td.tpe.parents
+    val overridables = td.typeOpt.parents
       .flatMap { parent =>
         parent.membersBasedOnFlags(
           flags,
@@ -173,50 +173,52 @@ object OverrideCompletions:
         case _ => None
     end FindTypeDef
 
-    val uri = params.uri
-    driver.run(
-      uri,
-      SourceFile.virtual(uri.toASCIIString, params.text)
-    )
-    val unit = driver.currentCtx.run.units.head
-    val pos = driver.sourcePosition(params)
+    val uri = params.uri().nn
+    val text = params.text().nn
+    driver.run(uri, SourceFile.virtual(uri.toASCIIString().nn, text))
 
-    val newctx = driver.currentCtx.fresh.setCompilationUnit(unit)
-    val tpdTree = newctx.compilationUnit.tpdTree
-    val path =
-      Interactive.pathTo(tpdTree, pos.span)(using newctx) match
-        case path @ TypeDef(_, template) :: _ =>
-          template :: path
-        case path => path
+    val unit = driver.currentCtx.run.nn.units.headOption
+    unit match
+      case None => new ju.ArrayList[l.TextEdit]()
+      case Some(unit) =>
+        val pos = driver.sourcePosition(params)
 
-    val indexedContext = IndexedContext(
-      Interactive.contextOfPath(path)(using newctx)
-    )
-    import indexedContext.ctx
+        val newctx = driver.currentCtx.fresh.setCompilationUnit(unit)
+        val tpdTree = newctx.compilationUnit.tpdTree
+        val path =
+          Interactive.pathTo(tpdTree, pos.span)(using newctx) match
+            case path @ TypeDef(_, template) :: _ =>
+              template :: path
+            case path => path
 
-    lazy val autoImportsGen = AutoImports.generator(
-      pos,
-      params.text,
-      unit.tpdTree,
-      unit.comments,
-      indexedContext,
-      config
-    )
-    lazy val implementAll = implementAllFor(
-      indexedContext,
-      params.text,
-      search,
-      autoImportsGen,
-      config
-    )
-    path match
-      // given <<Foo>>
-      case (_: Ident) :: (dd: DefDef) :: _ =>
-        implementAll(dd).asJava
-      case FindTypeDef(td) =>
-        implementAll(td).asJava
-      case _ =>
-        new ju.ArrayList[l.TextEdit]()
+        val indexedContext = IndexedContext(
+          Interactive.contextOfPath(path)(using newctx)
+        )
+        import indexedContext.ctx
+
+        lazy val autoImportsGen = AutoImports.generator(
+          pos,
+          text,
+          unit.tpdTree,
+          unit.comments,
+          indexedContext,
+          config
+        )
+        lazy val implementAll = implementAllFor(
+          indexedContext,
+          text,
+          search,
+          autoImportsGen,
+          config
+        )
+        path match
+          // given <<Foo>>
+          case (_: Ident) :: (dd: DefDef) :: _ =>
+            implementAll(dd).asJava
+          case FindTypeDef(td) =>
+            implementAll(td).asJava
+          case _ =>
+            new ju.ArrayList[l.TextEdit]()
   end implementAllAt
 
   private def implementAllFor(
@@ -277,7 +279,7 @@ object OverrideCompletions:
         else ""
       (indent, indent, lastIndent)
     end calcIndent
-    val abstractMembers = defn.tpe.abstractTermMembers.map(_.symbol)
+    val abstractMembers = defn.typeOpt.abstractTermMembers.map(_.symbol)
 
     val caseClassOwners = Set("Product", "Equals")
     val overridables =
@@ -305,7 +307,7 @@ object OverrideCompletions:
     if edits.isEmpty then Nil
     else
       // A list of declarations in the class/object to implement
-      val decls = defn.tpe.decls.toList
+      val decls = defn.typeOpt.decls.toList
         .filter(sym =>
           !sym.isPrimaryConstructor &&
             !sym.isTypeParam &&
@@ -317,7 +319,7 @@ object OverrideCompletions:
         .sortBy(_.sourcePos.start)
       val source = indexedContext.ctx.source
 
-      val shouldCompleteBraces = decls.isEmpty && hasBraces(text, defn).isEmpty
+      val shouldCompleteBraces = decls.isEmpty && hasBracesOrColon(text, defn).isEmpty
 
       val (startIndent, indent, lastIndent) =
         calcIndent(defn, decls, source, text, shouldCompleteBraces)
@@ -416,7 +418,7 @@ object OverrideCompletions:
       // `iterator` method in `new Iterable[Int] { def iterato@@ }`
       // should be completed as `def iterator: Iterator[Int]` instead of `Iterator[A]`.
       val seenFrom =
-        val memInfo = defn.tpe.memberInfo(sym.symbol)
+        val memInfo = defn.typeOpt.memberInfo(sym.symbol)
         if memInfo.isErroneous || memInfo.finalResultType.isAny then
           sym.info.widenTermRefExpr
         else memInfo
@@ -440,7 +442,7 @@ object OverrideCompletions:
 
     val label = s"$overrideDefLabel$signature"
     val stub =
-      if config.isCompletionSnippetsEnabled && shouldMoveCursor then "${0:???}"
+      if config.isCompletionSnippetsEnabled() && shouldMoveCursor then "${0:???}"
       else "???"
     val value = s"$signature = $stub"
 
@@ -470,7 +472,7 @@ object OverrideCompletions:
   private def inferEditPosition(text: String, defn: TargetDef)(using
       Context
   ): SourcePosition =
-    val span = hasBraces(text, defn)
+    val span = hasBracesOrColon(text, defn)
       .map { offset =>
         defn.sourcePos.span.withStart(offset + 1).withEnd(offset + 1)
       }
@@ -480,7 +482,9 @@ object OverrideCompletions:
     defn.sourcePos.withSpan(span)
   end inferEditPosition
 
-  private def hasBraces(text: String, defn: TargetDef): Option[Int] =
+  private def hasBracesOrColon(text: String, defn: TargetDef)(using
+      Context
+  ): Option[Int] =
     def hasSelfTypeAnnot = defn match
       case td: TypeDef =>
         td.rhs match
@@ -489,12 +493,20 @@ object OverrideCompletions:
           case _ => false
       case _ => false
     val start = defn.span.start
-    val offset =
+    val braceOffset =
       if hasSelfTypeAnnot then text.indexOf("=>", start) + 1
       else text.indexOf("{", start)
-    if offset > 0 && offset < defn.span.end then Some(offset)
-    else None
-  end hasBraces
+    if braceOffset > 0 && braceOffset < defn.span.end then Some(braceOffset)
+    else hasColon(text, defn)
+  end hasBracesOrColon
+
+  private def hasColon(text: String, defn: TargetDef)(using
+      Context
+  ): Option[Int] =
+    defn match
+      case td: TypeDef if text.charAt(td.rhs.span.end) == ':' =>
+        Some(td.rhs.span.end)
+      case _ => None
 
   private def fallbackFromParent(parent: Tree, name: String)(using Context) =
     val stats = parent match

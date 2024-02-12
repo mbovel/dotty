@@ -2,12 +2,13 @@ package dotty.tools
 package dotc
 package transform
 
-import core._
+import core.*
 import Scopes.newScope
-import Contexts._, Symbols._, Types._, Flags._, Decorators._, StdNames._, Constants._
-import MegaPhase._
-import SymUtils._
-import NullOpsDecorator._
+import Contexts.*, Symbols.*, Types.*, Flags.*, Decorators.*, StdNames.*, Constants.*
+import MegaPhase.*
+import Names.TypeName
+
+import NullOpsDecorator.*
 import ast.untpd
 
 /** Expand SAM closures that cannot be represented by the JVM as lambdas to anonymous classes.
@@ -37,7 +38,7 @@ object ExpandSAMs:
       case _ => false
 
 class ExpandSAMs extends MiniPhase:
-  import ast.tpd._
+  import ast.tpd.*
 
   override def phaseName: String = ExpandSAMs.name
 
@@ -51,16 +52,28 @@ class ExpandSAMs extends MiniPhase:
         case tpe if defn.isContextFunctionType(tpe) =>
           tree
         case SAMType(_, tpe) if tpe.isRef(defn.PartialFunctionClass) =>
-          val tpe1 = checkRefinements(tpe, fn)
-          toPartialFunction(tree, tpe1)
+          toPartialFunction(tree, tpe)
         case SAMType(_, tpe) if ExpandSAMs.isPlatformSam(tpe.classSymbol.asClass) =>
-          checkRefinements(tpe, fn)
           tree
         case tpe =>
-          val tpe1 = checkRefinements(tpe.stripNull, fn)
+          // A SAM type is allowed to have type aliases refinements (see
+          // SAMType#samParent) which must be converted into type members if
+          // the closure is desugared into a class.
+          val refinements = collection.mutable.ListBuffer[(TypeName, TypeAlias)]()
+          def collectAndStripRefinements(tp: Type): Type = tp match
+            case RefinedType(parent, name, info: TypeAlias) =>
+              val res = collectAndStripRefinements(parent)
+              refinements += ((name.asTypeName, info))
+              res
+            case _ => tp
+          val tpe1 = collectAndStripRefinements(tpe)
           val Seq(samDenot) = tpe1.possibleSamMethods
           cpy.Block(tree)(stats,
-              AnonClass(tpe1 :: Nil, fn.symbol.asTerm :: Nil, samDenot.symbol.asTerm.name :: Nil))
+            AnonClass(List(tpe1),
+              List(samDenot.symbol.asTerm.name -> fn.symbol.asTerm),
+              refinements.toList
+            )
+          )
       }
     case _ =>
       tree
@@ -170,14 +183,5 @@ class ExpandSAMs extends MiniPhase:
       val applyOrElseDef = transformFollowingDeep(DefDef(applyOrElseFn, applyOrElseRhs(_)(using ctx.withOwner(applyOrElseFn))))
       List(isDefinedAtDef, applyOrElseDef)
     }
-  }
-
-  private def checkRefinements(tpe: Type, tree: Tree)(using Context): Type = tpe.dealias match {
-    case RefinedType(parent, name, _) =>
-      if (name.isTermName && tpe.member(name).symbol.ownersIterator.isEmpty) // if member defined in the refinement
-        report.error(em"Lambda does not define $name", tree.srcPos)
-      checkRefinements(parent, tree)
-    case tpe =>
-      tpe
   }
 end ExpandSAMs

@@ -12,6 +12,8 @@ import scala.meta.internal.pc.{IdentifierComparator, MemberOrdering}
 import scala.meta.pc.*
 
 import dotty.tools.dotc.ast.tpd.*
+import dotty.tools.dotc.ast.untpd
+import dotty.tools.dotc.ast.NavigateAST
 import dotty.tools.dotc.core.Comments.Comment
 import dotty.tools.dotc.core.Constants.Constant
 import dotty.tools.dotc.core.Contexts.*
@@ -24,15 +26,15 @@ import dotty.tools.dotc.core.StdNames.*
 import dotty.tools.dotc.core.Symbols.*
 import dotty.tools.dotc.core.Types.*
 import dotty.tools.dotc.interactive.Completion
-import dotty.tools.dotc.transform.SymUtils.*
+import dotty.tools.dotc.interactive.Completion.Mode
 import dotty.tools.dotc.util.SourcePosition
-import dotty.tools.dotc.util.Spans
-import dotty.tools.dotc.util.Spans.Span
 import dotty.tools.dotc.util.SrcPos
 import dotty.tools.pc.AutoImports.AutoImportsGenerator
 import dotty.tools.pc.completions.OverrideCompletions.OverrideExtractor
-import dotty.tools.pc.util.BuildInfo
+import dotty.tools.pc.buildinfo.BuildInfo
 import dotty.tools.pc.utils.MtagsEnrichments.*
+import dotty.tools.dotc.core.Denotations.SingleDenotation
+import dotty.tools.dotc.interactive.Interactive
 
 class Completions(
     pos: SourcePosition,
@@ -43,6 +45,7 @@ class Completions(
     completionPos: CompletionPos,
     indexedContext: IndexedContext,
     path: List[Tree],
+    adjustedPath: List[untpd.Tree],
     config: PresentationCompilerConfig,
     workspace: Option[Path],
     autoImports: AutoImportsGenerator,
@@ -50,9 +53,10 @@ class Completions(
     options: List[String]
 )(using ReportContext):
 
-  implicit val context: Context = ctx
+  given context: Context = ctx
 
-  val coursierComplete = new CoursierComplete(BuildInfo.scalaVersion)
+  private lazy val coursierComplete = new CoursierComplete(BuildInfo.scalaVersion)
+  private lazy val completionMode = Completion.completionMode(adjustedPath, pos)
 
   private lazy val shouldAddSnippet =
     path match
@@ -64,110 +68,43 @@ class Completions(
       case _ :: (withcursor @ Select(fun, name)) :: (appl: GenericApply) :: _
           if appl.fun == withcursor && name.decoded == Cursor.value =>
         false
-      case (_: Import) :: _ => false
-      case _ :: (_: Import) :: _ => false
+      case (_: (Import | Export)) :: _ => false
+      case _ :: (_: (Import | Export)) :: _ => false
       case (_: Ident) :: (_: SeqLiteral) :: _ => false
       case _ => true
 
-  enum CursorPos:
-    case Type(hasTypeParams: Boolean, hasNewKw: Boolean)
-    case Term
-    case Import
-
-    def include(sym: Symbol)(using Context): Boolean =
-      val generalExclude =
-        isUninterestingSymbol(sym) ||
-          !isNotLocalForwardReference(sym) ||
-          sym.isPackageObject
-
-      def isWildcardParam(sym: Symbol) =
-        if sym.isTerm && sym.owner.isAnonymousFunction then
-          sym.name match
-            case DerivedName(under, _) =>
-              under.isEmpty
-            case _ => false
-        else false
-
-      if generalExclude then false
-      else
-        this match
-          case Type(_, _) => true
-          case Term if isWildcardParam(sym) => false
-          case Term if sym.isTerm || sym.is(Package) => true
-          case Import => true
-          case _ => false
-      end if
-    end include
-
-    def allowBracketSuffix: Boolean =
-      this match
-        case Type(hasTypeParams, _) => !hasTypeParams
-        case _ => false
-
-    def allowTemplateSuffix: Boolean =
-      this match
-        case Type(_, hasNewKw) => hasNewKw
-        case _ => false
-
-    def allowApplicationSuffix: Boolean =
-      this match
-        case Term => true
-        case _ => false
-
-  end CursorPos
-
-  private lazy val cursorPos =
-    calculateTypeInstanceAndNewPositions(path)
-
-  private def calculateTypeInstanceAndNewPositions(
-      path: List[Tree]
-  ): CursorPos =
+  private lazy val allowTemplateSuffix: Boolean =
     path match
-      case (_: Import) :: _ => CursorPos.Import
-      case _ :: (_: Import) :: _ => CursorPos.Import
-      case (head: (Select | Ident)) :: tail =>
-        // https://github.com/lampepfl/dotty/issues/15750
-        // due to this issue in dotty, because of which trees after typer lose information,
-        // we have to calculate hasNoSquareBracket manually:
-        val hasSquareBracket =
-          val span: Span = head.srcPos.span
-          if span.exists then
-            var i = span.end
-            while i < (text.length() - 1) && text(i).isWhitespace do i = i + 1
+      case _ :: New(selectOrIdent: (Select | Ident)) :: _ => true
+      case _ => false
 
-            if i < text.length() then text(i) == '['
-            else false
-          else false
+  def includeSymbol(sym: Symbol)(using Context): Boolean =
+    def hasSyntheticCursorSuffix: Boolean =
+      if !sym.name.endsWith(Cursor.value) then false
+      else
+        val realNameLength = sym.decodedName.length() - Cursor.value.length()
+        sym.source == pos.source &&
+        sym.span.start + realNameLength == pos.span.end
 
-        def typePos = CursorPos.Type(hasSquareBracket, hasNewKw = false)
-        def newTypePos =
-          CursorPos.Type(hasSquareBracket, hasNewKw = true)
+    val generalExclude =
+      isUninterestingSymbol(sym) ||
+        !isNotLocalForwardReference(sym) ||
+        sym.isPackageObject ||
+        hasSyntheticCursorSuffix
 
-        tail match
-          case (v: ValOrDefDef) :: _ if v.tpt.sourcePos.contains(pos) =>
-            typePos
-          case New(selectOrIdent: (Select | Ident)) :: _
-              if selectOrIdent.sourcePos.contains(pos) =>
-            newTypePos
-          case (a @ AppliedTypeTree(_, args)) :: _
-              if args.exists(_.sourcePos.contains(pos)) =>
-            typePos
-          case (templ @ Template(constr, _, self, _)) :: _
-              if (constr :: self :: templ.parents).exists(
-                _.sourcePos.contains(pos)
-              ) =>
-            typePos
-          case _ =>
-            CursorPos.Term
-        end match
+    def isWildcardParam(sym: Symbol) =
+      if sym.isTerm && sym.owner.isAnonymousFunction then
+        sym.name match
+          case DerivedName(under, _) =>
+            under.isEmpty
+          case _ => false
+      else false
 
-      case (_: TypeTree) :: TypeApply(Select(newQualifier: New, _), _) :: _
-          if newQualifier.sourcePos.contains(pos) =>
-        CursorPos.Type(hasTypeParams = false, hasNewKw = true)
-
-      case _ => CursorPos.Term
-    end match
-  end calculateTypeInstanceAndNewPositions
+    if generalExclude then false
+    else if completionMode.is(Mode.Type) then true
+    else !isWildcardParam(sym) && (sym.isTerm || sym.is(Package))
+    end if
+  end includeSymbol
 
   def completions(): (List[CompletionValue], SymbolSearch.Result) =
     val (advanced, exclusive) = advancedCompletions(path, pos, completionPos)
@@ -179,40 +116,43 @@ class Completions(
         val allAdvanced = advanced ++ keywords
         path match
           // should not show completions for toplevel
-          case Nil if pos.source.file.extension != "sc" =>
+          case Nil | (_: PackageDef) :: _ if pos.source.file.extension != "sc" =>
             (allAdvanced, SymbolSearch.Result.COMPLETE)
-          case Select(qual, _) :: _ if qual.tpe.isErroneous =>
+          case Select(qual, _) :: _ if qual.typeOpt.isErroneous =>
             (allAdvanced, SymbolSearch.Result.COMPLETE)
           case Select(qual, _) :: _ =>
-            val (_, compilerCompletions) = Completion.completions(pos)
+            val compilerCompletions = Completion.rawCompletions(pos, completionMode, completionPos.query, path, adjustedPath)
             val (compiler, result) = compilerCompletions
+              .toList
               .flatMap(toCompletionValues)
               .filterInteresting(qual.typeOpt.widenDealias)
             (allAdvanced ++ compiler, result)
           case _ =>
-            val (_, compilerCompletions) = Completion.completions(pos)
+            val compilerCompletions = Completion.rawCompletions(pos, completionMode, completionPos.query, path, adjustedPath)
             val (compiler, result) = compilerCompletions
+              .toList
               .flatMap(toCompletionValues)
               .filterInteresting()
             (allAdvanced ++ compiler, result)
         end match
 
     val application = CompletionApplication.fromPath(path)
-    val ordering = completionOrdering(application, cursorPos)
-    val values = application.postProcess(all.sorted(ordering))
+    val ordering = completionOrdering(application)
+    val sorted = all.sorted(ordering)
+    val values = application.postProcess(sorted)
     (values, result)
   end completions
 
   private def toCompletionValues(
-      completion: Completion
+      completion: Name,
+      denots: Seq[SingleDenotation]
   ): List[CompletionValue] =
-    completion.symbols.flatMap(
+    denots.toList.flatMap: denot =>
       completionsWithSuffix(
-        _,
-        completion.label,
-        CompletionValue.Compiler(_, _, _)
+        denot,
+        completion.show,
+        (label, denot, suffix) => CompletionValue.Compiler(label, denot, suffix)
       )
-    )
   end toCompletionValues
 
   inline private def undoBacktick(label: String): String =
@@ -248,11 +188,8 @@ class Completions(
   private def findSuffix(symbol: Symbol): CompletionSuffix =
     CompletionSuffix.empty
       .chain { suffix => // for [] suffix
-        if shouldAddSnippet &&
-          cursorPos.allowBracketSuffix && symbol.info.typeParams.nonEmpty
-        then
-          val typeParamsCount = symbol.info.typeParams.length
-          suffix.withNewSuffixSnippet(SuffixKind.Bracket(typeParamsCount))
+        if shouldAddSnippet && symbol.info.typeParams.nonEmpty
+        then suffix.withNewSuffixSnippet(SuffixKind.Bracket)
         else suffix
       }
       .chain { suffix => // for () suffix
@@ -262,7 +199,7 @@ class Completions(
           paramss match
             case Nil => suffix
             case List(Nil) => suffix.withNewSuffix(SuffixKind.Brace)
-            case _ if config.isCompletionSnippetsEnabled =>
+            case _ if config.isCompletionSnippetsEnabled() =>
               val onlyParameterless = paramss.forall(_.isEmpty)
               lazy val onlyImplicitOrTypeParams = paramss.forall(
                 _.exists { sym =>
@@ -279,7 +216,7 @@ class Completions(
         else suffix
       }
       .chain { suffix => // for {} suffix
-        if shouldAddSnippet && cursorPos.allowTemplateSuffix
+        if shouldAddSnippet && allowTemplateSuffix
           && isAbstractType(symbol)
         then
           if suffix.hasSnippet then suffix.withNewSuffix(SuffixKind.Template)
@@ -290,36 +227,33 @@ class Completions(
   end findSuffix
 
   def completionsWithSuffix(
-      sym: Symbol,
+      denot: SingleDenotation,
       label: String,
-      toCompletionValue: (String, Symbol, CompletionSuffix) => CompletionValue
+      toCompletionValue: (String, SingleDenotation, CompletionSuffix) => CompletionValue
   ): List[CompletionValue] =
-    // workaround for earlier versions that force correctly detecting Java flags
-
-    def companionSynthetic = sym.companion.exists && sym.companion.is(Synthetic)
+    val sym = denot.symbol
     // find the apply completion that would need a snippet
-    val methodSymbols =
-      if shouldAddSnippet &&
-        (sym.is(Flags.Module) || sym.isClass && !sym.is(Flags.Trait)) &&
-          !sym.is(Flags.JavaDefined) && cursorPos.allowApplicationSuffix
+    val methodDenots: List[SingleDenotation] =
+      if shouldAddSnippet && completionMode.is(Mode.Term) &&
+        (sym.is(Flags.Module) || sym.isField || sym.isClass && !sym.is(Flags.Trait)) && !sym.is(Flags.JavaDefined)
       then
         val info =
           /* Companion will be added even for normal classes now,
            * but it will not show up from classpath. We can suggest
            * constructors based on those synthetic applies.
            */
-          if sym.isClass && companionSynthetic then sym.companionModule.info
-          else sym.info
-        val applSymbols = info.member(nme.apply).allSymbols
-        sym :: applSymbols
-      else List(sym)
+          if sym.isClass && sym.companionModule.exists then sym.companionModule.info
+          else denot.info
+        val applyDenots = info.member(nme.apply).allSymbols.map(_.asSeenFrom(info).asSingleDenotation)
+        denot :: applyDenots
+      else denot :: Nil
 
-    methodSymbols.map { methodSymbol =>
-      val suffix = findSuffix(methodSymbol)
+    methodDenots.map { methodDenot =>
+      val suffix = findSuffix(methodDenot.symbol)
       val name = undoBacktick(label)
       toCompletionValue(
         name,
-        methodSymbol,
+        methodDenot,
         suffix
       )
     }
@@ -335,7 +269,7 @@ class Completions(
       completionPos: CompletionPos
   ): (List[CompletionValue], Boolean) =
     lazy val rawPath = Paths
-      .get(pos.source.path)
+      .get(pos.source.path).nn
     lazy val rawFileName = rawPath
       .getFileName()
       .toString()
@@ -348,6 +282,15 @@ class Completions(
     path match
       case ScalaCliCompletions(dependency) =>
         (ScalaCliCompletions.contribute(dependency), true)
+
+      case _
+          if MultilineCommentCompletion.isMultilineCommentCompletion(
+            pos,
+            text,
+          ) =>
+        val values = MultilineCommentCompletion.contribute(config)
+        (values, true)
+
       case _ if ScaladocCompletions.isScaladocCompletion(pos, text) =>
         val values = ScaladocCompletions.contribute(pos, text, config)
         (values, true)
@@ -444,7 +387,7 @@ class Completions(
       // class Fo@@
       case (td: TypeDef) :: _
           if Fuzzy.matches(
-            td.symbol.name.decoded.replace(Cursor.value, ""),
+            td.symbol.name.decoded.replace(Cursor.value, "").nn,
             filename
           ) =>
         val values = FilenameCompletions.contribute(filename, td)
@@ -495,6 +438,10 @@ class Completions(
           true,
         )
 
+      case (tree: (Import | Export)) :: _
+          if tree.selectors.exists(_.renamed.sourcePos.contains(pos)) =>
+        (List.empty, true)
+
       // From Scala 3.1.3-RC3 (as far as I know), path contains
       // `Literal(Constant(null))` on head for an incomplete program, in this case, just ignore the head.
       case Literal(Constant(null)) :: tl =>
@@ -504,8 +451,9 @@ class Completions(
         val args = NamedArgCompletions.contribute(
           pos,
           path,
+          adjustedPath,
           indexedContext,
-          config.isCompletionSnippetsEnabled
+          config.isCompletionSnippetsEnabled()
         )
         (args, false)
     end match
@@ -547,44 +495,64 @@ class Completions(
       qualType: Type = ctx.definitions.AnyType
   ): Option[SymbolSearch.Result] =
     val query = completionPos.query
-    completionPos.kind match
-      case CompletionKind.Empty =>
-        val filtered = indexedContext.scopeSymbols
-          .filter(sym =>
-            !sym.isConstructor && (!sym.is(Synthetic) || sym.is(Module))
-          )
-
-        filtered.map { sym =>
-          visit(CompletionValue.scope(sym.decodedName, sym))
-        }
-        Some(SymbolSearch.Result.INCOMPLETE)
-      case CompletionKind.Scope =>
-        val visitor = new CompilerSearchVisitor(sym =>
-          indexedContext.lookupSym(sym) match
-            case IndexedContext.Result.InScope =>
-              visit(CompletionValue.scope(sym.decodedName, sym))
-            case _ =>
-              completionsWithSuffix(
-                sym,
-                sym.decodedName,
-                CompletionValue.Workspace(_, _, _, sym)
-              ).map(visit).forall(_ == true),
-        )
-        Some(search.search(query, buildTargetIdentifier, visitor))
-      case CompletionKind.Members =>
-        val visitor = new CompilerSearchVisitor(sym =>
-          if sym.is(ExtensionMethod) &&
-            qualType.widenDealias <:< sym.extensionParam.info.widenDealias
-          then
+    if completionMode.is(Mode.Scope) && query.nonEmpty then
+      val visitor = new CompilerSearchVisitor(sym =>
+        indexedContext.lookupSym(sym) match
+          case IndexedContext.Result.InScope => false
+          case _ =>
             completionsWithSuffix(
               sym,
               sym.decodedName,
-              CompletionValue.Extension(_, _, _)
-            ).map(visit).forall(_ == true)
-          else false,
-        )
-        Some(search.searchMethods(query, buildTargetIdentifier, visitor))
-    end match
+              CompletionValue.Workspace(_, _, _, sym)
+            ).map(visit).forall(_ == true),
+      )
+      Some(search.search(query, buildTargetIdentifier, visitor).nn)
+    else if completionMode.is(Mode.Member) then
+      val visitor = new CompilerSearchVisitor(sym =>
+        def isExtensionMethod = sym.is(ExtensionMethod) &&
+          qualType.widenDealias <:< sym.extensionParam.info.widenDealias
+        def isImplicitClass(owner: Symbol) =
+          val constructorParam =
+            owner.info
+              .membersBasedOnFlags(
+                Flags.ParamAccessor,
+                Flags.EmptyFlags,
+              )
+              .headOption
+              .map(_.info)
+          owner.isClass && owner.is(Flags.Implicit) &&
+          constructorParam.exists(p =>
+            qualType.widenDealias <:< p.widenDealias
+          )
+        end isImplicitClass
+
+        def isImplicitClassMethod = sym.is(Flags.Method) && !sym.isConstructor &&
+          isImplicitClass(sym.maybeOwner)
+
+        if isExtensionMethod then
+          completionsWithSuffix(
+            sym,
+            sym.decodedName,
+            CompletionValue.Extension(_, _, _)
+          ).map(visit).forall(_ == true)
+        else if isImplicitClassMethod then
+          completionsWithSuffix(
+            sym,
+            sym.decodedName,
+            CompletionValue.ImplicitClass(_, _, _, sym.maybeOwner),
+          ).map(visit).forall(_ == true)
+        else false,
+      )
+      Some(search.searchMethods(query, buildTargetIdentifier, visitor).nn)
+    else
+      val filtered = indexedContext.scopeSymbols
+        .filter(sym => !sym.isConstructor && (!sym.is(Synthetic) || sym.is(Module)))
+
+      filtered.map { sym =>
+        visit(CompletionValue.Scope(sym.decodedName, sym, findSuffix(sym)))
+      }
+      Some(SymbolSearch.Result.INCOMPLETE)
+
   end enrichWithSymbolSearch
 
   extension (s: SrcPos)
@@ -624,10 +592,12 @@ class Completions(
               val nameId =
                 if sym.isClass || sym.is(Module) then
                   // drop #|. at the end to avoid duplication
-                  name.substring(0, name.length - 1)
+                  name.substring(0, name.length() - 1).nn
                 else name
-              val id = nameId + symOnly.snippetSuffix.labelSnippet.getOrElse("")
-              val include = cursorPos.include(sym)
+              val suffix =
+                if symOnly.snippetSuffix.addLabelSnippet then "[]" else ""
+              val id = nameId + suffix
+              val include = includeSymbol(sym)
               (id, include)
             case kw: CompletionValue.Keyword => (kw.label, true)
             case mc: CompletionValue.MatchCompletion => (mc.label, true)
@@ -687,7 +657,6 @@ class Completions(
   private def computeRelevancePenalty(
       completion: CompletionValue,
       application: CompletionApplication,
-      cursorPos: CursorPos,
   ): Int =
     import scala.meta.internal.pc.MemberOrdering.*
 
@@ -733,10 +702,8 @@ class Completions(
         relevance |= IsSynthetic
       if sym.isDeprecated then relevance |= IsDeprecated
       if isEvilMethod(sym.name) then relevance |= IsEvilMethod
-      cursorPos match
-        case CursorPos.Type(_, _) if !sym.isType =>
-          relevance |= IsNotTypeInTypePos
-        case _ =>
+      if !completionMode.is(Mode.ImportOrExport) &&
+        completionMode.is(Mode.Type) && !sym.isType then relevance |= IsNotTypeInTypePos
       relevance
     end symbolRelevance
 
@@ -746,8 +713,8 @@ class Completions(
         // show the abstract members first
         if !ov.symbol.is(Deferred) then penalty |= MemberOrdering.IsNotAbstract
         penalty
-      case CompletionValue.Workspace(_, sym, _, _) =>
-        symbolRelevance(sym) | (IsWorkspaceSymbol + sym.name.show.length)
+      case CompletionValue.Workspace(_, denot, _, _) =>
+        symbolRelevance(denot.symbol) | (IsWorkspaceSymbol + denot.name.show.length())
       case sym: CompletionValue.Symbolic =>
         symbolRelevance(sym.symbol)
       case _ =>
@@ -777,7 +744,7 @@ class Completions(
         items
 
     def forSelect(sel: Select): CompletionApplication =
-      val tpe = sel.qualifier.tpe
+      val tpe = sel.qualifier.typeOpt
       val members = tpe.allMembers.map(_.symbol).toSet
 
       new CompletionApplication:
@@ -788,11 +755,11 @@ class Completions(
           isMember(symbol) && symbol.owner != tpe.typeSymbol
         def postProcess(items: List[CompletionValue]): List[CompletionValue] =
           items.map {
-            case CompletionValue.Compiler(label, sym, suffix)
-                if isMember(sym) =>
+            case completion @ CompletionValue.Compiler(label, denot, suffix)
+                if isMember(completion.symbol) =>
               CompletionValue.Compiler(
                 label,
-                substituteTypeVars(sym),
+                substituteTypeVars(completion.symbol),
                 suffix
               )
             case other => other
@@ -814,15 +781,15 @@ class Completions(
   end CompletionApplication
 
   private def completionOrdering(
-      application: CompletionApplication,
-      cursorPos: CursorPos,
+      application: CompletionApplication
   ): Ordering[CompletionValue] =
     new Ordering[CompletionValue]:
       val queryLower = completionPos.query.toLowerCase()
       val fuzzyCache = mutable.Map.empty[CompletionValue, Int]
 
       def compareLocalSymbols(s1: Symbol, s2: Symbol): Int =
-        if s1.isLocal && s2.isLocal then
+        if s1.isLocal && s2.isLocal && s1.sourcePos.exists && s2.sourcePos.exists
+        then
           val firstIsAfter = s1.srcPos.isAfter(s2.srcPos)
           if firstIsAfter then -1 else 1
         else 0
@@ -830,16 +797,16 @@ class Completions(
 
       def compareByRelevance(o1: CompletionValue, o2: CompletionValue): Int =
         Integer.compare(
-          computeRelevancePenalty(o1, application, cursorPos),
-          computeRelevancePenalty(o2, application, cursorPos),
+          computeRelevancePenalty(o1, application),
+          computeRelevancePenalty(o2, application),
         )
 
       def fuzzyScore(o: CompletionValue.Symbolic): Int =
         fuzzyCache.getOrElseUpdate(
           o, {
-            val name = o.label.toLowerCase()
+            val name = o.label.toLowerCase().nn
             if name.startsWith(queryLower) then 0
-            else if name.toLowerCase().contains(queryLower) then 1
+            else if name.contains(queryLower) then 1
             else 2
           }
         )
@@ -864,6 +831,16 @@ class Completions(
         priority(o1) - priority(o2)
       end compareInApplyParams
 
+      def prioritizeKeywords(o1: CompletionValue, o2: CompletionValue): Int =
+        def priority(v: CompletionValue): Int =
+          v match
+            case _: CompletionValue.CaseKeyword => 0
+            case _: CompletionValue.NamedArg => 1
+            case _: CompletionValue.Keyword => 2
+            case _ => 3
+
+        priority(o1) - priority(o2)
+      end prioritizeKeywords
       /**
        * Some completion values should be shown first such as CaseKeyword and
        * NamedArg
@@ -940,7 +917,10 @@ class Completions(
           case _ =>
             val byApplyParams = compareInApplyParams(o1, o2)
             if byApplyParams != 0 then byApplyParams
-            else compareByRelevance(o1, o2)
+            else
+              val keywords = prioritizeKeywords(o1, o2)
+              if keywords != 0 then keywords
+              else compareByRelevance(o1, o2)
       end compare
 
 end Completions

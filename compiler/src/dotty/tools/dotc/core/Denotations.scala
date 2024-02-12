@@ -3,26 +3,29 @@ package dotc
 package core
 
 import SymDenotations.{ SymDenotation, ClassDenotation, NoDenotation, LazyType, stillValid, acceptStale, traceInvalid }
-import Contexts._
-import Names._
-import NameKinds._
-import StdNames._
+import Contexts.*
+import Names.*
+import NameKinds.*
+import StdNames.*
 import Symbols.NoSymbol
-import Symbols._
-import Types._
-import Periods._
-import Flags._
-import DenotTransformers._
-import Decorators._
-import Signature.MatchDegree._
-import printing.Texts._
+import Symbols.*
+import Types.*
+import Periods.*
+import Flags.*
+import DenotTransformers.*
+import Decorators.*
+import Signature.MatchDegree.*
+import printing.Texts.*
 import printing.Printer
 import io.AbstractFile
 import config.Config
 import config.Printers.overload
-import util.common._
+import util.common.*
 import typer.ProtoTypes.NoViewsAllowed
+import reporting.Message
 import collection.mutable.ListBuffer
+
+import scala.compiletime.uninitialized
 
 /** Denotations represent the meaning of symbols and named types.
  *  The following diagram shows how the principal types of denotations
@@ -121,8 +124,8 @@ object Denotations {
     /** Map `f` over all single denotations and aggregate the results with `g`. */
     def aggregate[T](f: SingleDenotation => T, g: (T, T) => T): T
 
-    private var cachedPrefix: Type = _
-    private var cachedAsSeenFrom: AsSeenFromResult = _
+    private var cachedPrefix: Type = uninitialized
+    private var cachedAsSeenFrom: AsSeenFromResult = uninitialized
     private var validAsSeenFrom: Period = Nowhere
 
     type AsSeenFromResult <: PreDenotation
@@ -296,14 +299,13 @@ object Denotations {
                        name: Name,
                        site: Denotation = NoDenotation,
                        args: List[Type] = Nil,
-                       source: AbstractFile | Null = null,
                        generateStubs: Boolean = true)
                       (p: Symbol => Boolean)
                       (using Context): Symbol =
       disambiguate(p) match {
         case m @ MissingRef(ownerd, name) if generateStubs =>
           if ctx.settings.YdebugMissingRefs.value then m.ex.printStackTrace()
-          newStubSymbol(ownerd.symbol, name, source)
+          newStubSymbol(ownerd.symbol, name)
         case NoDenotation | _: NoQualifyingRef | _: MissingRef =>
           def argStr = if (args.isEmpty) "" else i" matching ($args%, %)"
           val msg =
@@ -884,7 +886,6 @@ object Denotations {
     /** Install this denotation to be the result of the given denotation transformer.
      *  This is the implementation of the same-named method in SymDenotations.
      *  It's placed here because it needs access to private fields of SingleDenotation.
-     *  @pre  Can only be called in `phase.next`.
      */
     protected def installAfter(phase: DenotTransformer)(using Context): Unit = {
       val targetId = phase.next.id
@@ -892,16 +893,21 @@ object Denotations {
       else {
         val current = symbol.current
         // println(s"installing $this after $phase/${phase.id}, valid = ${current.validFor}")
-        // printPeriods(current)
+        // println(current.definedPeriodsString)
         this.validFor = Period(ctx.runId, targetId, current.validFor.lastPhaseId)
         if (current.validFor.firstPhaseId >= targetId)
           current.replaceWith(this)
+          symbol.denot
+            // Let symbol point to updated denotation
+            // Without this we can get problems when we immediately recompute the denotation
+            // at another phase since the invariant that symbol used to point to a valid
+            // denotation is lost.
         else {
           current.validFor = Period(ctx.runId, current.validFor.firstPhaseId, targetId - 1)
           insertAfter(current)
         }
+        // println(current.definedPeriodsString)
       }
-      // printPeriods(this)
     }
 
     /** Apply a transformation `f` to all denotations in this group that start at or after
@@ -949,7 +955,9 @@ object Denotations {
     }
 
     def staleSymbolError(using Context): Nothing =
-      throw new StaleSymbol(staleSymbolMsg)
+      if symbol.isPackageObject && ctx.run != null && ctx.run.nn.isCompilingSuspended
+      then throw StaleSymbolTypeError(symbol)
+      else throw StaleSymbolException(staleSymbolMsg)
 
     def staleSymbolMsg(using Context): String = {
       def ownerMsg = this match {
@@ -986,18 +994,18 @@ object Denotations {
       if (symbol == NoSymbol) symbol.toString
       else s"<SingleDenotation of type $infoOrCompleter>"
 
-    def definedPeriodsString: String = {
+    /** Show all defined periods and the info of the denotation at each */
+    def definedPeriodsString(using Context): String = {
       var sb = new StringBuilder()
       var cur = this
       var cnt = 0
-      while ({
-        sb.append(" " + cur.validFor)
+      while
+        sb.append(i" ${cur.validFor.toString}:${cur.infoOrCompleter}")
         cur = cur.nextInRun
         cnt += 1
         if (cnt > MaxPossiblePhaseId) { sb.append(" ..."); cur = this }
         cur ne this
-      })
-      ()
+      do ()
       sb.toString
     }
 
@@ -1357,9 +1365,19 @@ object Denotations {
     else
       NoSymbol
 
+  trait StaleSymbol extends Exception
+
   /** An exception for accessing symbols that are no longer valid in current run */
-  class StaleSymbol(msg: => String) extends Exception {
+  class StaleSymbolException(msg: => String) extends Exception, StaleSymbol {
     util.Stats.record("stale symbol")
     override def getMessage(): String = msg
   }
+
+  /** An exception that is at the same type a StaleSymbol and a TypeError.
+   *  Sine it is a TypeError it can be reported as a nroaml error instead of crashing
+   *  the compiler.
+   */
+  class StaleSymbolTypeError(symbol: Symbol)(using Context) extends TypeError, StaleSymbol:
+    def toMessage(using Context) =
+      em"Cyclic macro dependency; macro refers to a toplevel symbol in ${symbol.source} from which the macro is called"
 }
