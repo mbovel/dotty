@@ -84,6 +84,7 @@ object QualifierExprs:
     case Constant(value: Int)    => IntConst(value)
     case Constant(value: Double) => DoubleConst(value)
     case Constant(value: String) => StringConst(value)
+    case Constant(value: Boolean) => if value then True else False
   }
 
   private val symToRef = collection.mutable.HashMap[Symbol, Ref]()

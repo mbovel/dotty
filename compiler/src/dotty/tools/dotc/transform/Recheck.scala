@@ -318,7 +318,7 @@ abstract class Recheck extends Phase, SymTransformer:
             case arg :: args1 =>
               // TODO(mbovel): how to do that properly?
               val argSym = tree.fun.symbol.paramSymss.flatten.find(_.name == prefs.head.paramName).get
-              val argType = recheck(arg, normalizeByName(formals.head), argSym)
+              val argType = recheckArg(arg, normalizeByName(formals.head), argSym)
               val formals1 =
                 if fntpe.isParamDependent
                 then formals.tail.map(_.substParam(prefs.head, argType))

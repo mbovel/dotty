@@ -24,7 +24,6 @@ import config.Config
 import reporting.*
 import collection.mutable
 import cc.{CapturingType, derivedCapturingType}
-import transform.TypeUtils.*
 import qualifiers.{QualifiedType, derivedQualifiedType}
 
 import scala.annotation.internal.sharable

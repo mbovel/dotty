@@ -42,7 +42,7 @@ final class SetupQualifiedTypes(
                 denot.info = newInfo
                 recheckDef(mdef, msym)
 
-            msym.updateInfoBetween(preRecheckPhase, thisPhase, completer)
+            msym.updateInfo(preRecheckPhase, completer)
             mdef.tpt.rememberTypeAlways(newResType)
 
             val closure(env, meth, tpt) = tree: @unchecked
@@ -136,9 +136,14 @@ final class SetupQualifiedTypes(
   // Pasted from cc/Setup.scala:
   /** Update info of `sym` for CheckRefinements phase only */
   private def updateInfo(sym: Symbol, info: Type)(using Context) =
-    sym.updateInfoBetween(preRecheckPhase, thisPhase, info)
+    sym.updateInfo(preRecheckPhase, info)
 
   // Pasted from cc/Setup.scala:
+  /** Substitute parameter symbols in `from` to paramRefs in corresponding
+   *  method or poly types `to`. We use a single BiTypeMap to do everything.
+   *  @param from  a list of lists of type or term parameter symbols of a curried method
+   *  @param to    a list of method or poly types corresponding one-to-one to the parameter lists
+   */
   /** Substitute parameter symbols in `from` to paramRefs in corresponding
    *  method or poly types `to`. We use a single BiTypeMap to do everything.
    *  @param from  a list of lists of type or term parameter symbols of a curried method
@@ -149,25 +154,30 @@ final class SetupQualifiedTypes(
 
     def apply(t: Type): Type = t match
       case t: NamedType =>
-        val sym = t.symbol
-        def outer(froms: List[List[Symbol]], tos: List[LambdaType]): Type =
-          def inner(from: List[Symbol], to: List[ParamRef]): Type =
-            if from.isEmpty then outer(froms.tail, tos.tail)
-            else if sym eq from.head then to.head
-            else inner(from.tail, to.tail)
-          if tos.isEmpty then t
-          else inner(froms.head, tos.head.paramRefs)
-        outer(from, to)
+        if t.prefix == NoPrefix then
+          val sym = t.symbol
+          def outer(froms: List[List[Symbol]], tos: List[LambdaType]): Type =
+            def inner(from: List[Symbol], to: List[ParamRef]): Type =
+              if from.isEmpty then outer(froms.tail, tos.tail)
+              else if sym eq from.head then to.head
+              else inner(from.tail, to.tail)
+            if tos.isEmpty then t
+            else inner(froms.head, tos.head.paramRefs)
+          outer(from, to)
+        else t.derivedSelect(apply(t.prefix))
       case _ =>
         mapOver(t)
 
-    def inverse(t: Type): Type = t match
-      case t: ParamRef =>
-        def recur(from: List[LambdaType], to: List[List[Symbol]]): Type =
-          if from.isEmpty then t
-          else if t.binder eq from.head then to.head(t.paramNum).namedType
-          else recur(from.tail, to.tail)
-        recur(to, from)
-      case _ =>
-        mapOver(t)
+    lazy val inverse = new BiTypeMap:
+      override def toString = "SubstParams.inverse"
+      def apply(t: Type): Type = t match
+        case t: ParamRef =>
+          def recur(from: List[LambdaType], to: List[List[Symbol]]): Type =
+            if from.isEmpty then t
+            else if t.binder eq from.head then to.head(t.paramNum).namedType
+            else recur(from.tail, to.tail)
+          recur(to, from)
+        case _ =>
+          mapOver(t)
+      def inverse = SubstParams.this
   end SubstParams

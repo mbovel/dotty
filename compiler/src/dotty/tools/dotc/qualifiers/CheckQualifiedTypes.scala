@@ -133,10 +133,6 @@ class CheckQualifiedTypes extends Recheck:
       else
         tp
 
-    override def checkConformsExpr(actual: Type, expected: Type, tree: tpd.Tree)(using Context): Unit =
-      log(i"checkConformsExpr: $actual <:< $expected")
-      super.checkConformsExpr(actual, expected, tree)
-
     override def recheckTypeTree(tree: tpd.TypeTree)(using Context): Type =
       super.recheckTypeTree(tree) match
         case tp: AnnotatedType
