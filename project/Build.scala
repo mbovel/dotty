@@ -925,6 +925,18 @@ object Build {
 
   lazy val `scala3-compiler` = project.in(file("compiler")).asDottyCompiler(NonBootstrapped)
 
+  lazy val `scala3-compiler-js` =
+    project.in(file("compiler"))
+      .enablePlugins(DottyJSPlugin)
+      .asDottyCompiler(NonBootstrapped)
+      .settings(
+        libraryDependencies += ("org.scala-js" %% "scalajs-library" % scalaJSVersion).cross(CrossVersion.for3Use2_13),
+        Compile / unmanagedSourceDirectories ++= (`scala3-library-bootstrapped` / Compile / unmanagedSourceDirectories).value,
+        scalaJSUseMainModuleInitializer := true,
+        Test / test := {},
+        Test / testOnly := {},
+      )
+
   lazy val Scala3CompilerCoursierTest = config("scala3CompilerCoursierTest") extend Test
   lazy val `scala3-compiler-bootstrapped` = project.in(file("compiler")).asDottyCompiler(Bootstrapped)
     .configs(Scala3CompilerCoursierTest)

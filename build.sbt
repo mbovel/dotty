@@ -2,6 +2,7 @@ val scala3 = Build.scala3
 val `scala3-bootstrapped` = Build.`scala3-bootstrapped`
 val `scala3-interfaces` = Build.`scala3-interfaces`
 val `scala3-compiler` = Build.`scala3-compiler`
+val `scala3-compiler-js` = Build.`scala3-compiler-js`
 val `scala3-compiler-bootstrapped` = Build.`scala3-compiler-bootstrapped`
 val `scala3-library` = Build.`scala3-library`
 val `scala3-library-bootstrapped` = Build.`scala3-library-bootstrapped`
