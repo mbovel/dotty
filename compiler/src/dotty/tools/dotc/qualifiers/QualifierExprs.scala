@@ -12,7 +12,7 @@ import dotty.tools.dotc.core.Constants.Constant
 import dotty.tools.dotc.printing.Showable
 import dotty.tools.dotc.printing.Printer
 import dotty.tools.dotc.printing.Texts.Text
-import dotty.tools.dotc.qualifiers.QualifierLogging.log
+import dotty.tools.dotc.qualifiers.QualifierLogging.{trace, startTrace, endTrace, LogEvent, LogEventNode}
 
 import QualifierExpr.*
 import dotty.tools.dotc.core.Decorators.i
@@ -39,6 +39,9 @@ object QualifierExprs:
   val intBinOps: Set[Name] =
     Set(nme.EQ, nme.NE, nme.GT, nme.GE, nme.LT, nme.LE, nme.ADD, nme.MINUS, nme.MUL, nme.DIV)
 
+  val boolAnd: Name = nme.ZAND
+  val boolOr: Name = nme.ZOR
+
   def fromClosure(tree: Tree)(using Context): QualifierExpr =
     // TODO(mbovel): cache
     tree match
@@ -55,6 +58,12 @@ object QualifierExprs:
         else fromSymbol(id.symbol)
       case Apply(fun, args) =>
         fun match
+          case Select(qualifier, name)
+              if name == boolAnd && qualifier.tpe <:< defn.BooleanType =>
+            and(fromTree(qualifier), fromTree(args(0)))
+          case Select(qualifier, name)
+              if name == boolOr && qualifier.tpe <:< defn.BooleanType =>
+            or(fromTree(qualifier), fromTree(args(0)))
           case Select(qualifier, name)
               if intBinOps.contains(name) && qualifier.tpe <:< defn.IntType =>
             val lhs = fromTree(qualifier)
@@ -77,7 +86,8 @@ object QualifierExprs:
         fromConst(c)
       case _ =>
         throw new Error(f"Cannot translate ${tree}")
-    log(i"fromTree($tree, $predArgSymbol) == ${res}")
+
+    trace(LogEvent.FromTree(tree.show, predArgSymbol.toString(), res))
     res
 
   val fromConst: PartialFunction[Constant, QualifierExpr] = {

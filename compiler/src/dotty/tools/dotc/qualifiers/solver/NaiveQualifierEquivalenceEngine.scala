@@ -46,7 +46,7 @@ object NaiveQualifierEquivalenceEngine:
 
   @tailrec
   private def rewriteImpl(classes: EqClasses, expr: QualifierExpr): QualifierExpr =
-    log(f"rewriteImpl($classes, $expr)")
+    //log(f"rewriteImpl($classes, $expr)")
     val res = expr.map(e => reprImpl(classes, e.shallowNormalize()))
     if res == expr then expr else rewriteImpl(classes, res)
 

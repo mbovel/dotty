@@ -421,6 +421,7 @@ private sealed trait YSettings:
   val YccNew: Setting[Boolean] = BooleanSetting("-Ycc-new", "Used in conjunction with captureChecking language import, try out new variants (debug option)")
   val YccLog: Setting[Boolean] = BooleanSetting("-Ycc-log", "Used in conjunction with captureChecking language import, print tracing and debug info")
   val YccPrintSetup: Setting[Boolean] = BooleanSetting("-Ycc-print-setup", "Used in conjunction with captureChecking language import, print trees after cc.Setup phase")
+  val YdebugQualifiedTypes: Setting[List[String]] = MultiStringSetting("-Ydebug-qualified-types", "function", "Used in conjunction with qualifiedTypes language import, debug type comparison and the underlying solver in the given function. Debug infos are printed to qualified_types_debug.json.")
 
   /** Area-specific debug output */
   val YexplainLowlevel: Setting[Boolean] = BooleanSetting("-Yexplain-lowlevel", "When explaining type errors, show types at a lower level.")

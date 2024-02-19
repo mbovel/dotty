@@ -124,7 +124,6 @@ final class SetupQualifiedTypes(
 
         if tree.tpt.hasRememberedType && !sym.isConstructor then
           val newInfo = integrateRT(sym.info, sym.paramSymss, Nil, Nil)
-            .showing(i"update info $sym: ${sym.info} --> $result")
           if newInfo ne sym.info then
             val completer = new LazyType:
               def complete(denot: SymDenotation)(using Context) =

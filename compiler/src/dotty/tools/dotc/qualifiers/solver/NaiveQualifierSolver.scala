@@ -5,54 +5,54 @@ import collection.mutable
 import QualifierExpr.*
 import QualifierLogging.log
 import math.Ordering.Implicits.{seqOrdering, infixOrderingOps}
+import dotty.tools.dotc.qualifiers.QualifierLogging.{trace, startTrace, endTrace, LogEvent, LogEventNode, logNaiveSolverVars}
 
 class NaiveQualifierSolver extends QualifierSolver:
   final var contextStack = List(True)
 
   override final def push(): Unit =
-    log("push()")
+    startTrace(LogEvent.Push(contextStack.mkString(", ")))
     contextStack = contextStack.head :: contextStack
 
   override final def pop(): Unit =
-    log(f"pop(${contextStack.head}) --> ${contextStack.tail}")
+    endTrace()
     contextStack = contextStack.tail
 
   override final def assume(p: QualifierExpr): Unit =
     val head = and(contextStack.head, p)
-    log(f"assume($p) --> $head")
+    trace(LogEvent.Assume(head))
     contextStack = head :: contextStack.tail
 
   override final def check(to: QualifierExpr): Boolean =
     val from = contextStack.head
-    val res = tryImplyRec(from, to, frozen = true) || tryImplyRec(from, to, frozen = false)
-    log(s"tryImply($from, $to) == $res\n---")
-    res
+    trace(res => LogEvent.Check(to, res)):
+      tryImply(from, to, frozen = true) || tryImply(from, to, frozen = false)
 
-  private final def tryImplyRec(from: QualifierExpr, to: QualifierExpr, frozen: Boolean): Boolean =
-    val res = maybeRollback {
-      to match
-        case to: ApplyVar =>
-          hasImplicationToVar(from, to) || (!frozen && tryAddImplicationToVar(from, to))
-        case to: And =>
-          to.args.forall(tryImplyRec(from, _, frozen))
-        case _ =>
-          from match
-            case from: Or =>
-              from.args.forall(tryImplyRec(_, to, frozen))
+  private final def tryImply(from: QualifierExpr, to: QualifierExpr, frozen: Boolean): Boolean =
+    val res =
+      trace(res => LogEvent.TryImply(from, to, res)):
+        maybeRollback:
+          to match
+            case to: ApplyVar =>
+              hasImplicationToVar(from, to) || (!frozen && tryAddImplicationToVar(from, to))
+            case to: And =>
+              to.args.forall(tryImply(from, _, frozen))
             case _ =>
-              to match
-                case to: Or =>
-                  to.args.exists(tryImplyRec(from, _, frozen))
+              from match
+                case from: Or =>
+                  from.args.forall(tryImply(_, to, frozen))
                 case _ =>
-                  assert(!to.hasVars)
-                  from match
-                    case from if from.hasVars =>
-                      hasImplicationToLeaf(from, to) || (!frozen && tryAddImplicationToLeaf(from, to))
+                  to match
+                    case to: Or =>
+                      to.args.exists(tryImply(from, _, frozen))
                     case _ =>
-                      assert(!from.hasVars)
-                      leafImplies(from, to, frozen)
-    }
-    log(s"tryImplyRec($from, $to, frozen = $frozen) == $res")
+                      assert(!to.hasVars)
+                      from match
+                        case from if from.hasVars =>
+                          hasImplicationToLeaf(from, to) || (!frozen && tryAddImplicationToLeaf(from, to))
+                        case _ =>
+                          assert(!from.hasVars)
+                          leafImplies(from, to, frozen)
     res
 
   protected def leafImplies(
@@ -69,13 +69,11 @@ class NaiveQualifierSolver extends QualifierSolver:
             from == to
       )
 
-    val res = rec(rootFrom, rootTo) || {
-      val eqs = NaiveQualifierEquivalenceEngine(rootFrom)
-      rec(eqs.premise, eqs.rewrite(rootTo))
-    }
-
-    log(s"leafImplies($rootFrom, $rootTo, frozen = $frozen) == $res")
-    res
+    trace(res => LogEvent.LeafImplies(rootFrom, rootTo, res)):
+      rec(rootFrom, rootTo) || {
+        val eqs = NaiveQualifierEquivalenceEngine(rootFrom)
+        rec(eqs.premise, eqs.rewrite(rootTo))
+      }
 
   /*------------*/
   /* Vars state */
@@ -123,25 +121,25 @@ class NaiveQualifierSolver extends QualifierSolver:
     ))
 
   final def tryAddImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar): Boolean =
-    val implication = ImplicationToVar(premise, conclusion)
-    val previousImplications = implicationsToVars.getOrElse(conclusion.i, Set.empty)
-    implicationsToVars.update(conclusion.i, previousImplications + implication)
+    trace(res => LogEvent.TryAddImplicationToVar(premise, conclusion, res)):
+      val implication = ImplicationToVar(premise, conclusion)
+      val previousImplications = implicationsToVars.getOrElse(conclusion.i, Set.empty)
+      implicationsToVars.update(conclusion.i, previousImplications + implication)
 
-    val canAdd =
-      implicationsToLeafs.getOrElse(conclusion.i, Set.empty)
-        .forall(impl => tryImplyRec(instantiate(impl.premise), impl.conclusion, frozen = false))
-        && dependencies.getOrElse(conclusion.i, Set.empty)
-          .forall(impl => tryImplyRec(instantiate(impl.premise), impl.conclusion, frozen = false))
+      val canAdd =
+        implicationsToLeafs.getOrElse(conclusion.i, Set.empty)
+          .forall(impl => tryImply(instantiate(impl.premise), impl.conclusion, frozen = false))
+          && dependencies.getOrElse(conclusion.i, Set.empty)
+            .forall(impl => tryImply(instantiate(impl.premise), impl.conclusion, frozen = false))
 
-    if canAdd then
-      for premiseVar <- premise.vars do
-        dependencies.update(premiseVar.i, dependencies.getOrElse(premiseVar.i, Set.empty) + implication)
-      implicationsToVarJournal.append(implication)
-    else
-      implicationsToVars.update(conclusion.i, previousImplications)
+      if canAdd then
+        for premiseVar <- premise.vars do
+          dependencies.update(premiseVar.i, dependencies.getOrElse(premiseVar.i, Set.empty) + implication)
+        implicationsToVarJournal.append(implication)
+      else
+        implicationsToVars.update(conclusion.i, previousImplications)
 
-    log(s"tryAddImplicationToVar($premise, $conclusion) == $canAdd")
-    canAdd
+      canAdd
 
   private final def removeImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar): Unit =
     val implication = ImplicationToVar(premise, conclusion)
@@ -162,15 +160,15 @@ class NaiveQualifierSolver extends QualifierSolver:
       premise: QualifierExpr /* with it.hasVars */,
       conclusion: QualifierExpr /* with !it.hasVars */
   ): Boolean =
-    val implication = ImplicationToLeaf(premise, conclusion)
-    val canAdd = tryImplyRec(instantiate(premise), conclusion, frozen = false)
-    if canAdd then
-      for premiseVar <- premise.vars do
-        val previousImplications = implicationsToLeafs.getOrElse(premiseVar.i, Set.empty)
-        implicationsToLeafs.update(premiseVar.i, previousImplications + implication)
-      implicationsToLeafJournal.append(implication)
-    log(s"tryAddImplicationToLeaf($premise, $conclusion) == $canAdd")
-    canAdd
+    trace(res => LogEvent.TryAddImplicationToLeaf(premise, conclusion, res)):
+      val implication = ImplicationToLeaf(premise, conclusion)
+      val canAdd = tryImply(instantiate(premise), conclusion, frozen = false)
+      if canAdd then
+        for premiseVar <- premise.vars do
+          val previousImplications = implicationsToLeafs.getOrElse(premiseVar.i, Set.empty)
+          implicationsToLeafs.update(premiseVar.i, previousImplications + implication)
+        implicationsToLeafJournal.append(implication)
+      canAdd
 
   private final def removeImplicationToLeaf(
       premise: QualifierExpr,
@@ -196,7 +194,7 @@ class NaiveQualifierSolver extends QualifierSolver:
     res
 
   override def debug(): Unit =
-    println("Vars state:")
-    println(s"implicationsToVars:" + implicationsToVars.values.flatten.mkString("\n  ", ",\n  ", "\n"))
-    println(s"implicationsToLeafs:" + implicationsToLeafs.values.flatten.mkString("\n  ", ",\n  ", "\n"))
-    println()
+    val dependencies =
+      implicationsToVars.values.flatten.map(imp => IArray(imp.premise, imp.conclusion))
+      ++ implicationsToLeafs.values.flatten.map(imp => IArray(imp.premise, imp.conclusion))
+    logNaiveSolverVars(IArray.from(dependencies))

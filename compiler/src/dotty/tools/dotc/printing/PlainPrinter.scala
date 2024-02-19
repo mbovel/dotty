@@ -242,12 +242,7 @@ class PlainPrinter(_ctx: Context) extends Printer {
         val refsText = if showAsCap then rootSetText else toTextCaptureSet(refs)
         toTextCapturing(parent, refsText, boxText)
       case tp @ QualifiedType(parent, qualifier) =>
-        if true then
-          val instanstiatedQualifer = ctx.qualifierSolver.instantiate(qualifier)
-          if instanstiatedQualifer == QualifierExpr.True then toTextLocal(parent)
-          else toTextLocal(parent) ~ " with " ~ instanstiatedQualifer.toString()
-        else
-          toTextLocal(parent) ~ " with " ~ qualifier.toString()
+        "(" ~ toTextLocal(parent) ~ " with " ~ qualifier.toString() ~ ")"
       case tp @ RetainingType(parent, refs) =>
         val refsText = refs match
           case ref :: Nil if ref.symbol == defn.captureRoot => rootSetText
