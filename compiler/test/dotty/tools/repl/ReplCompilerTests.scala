@@ -421,6 +421,10 @@ object ReplCompilerTests:
 
 end ReplCompilerTests
 
+class ReplHighlightTests extends ReplTest(ReplTest.defaultOptions.filterNot(_.startsWith("-color")) :+ "-color:always"):
+  @Test def i18596: Unit = initially:
+    run("""(1 to 500).foldRight("x") { case (_, n) => s"<x>$n</x>" }""")
+
 class ReplXPrintTyperTests extends ReplTest(ReplTest.defaultOptions :+ "-Xprint:typer"):
   @Test def i9111 = initially {
     run("""|enum E {
