@@ -629,7 +629,7 @@ object Parsers {
         fromWithoutQualifiedTypeSetNotation(enclosed(LPAREN, body))
       else
         enclosed(LPAREN, body)
-    
+
     def inBraces[T](body: => T): T = enclosed(LBRACE, body)
     def inBrackets[T](body: => T): T = enclosed(LBRACKET, body)
 
@@ -3848,6 +3848,9 @@ object Parsers {
       if in.token != USCORE && isKeyword(in.token) then
         syntaxError(ExpectedTokenButFound(IDENTIFIER, in.token), Span(in.offset))
       val first = pattern2(Location.InPattern)
+      first match
+        case id: Ident => currentParameterIdentifier = id.name.toTermName
+        case _ => ()
       var lhs = first match {
         case id: Ident if in.token == COMMA =>
           in.nextToken()
@@ -3856,6 +3859,7 @@ object Parsers {
           first :: Nil
       }
       val tpt = typedOpt()
+      currentParameterIdentifier = null
       val rhs =
         if tpt.isEmpty || in.token == EQUALS then
           accept(EQUALS)
