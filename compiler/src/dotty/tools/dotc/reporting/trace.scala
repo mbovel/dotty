@@ -21,6 +21,7 @@ object trace extends TraceSyntax:
   protected val isForced = false
 
   object force extends TraceSyntax:
+    require(Config.tracingEnabled)
     inline def isEnabled: true = true
     protected val isForced = true
 

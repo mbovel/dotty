@@ -20,40 +20,38 @@ class NaiveQualifierSolver extends QualifierSolver:
 
   override final def assume(p: QualifierExpr): Unit =
     val head = and(contextStack.head, p)
-    trace(LogEvent.Assume(head))
+    trace(LogEvent.Assume(p))
     contextStack = head :: contextStack.tail
 
   override final def check(to: QualifierExpr): Boolean =
     val from = contextStack.head
-    trace(res => LogEvent.Check(to, res)):
+    trace(res => LogEvent.Check(from, to, res)):
       tryImply(from, to, frozen = true) || tryImply(from, to, frozen = false)
 
   private final def tryImply(from: QualifierExpr, to: QualifierExpr, frozen: Boolean): Boolean =
-    val res =
-      trace(res => LogEvent.TryImply(from, to, res)):
-        maybeRollback:
-          to match
-            case to: ApplyVar =>
-              hasImplicationToVar(from, to) || (!frozen && tryAddImplicationToVar(from, to))
-            case to: And =>
-              to.args.forall(tryImply(from, _, frozen))
-            case _ =>
-              from match
-                case from: Or =>
-                  from.args.forall(tryImply(_, to, frozen))
-                case _ =>
-                  to match
-                    case to: Or =>
-                      to.args.exists(tryImply(from, _, frozen))
-                    case _ =>
-                      assert(!to.hasVars)
-                      from match
-                        case from if from.hasVars =>
-                          hasImplicationToLeaf(from, to) || (!frozen && tryAddImplicationToLeaf(from, to))
-                        case _ =>
-                          assert(!from.hasVars)
-                          leafImplies(from, to, frozen)
-    res
+    trace(res => LogEvent.TryImply(from, to, frozen, res)):
+      maybeRollback:
+        to match
+          case to: ApplyVar =>
+            hasImplicationToVar(from, to) || (!frozen && tryAddImplicationToVar(from, to))
+          case to: And =>
+            to.args.forall(tryImply(from, _, frozen))
+          case _ =>
+            from match
+              case from: Or =>
+                from.args.forall(tryImply(_, to, frozen))
+              case _ =>
+                to match
+                  case to: Or =>
+                    to.args.exists(tryImply(from, _, frozen))
+                  case _ =>
+                    assert(!to.hasVars)
+                    from match
+                      case from if from.hasVars =>
+                        hasImplicationToLeaf(from, to) || (!frozen && tryAddImplicationToLeaf(from, to))
+                      case _ =>
+                        assert(!from.hasVars)
+                        leafImplies(from, to, frozen)
 
   protected def leafImplies(
       rootFrom: QualifierExpr /* with !it.hasVars */,
@@ -72,7 +70,9 @@ class NaiveQualifierSolver extends QualifierSolver:
     trace(res => LogEvent.LeafImplies(rootFrom, rootTo, res)):
       rec(rootFrom, rootTo) || {
         val eqs = NaiveQualifierEquivalenceEngine(rootFrom)
-        rec(eqs.premise, eqs.rewrite(rootTo))
+        val rewrittenTo = eqs.rewrite(rootTo)
+        trace(res => LogEvent.LeafImpliesEquiv(eqs.premise, rewrittenTo, res)):
+          rec(eqs.premise, rewrittenTo)
       }
 
   /*------------*/
@@ -81,7 +81,7 @@ class NaiveQualifierSolver extends QualifierSolver:
 
   private case class ImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar):
     override def toString(): String = f"$premise ->  $conclusion"
-  private case class ImplicationToLeaf(premise: QualifierExpr, conclusion: QualifierExpr /* with !it.hasVars */ ):
+  private case class ImplicationToLeaf(premise: QualifierExpr, conclusion: QualifierExpr /* with !conclusion.hasVars */ ):
     override def toString(): String = f"$premise ->  $conclusion"
 
   /** The value associated to a given key is the set of ImplicationToVar that have this key as their conclusion.
@@ -151,6 +151,7 @@ class NaiveQualifierSolver extends QualifierSolver:
       premise: QualifierExpr /* with it.hasVars */,
       conclusion: QualifierExpr /* with !it.hasVars */
   ): Boolean =
+    // TODO(mbovel): wrong; should split ands correctly.
     val firstVar = premise.vars.head
     implicationsToLeafs
       .getOrElse(firstVar.i, Set.empty)

@@ -1,122 +1,184 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      margin: 0;
-      padding: 4em;
-    }
-
-    #trace {
-      margin-left: 1rem;
-    }
-    #trace ul {
-      list-style: none;
-      padding-left: 2ch;
-      margin: 0;
-    }
-    summary {
-      cursor: pointer;
-    }
-    summary::-webkit-details-marker,
-    summary::marker {
-      display: none;
-      content: "";
-    }
-    summary::before {
-      content: "▶";
-      display: inline-block;
-      font-size: 0.7em;
-      vertical-align: center;
-      width: 1.0rem;
-      margin-left: -1.0rem;
-    }
-    details[open] > summary::before {
-      content: "▼";
-    }
-    .res {
-      color: #309000;
-    }
-    .res::before {
-      content: "// ";
-    }
-  </style>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
-</head>
-<body>
-  <section>
-    <h1>Qualifier Logging</h1>
-    <h2>Trace</h2>
-    <div id="trace"></div>
-    <h2>Tree before</h2>
-    <pre id="before"></pre>
-    <h2>Tree after</h2>
-    <pre id="after"></pre>
-  </section>
-  <script type="module">
-    import hljs from 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/es/highlight.min.js';
-    import scala from 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/es/languages/scala.min.js';
-    hljs.registerLanguage('scala', scala);
-
-    async function init() {
-      const response = await fetch('qualifier-logging-demo.json')
-      const data = await response.json()
-      console.log(data)
-      const trace = document.getElementById('trace')
-      trace.innerHTML = renderTrace(data['trace'])
-      const before = document.getElementById('before')
-      before.innerHTML = hljs.highlight(data['treeBefore'], {language: 'scala'}).value
-      const after = document.getElementById('after')
-      after.innerHTML = hljs.highlight(data['treeAfter'], {language: 'scala'}).value
-    }
-
-    function renderTrace(node) {
-      if (node.event === undefined) {
-        return `Missing "event" property in node: ${JSON.stringify(node)}`
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        padding: 4em;
+        font-size: 1.2em;
+        line-height: 1.4;
       }
-      const head = renderEvent(node.event)
-      if (node.children === undefined) {
-        return `Missing "children" property in node: ${JSON.stringify(node)}`
-      } else if(node.children.length === 0) {
-        return head
-      } else {
-        const children = node.children.map(renderTrace).map(child => `<li>${child}</li>`).join('')
-        return `<details open><summary>${head}</summary><ul>${children}</ul></details>`
-      }
-    }
 
-    function renderEvent(event) {
-      try {
-        switch(event.$type) {
-          case 'FromTree':
-            return `<code>fromTree(${event.from}, ${event.arg})</code> <code class="res"> == ${event.result}</code>`
-          case 'Push':
-            return `<code>push()</code> <code class="res">facts = ${event.currentFacts}</code>`
-          case 'Assume':
-            return `<code>assume(${event.expr})</code>`
-          case 'Check':
-            return `<code>check(${event.expr})</code> <code class="res"> == ${event.result}</code>`
-          case 'TryImply':
-            return `<code>tryImply(${event.from}, ${event.to})</code> <code class="res"> == ${event.result}</code>`
-          case 'LeafImplies':
-            return `<code>leafImplies(${event.from}, ${event.to})</code> <code class="res"> == ${event.result}</code>`
-          case 'TryAddImplicationToLeaf':
-            return `<code>tryAddImplicationToLeaf(${event.from}, ${event.to})</code> <code class="res"> == ${event.result}</code>`
-          case 'TryAddImplicationToVar':
-            return `<code>tryAddImplicationToVar(${event.from}, ${event.to})</code> <code class="res"> == ${event.result}</code>`
+      #trace {
+        margin-left: 1rem;
+      }
+      #trace ul {
+        list-style: none;
+        padding-left: 2ch;
+        margin: 0;
+      }
+      summary,
+      #events-selector label,
+      #events-selector input[type="checkbox"] {
+        cursor: pointer;
+      }
+      #events-selector label {
+        margin-right: 1ch;
+      }
+      #events-selector input[type="checkbox"] {
+        margin-right: 1ch;
+        width: 1rem;
+        height: 1rem;
+      }
+      summary::-webkit-details-marker,
+      summary::marker {
+        display: none;
+        content: "";
+      }
+      summary::before {
+        content: "▶";
+        display: inline-block;
+        font-size: 0.7em;
+        vertical-align: center;
+        width: 1rem;
+        margin-left: -1rem;
+      }
+      details[open] > summary::before {
+        content: "▼";
+      }
+      .res {
+        color: #94008d;
+      }
+      .res::before {
+        content: "// ";
+      }
+    </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css" />
+  </head>
+  <body>
+    <section>
+      <h1>Qualifier Logging</h1>
+      <h2>Trace</h2>
+      <div id="events-selector"></div>
+      <div id="trace"></div>
+      <h2>Tree before</h2>
+      <pre id="before"></pre>
+      <h2>Tree setup</h2>
+      <pre id="setup"></pre>
+      <h2>Tree after</h2>
+      <pre id="after"></pre>
+    </section>
+    <script type="module">
+      import hljs from "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/es/highlight.min.js";
+      import scala from "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/es/languages/scala.min.js";
+      hljs.registerLanguage("scala", scala);
+
+      async function init() {
+        const response = await fetch("qualifier-logging.json");
+        const data = await response.json();
+        const eventsSelector = document.getElementById("events-selector");
+        const events = getEvents(data["trace"]);
+        eventsSelector.innerHTML = renderEventsSelector(events);
+        eventsSelector.addEventListener("change", saveEventSelectorState);
+        eventsSelector.addEventListener("change", updateTraceView);
+        const trace = document.getElementById("trace");
+        updateTraceView();
+        const before = document.getElementById("before");
+        before.innerHTML = hljs.highlight(data["treeBefore"], { language: "scala" }).value;
+        const setup = document.getElementById("setup");
+        setup.innerHTML = hljs.highlight(data["treeSetup"], { language: "scala" }).value;
+        const after = document.getElementById("after");
+        after.innerHTML = hljs.highlight(data["treeAfter"], { language: "scala" }).value;
+
+        function getEvents(rootNodes) {
+          const events = new Set();
+          function loop(node) {
+            events.add(node.event.$type);
+            node.children.forEach(loop);
+          }
+          rootNodes.forEach(loop);
+          return events;
         }
-        return `<code>${event.$type}</code>`
-      } catch(e) {
-        console.error(e)
-        return `Cannot render event: ${JSON.stringify(event)}`
-      }
-    }
 
-    document.addEventListener('DOMContentLoaded', init)
-  </script>
-</body>
+        function saveEventSelectorState() {
+          const selected = new Set([...eventsSelector.querySelectorAll("input:checked")].map((input) => input.value));
+          for (const event of events) {
+            window.localStorage.setItem("show" + event, selected.has(event));
+          }
+        }
+
+        function renderEventsSelector() {
+          return (
+            "<p>Events to show: " +
+            [...events]
+              .map((event) => {
+                const checked = window.localStorage.getItem("show" + event) === "true" ? "checked" : "";
+                return `<label><input type="checkbox" value="${event}" ${checked}>${event}</label>`;
+              })
+              .join("") +
+            "</p>"
+          );
+        }
+
+        function updateTraceView() {
+          trace.innerHTML = renderTrace(data["trace"]);
+        }
+
+        function renderTrace(rootNodes) {
+          const checkInputs = eventsSelector.querySelectorAll("input:checked");
+          const selected = new Set([...checkInputs].map((input) => input.value));
+          function renderNode(node) {
+            if (!node.event) return `Missing "event" property in node: ${JSON.stringify(node)}`;
+            const hasChildren = node.children && node.children.length > 0;
+            const show = selected.has(node.event.$type);
+            const head = renderEvent(node.event);
+            if (!hasChildren) return show ? `<li>${head}</li>` : "";
+            const children = node.children.map(renderNode).join("");
+            return show ? `<li><details><summary>${head}</summary><ul>${children}</ul></details></li>` : children;
+          }
+          console.log(rootNodes);
+          return `<ul>${rootNodes.map(renderNode).join("")}</ul>`;
+        }
+
+        function renderEvent(event) {
+          try {
+            switch (event.$type) {
+              case "OfType":
+                return `<code>ofType(${event.from})</code> <code class="res"> == ${event.result}</code>`;
+              case "FromTree":
+                return `<code>fromTree(${event.from}, ${event.arg})</code> <code class="res"> == ${event.result}</code>`;
+              case "Push":
+                return `<code>push()</code> <code class="res">facts = ${event.currentFacts}</code>`;
+              case "Assume":
+                return `<code>assume(${event.expr})</code>`;
+              case "Check":
+                return `<code>check(${event.from}, ${event.to})</code> <code class="res"> == ${event.result}</code>`;
+              case "TryImply":
+                return `<code>tryImply(${event.from}, ${event.to}, ${event.frozen})</code> <code class="res"> == ${event.result}</code>`;
+              case "LeafImplies":
+                return `<code>leafImplies(${event.from}, ${event.to})</code> <code class="res"> == ${event.result}</code>`;
+              case "LeafImpliesEquiv":
+                return `<code>LeafImpliesEquiv(${event.from}, ${event.to})</code> <code class="res"> == ${event.result}</code>`;
+              case "TryAddImplicationToLeaf":
+                return `<code>tryAddImplicationToLeaf(${event.from}, ${event.to})</code> <code class="res"> == ${event.result}</code>`;
+              case "TryAddImplicationToVar":
+                return `<code>tryAddImplicationToVar(${event.from}, ${event.to})</code> <code class="res"> == ${event.result}</code>`;
+              case "TypeMap":
+                return `<code>map types ${event.from}</code> <code class="res"> == ${event.result}</code>`;
+            }
+            return `<code>${event.$type}</code>`;
+          } catch (e) {
+            console.error(e);
+            return `Cannot render event: ${JSON.stringify(event)}`;
+          }
+        }
+      }
+
+      document.addEventListener("DOMContentLoaded", init);
+    </script>
+  </body>
 </html>

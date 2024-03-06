@@ -53,7 +53,7 @@ object Recheck:
      *  The update is valid until after Recheck. After that the symbol's denotation
      *  is reset to what it was before PreRecheck.
      */
-    def updateInfo(prevPhase: DenotTransformer, newInfo: Type, newFlags: FlagSet = sym.flags, newOwner: Symbol = sym.owner): Unit =
+    def updateInfo(prevPhase: DenotTransformer, newInfo: Type, newFlags: FlagSet = sym.flags, newOwner: Symbol = sym.maybeOwner): Unit =
       if (sym.info ne newInfo) || sym.flags != newFlags || (sym.maybeOwner ne newOwner)  then
         val flags = if newInfo.isInstanceOf[LazyType] then newFlags &~ Touched else newFlags
         sym.copySymDenotation(owner = newOwner, info = newInfo, initFlags = flags)

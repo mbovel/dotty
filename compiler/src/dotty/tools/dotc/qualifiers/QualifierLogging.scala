@@ -12,13 +12,17 @@ object QualifierLogging:
     config.Printers.qual.println(msg)
 
   enum LogEvent:
-    case Root
+    case OfType(from: String, result: QualifierExpr)
     case FromTree(from: String, arg: String, result: QualifierExpr)
     case Push(currentFacts: String)
     case Assume(expr: QualifierExpr)
-    case Check(expr: QualifierExpr, result: Boolean)
-    case TryImply(from: QualifierExpr, to: QualifierExpr, result: Boolean)
+    case TypeTryImply(from: String, to: String, result: QualifierExpr)
+    case Check(from: QualifierExpr, to: QualifierExpr, result: Boolean)
+    case QualifierImplies(from: QualifierExpr, to: QualifierExpr, result: Boolean)
+    case TryImply(from: QualifierExpr, to: QualifierExpr, frozen: Boolean, result: Boolean)
     case LeafImplies(from: QualifierExpr, to: QualifierExpr, result: Boolean)
+    case LeafImpliesEquiv(from: QualifierExpr, to: QualifierExpr, result: Boolean)
+    case TypeMap(from: QualifierExpr, result: QualifierExpr)
     case TryAddImplicationToLeaf(from: QualifierExpr, to: QualifierExpr, result: Boolean)
     case TryAddImplicationToVar(from: QualifierExpr, to: QualifierExpr, result: Boolean)
 
@@ -95,13 +99,16 @@ object QualifierLogging:
     naiveSolverVars += vars
 
   var treeBefore: String | Null = null
-
   def logTreeBefore(tree: String): Unit =
     if !enabled then return
     this.treeBefore = tree
 
-  var treeAfter: String | Null = null
+  var treeSetup: String | Null = null
+  def logTreeSetup(tree: String): Unit =
+    if !enabled then return
+    this.treeSetup = tree
 
+  var treeAfter: String | Null = null
   def logTreeAfter(tree: String): Unit =
     if !enabled then return
     this.treeAfter = tree
@@ -109,7 +116,7 @@ object QualifierLogging:
   def dumpLogs(file: String): Unit =
     assert(enabled)
     assert(eventsStack.length == 1)
-    val eventsJson = eventNodeToJson(LogEventNode(Root, eventsStack.head))
+    val eventsJson = eventsStack.head.map(eventNodeToJson).mkString("[", ",", "]")
     val naiveSolverVarsJson = naiveSolverVars.map { case NaiveSolverVars(exprs, dependencies) =>
       val exprsJson = exprs.map(_.toString).map(stringToJson).mkString("[", ",", "]")
       val dependenciesJson = dependencies.map { arr =>
@@ -118,12 +125,14 @@ object QualifierLogging:
       s"""{"exprs": $exprsJson, "dependencies": $dependenciesJson}"""
     }.mkString("[", ",", "]")
     val treeBeforeJson = if treeBefore == null then "null" else stringToJson(treeBefore.nn)
+    val treeSetupJson = if treeSetup == null then "null" else stringToJson(treeSetup.nn)
     val treeAfterJson = if treeAfter == null then "null" else stringToJson(treeAfter.nn)
     val jsonStr: String = s"""
       {
         "trace": $eventsJson,
         "naiveSolverVars": $naiveSolverVarsJson,
         "treeBefore": $treeBeforeJson,
+        "treeSetup": $treeSetupJson,
         "treeAfter": $treeAfterJson
       }""".stripIndent().nn
     Files.write(Paths.get(file), jsonStr.getBytes)

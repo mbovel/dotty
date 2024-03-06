@@ -525,7 +525,7 @@ object Phases {
   def flattenPhase(using Context): Phase                = ctx.base.flattenPhase
   def genBCodePhase(using Context): Phase               = ctx.base.genBCodePhase
   def checkCapturesPhase(using Context): Phase          = ctx.base.checkCapturesPhase
-  def checkQualifiersPhase(using Context): Phase       = ctx.base.checkQualifiersPhase
+  def checkQualifiersPhase(using Context): Phase        = ctx.base.checkQualifiersPhase
 
   def unfusedPhases(using Context): Array[Phase] = ctx.base.phases
 

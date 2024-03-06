@@ -40,13 +40,10 @@ import java.lang.ref.WeakReference
 import compiletime.uninitialized
 import cc.{CapturingType, CaptureSet, derivedCapturingType, isBoxedCapturing, isCaptureChecking, isRetains, isRetainsLike}
 import CaptureSet.{CompareResult, IdempotentCaptRefMap, IdentityCaptRefMap}
-import qualifiers.{derivedQualifiedType, QualifiedType}
-import qualifiers.QualifierExpr
+import qualifiers.{derivedQualifiedType, EventuallyQualifiedType, QualifierLogging, QualifiedType, QualifierExpr, QualifierExprs, typeMap, innerTypes}
 
 import scala.annotation.internal.sharable
 import scala.annotation.threadUnsafe
-
-
 
 object Types extends TypeUtils {
 
@@ -3969,8 +3966,9 @@ object Types extends TypeUtils {
                     case _ => s
                 }
               case QualifiedType(parent, refinement) =>
-                // TODO(mbovel)
-                compute(status, tp.parent, theAcc)
+                refinement.innerTypes.foldLeft(status)(compute(_, _, theAcc))
+              case EventuallyQualifiedType(parent, refinement) if ctx.phase.id < Phases.checkQualifiersPhase.id =>
+                combine(status, Provisional)
               case _ =>
                 if tp.annot.refersToParamOf(thisLambdaType) then TrueDeps
                 else compute(status, tp.parent, theAcc)
@@ -4443,7 +4441,7 @@ object Types extends TypeUtils {
     final val Unknown: DependencyStatus = 0      // not yet computed
     final val NoDeps: DependencyStatus = 1       // no dependent parameters found
     final val FalseDeps: DependencyStatus = 2    // all dependent parameters are prefixes of non-depended alias types
-    final val CaptureDeps: DependencyStatus = 3  // dependencies in capture sets under captureChecking, otherwise only false dependencoes
+    final val CaptureDeps: DependencyStatus = 3  // dependencies in capture sets under captureChecking, otherwise only false dependencies
     final val TrueDeps: DependencyStatus = 4     // some truly dependent parameters exist
     final val StatusMask: DependencyStatus = 7   // the bits indicating actual dependency status
     final val Provisional: DependencyStatus = 8  // set if dependency status can still change due to type variable instantiations
@@ -6077,7 +6075,7 @@ object Types extends TypeUtils {
     protected def mapQualifiedType(tp: Type, parent: Type, qualifier: QualifierExpr, v: Int): Type =
       val saved = variance
       variance = v
-      try derivedQualifiedType(tp, this(parent), qualifier)
+      try derivedQualifiedType(tp, this(parent), qualifier.typeMap(this))
       finally variance = saved
 
     /** Map this function over given type */
