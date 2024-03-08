@@ -62,7 +62,7 @@ enum QualifierExpr:
       case Or(args)                        => f(args.map(_.map(f)).foldLeft(False)(or))
       case Not(arg)                        => f(not(arg.map(f)))
       case Equal(left, right)              => f(equal(left.map(f), right.map(f)))
-      case GreaterThanOrEqual(left, right) => f(GreaterThanOrEqual(left.map(f), right.map(f)))
+      case GreaterThanOrEqual(left, right) => f(greaterThanOrEqual(left.map(f), right.map(f)))
       case IntConst(value)                 => f(this)
       case DoubleConst(value)              => f(this)
       case StringConst(value)              => f(this)
