@@ -16,6 +16,8 @@ import ast.tpd
 import solver.QualifierSolver
 import QualifierExpr.*
 import dotty.tools.dotc.qualifiers.QualifierLogging.log
+import dotty.tools.dotc.typer.ErrorReporting.Addenda
+import dotty.tools.dotc.typer.ErrorReporting.NothingToAdd
 
 class CheckQualifiedTypes extends Recheck:
   thisPhase =>
@@ -45,6 +47,16 @@ class CheckQualifiedTypes extends Recheck:
         tree match
           case tree: TypeTree => tree.rememberTypeAlways(instantiateMap(tree.knownType))
           case _              => ()
+
+    override def checkConformsExpr(actual: Type, expected: Type, tree: tpd.Tree, addenda: Addenda)(using Context): Type =
+      tree match
+        case Apply(fn, args) if (fn.symbol == defn.RuntimeChecked) =>
+          //Don't trow exception here
+          println(defn.RuntimeChecked)
+          println("fn.symbol: " + fn.symbol)
+          super.checkConformsExpr(actual, expected, tree, addenda)
+        case _ =>
+          super.checkConformsExpr(actual, expected, tree, addenda)
 
     def instantiateMap(using Context) = new TypeMap:
       def apply(t: Type) =
@@ -150,6 +162,7 @@ class CheckQualifiedTypes extends Recheck:
                     ErrorType(msg)
                   else tree.knownType
         case _ => tree.knownType
+
 
 object CheckQualifiedTypes:
   class Pre extends PreRecheck, IdentityDenotTransformer:
