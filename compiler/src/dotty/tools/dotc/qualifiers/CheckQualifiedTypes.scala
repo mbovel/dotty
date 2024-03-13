@@ -49,12 +49,14 @@ class CheckQualifiedTypes extends Recheck:
           case _              => ()
 
     override def checkConformsExpr(actual: Type, expected: Type, tree: tpd.Tree, addenda: Addenda)(using Context): Type =
+
       tree match
-        case Apply(fn, args) if (fn.symbol == defn.RuntimeChecked) =>
+        case Apply(fn, args) if (fn.symbol == defn.RuntimeCheckedMethod) =>
           //Don't trow exception here
-          println(defn.RuntimeChecked)
+          println(defn.RuntimeCheckedMethod)
           println("fn.symbol: " + fn.symbol)
-          super.checkConformsExpr(actual, expected, tree, addenda)
+          //super.checkConformsExpr(actual, expected, tree, addenda)
+          actual
         case _ =>
           super.checkConformsExpr(actual, expected, tree, addenda)
 
