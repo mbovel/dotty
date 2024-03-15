@@ -1,10 +1,17 @@
+
 class MyRange(val from: Int, val to: Int with to > from):
   def foreach(f: {i: Int with i >= from && i < to} => Unit): Unit =
-    var i: Int with i >= from && i < to = from
-    while i < to do
-      f(i)
-      i = (i + 1).asInstanceOf[{i2: Int with i2 >= from && i2 < to}] // Need flow-sensitive typing here
+    def loop(i: Int with i >= from && i <= to): Unit =
+      i match
+        case i: {i: Int with i >= from && i < to} => f(i); loop(i + 1)
+        case _ => ()
+    loop(from)
+
+def myRange(a: Int, b: Int with b > a): MyRange {val from: a.type; val to: b.type} =
+  new MyRange(a, b).asInstanceOf[MyRange {val from: a.type; val to: b.type}]
 
 def main =
-  MyRange(0, 10).foreach: j =>
-    val y: Int with y >= 0 && y < 10 = j
+  val r = MyRange(0, 10)
+  r.foreach: j =>
+    val y: Int with y >= r.from && y <= r.to = j
+    ()
