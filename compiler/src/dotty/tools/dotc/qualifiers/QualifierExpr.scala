@@ -1,14 +1,18 @@
 package dotty.tools.dotc.qualifiers
 
-// This file does not depend on Dotty.
-
 import scala.annotation.threadUnsafe
 import scala.collection.mutable
 import math.Ordering.Implicits.{seqOrdering, infixOrderingOps}
 
-import QualifierExpr.*
+import dotty.tools.dotc.core.Contexts.{ctx, Context}
+import dotty.tools.dotc.core.Types.{TermRef, SingletonType}
+import dotty.tools.dotc.printing.Showable
 
-enum QualifierExpr:
+import QualifierExpr.*
+import dotty.tools.dotc.printing.Printer
+import dotty.tools.dotc.printing.Texts.Text
+
+enum QualifierExpr extends Showable:
   // Predicates:
   case ApplyVar(i: Int, arg: QualifierExpr = PredArg)
   case True
@@ -17,11 +21,15 @@ enum QualifierExpr:
   case Or(args: List[QualifierExpr])
   case Not(arg: QualifierExpr)
   case Equal(left: QualifierExpr, right: QualifierExpr)
+  case NotEqual(left: QualifierExpr, right: QualifierExpr)
+  case Less(left: QualifierExpr, right: QualifierExpr)
+  case LessEqual(left: QualifierExpr, right: QualifierExpr)
+  case Greater(left: QualifierExpr, right: QualifierExpr)
   case GreaterEqual(left: QualifierExpr, right: QualifierExpr)
 
   // General expressions:
   case PredArg
-  case Ref(id: Int, name: String)
+  case Ref(tp: SingletonType)
   case App(fun: QualifierExpr, args: List[QualifierExpr])
   case IntSum(const: Int, args: List[QualifierExpr])
   case IntProduct(const: Int, args: List[QualifierExpr])
@@ -29,25 +37,7 @@ enum QualifierExpr:
   case DoubleConst(value: Double)
   case StringConst(value: String)
 
-  override def toString(): String =
-    def showApp(name: String, args: Iterable[QualifierExpr]): String = f"$name(${args.mkString(", ")})"
-    this match
-      case ApplyVar(i, arg)          => f"?$i($arg)"
-      case True                      => "true"
-      case False                     => "false"
-      case And(args)                 => args.mkString(" and ")
-      case Or(args)                  => args.mkString(" or ")
-      case Not(arg)                  => f"not(${arg})"
-      case Equal(left, right)        => f"${left} == ${right}"
-      case GreaterEqual(left, right) => f"${left} >= ${right}"
-      case IntConst(value)           => value.toString
-      case DoubleConst(value)        => value.toString
-      case StringConst(value)        => value.toString
-      case PredArg                   => "it"
-      case Ref(n, name)              => name
-      case App(fun, args)            => showApp(fun.toString, args)
-      case IntSum(const, args)       => args.mkString(" + ") + (if const != 0 then f" + $const" else "")
-      case IntProduct(const, args)   => args.mkString(" * ") + (if const != 1 then f" * $const" else "")
+  def toText(printer: Printer): Text = printer.toTextQualifierExpr(this)
 
   def map(f: QualifierExpr => QualifierExpr): QualifierExpr =
     // TODO(mbovel): optimize allocations. `map(x => x)` shouldn't allocate
@@ -62,12 +52,16 @@ enum QualifierExpr:
       case Or(args)                  => f(args.map(_.map(f)).foldLeft(False)(or))
       case Not(arg)                  => f(not(arg.map(f)))
       case Equal(left, right)        => f(equal(left.map(f), right.map(f)))
+      case NotEqual(left, right)     => f(notEqual(left.map(f), right.map(f)))
+      case Less(left, right)         => f(less(left.map(f), right.map(f)))
+      case LessEqual(left, right)    => f(lessEqual(left.map(f), right.map(f)))
       case GreaterEqual(left, right) => f(greaterEqual(left.map(f), right.map(f)))
+      case Greater(left, right)      => f(greater(left.map(f), right.map(f)))
       case IntConst(value)           => f(this)
       case DoubleConst(value)        => f(this)
       case StringConst(value)        => f(this)
       case PredArg                   => f(this)
-      case Ref(id, name)             => f(this)
+      case Ref(tp)                   => f(this)
       case App(fun, args)            => f(App(fun.map(f), args.map(_.map(f))))
       case IntSum(const, args)       => f(args.map(_.map(f)).foldRight(IntConst(const))(intSum))
       case IntProduct(const, args)   => f(args.map(_.map(f)).foldRight(IntConst(const))(intProduct))
@@ -79,6 +73,10 @@ enum QualifierExpr:
       case Or(args)                  => args.foreach(_.foreach(f))
       case Not(arg)                  => arg.foreach(f)
       case Equal(left, right)        => left.foreach(f); right.foreach(f)
+      case NotEqual(left, right)     => left.foreach(f); right.foreach(f)
+      case Less(left, right)         => left.foreach(f); right.foreach(f)
+      case LessEqual(left, right)    => left.foreach(f); right.foreach(f)
+      case Greater(left, right)      => left.foreach(f); right.foreach(f)
       case GreaterEqual(left, right) => left.foreach(f); right.foreach(f)
       case App(fun, args)            => fun.foreach(f); args.foreach(_.foreach(f))
       case IntSum(const, args)       => args.foreach(_.foreach(f))
@@ -104,10 +102,14 @@ enum QualifierExpr:
       case And(args)                 => args.toList.flatMap(_.vars)
       case Or(args)                  => args.toList.flatMap(_.vars)
       case Not(arg)                  => arg.vars
-      case Equal(l, right)           => l.vars ++ right.vars
+      case Equal(left, right)        => left.vars ++ right.vars
+      case NotEqual(left, right)     => left.vars ++ right.vars
+      case Less(left, right)         => left.vars ++ right.vars
+      case LessEqual(left, right)    => left.vars ++ right.vars
+      case Greater(left, right)      => left.vars ++ right.vars
       case GreaterEqual(left, right) => left.vars ++ right.vars
       case PredArg                   => Nil
-      case Ref(id, name)             => Nil
+      case Ref(tp)                   => Nil
       case App(fun, args)            => fun.vars ++ args.flatMap(_.vars)
       case IntSum(const, args)       => args.flatMap(_.vars)
       case IntProduct(const, args)   => args.flatMap(_.vars)
@@ -118,17 +120,19 @@ enum QualifierExpr:
   def hasVars: Boolean = vars.nonEmpty
 
   def shallowNormalize(): QualifierExpr =
+    def equalNorm(left: QualifierExpr, right: QualifierExpr) = equal(left, right).shallowNormalize()
     this match
-      case And(args) =>
-        if args.exists(arg => args.contains(Not(arg))) then False
-        else this
-      case Or(args) =>
-        if args.exists(arg => args.contains(Not(arg))) then True
-        else this
-      case Equal(left, right) =>
-        if right < left then Equal(right, left)
-        else this
-      case IntSum(const, args) =>
+      case And(args) if args.exists(arg => args.contains(Not(arg))) =>
+        False
+      case Or(args) if args.exists(arg => args.contains(Not(arg))) =>
+        True
+      case Equal(left, right) if right < left =>
+        Equal(right, left)
+      case NotEqual(left, right)  => not(equalNorm(left, right))
+      case Less(left, right)      => and(not(equalNorm(left, right)), greaterEqual(left, right))
+      case LessEqual(left, right) => not(and(not(Equal(left, right)), greaterEqual(right, left)))
+      case Greater(left, right)   => not(greaterEqual(left, right))
+      case IntSum(const, args)    =>
         /*
         // Stable sort implementation.
         val groups = collection.mutable.LinkedHashMap[Set[QualifierExpr], Int]()
@@ -216,10 +220,37 @@ object QualifierExpr:
       case (StringConst(x), StringConst(y)) => if x == y then True else False
       case _                                => Equal(l, r)
 
+  def notEqual(l: QualifierExpr, r: QualifierExpr) =
+    (l, r) match
+      case _ if l == r                      => False
+      case (IntConst(x), IntConst(y))       => if x != y then True else False
+      case (DoubleConst(x), DoubleConst(y)) => if x != y then True else False
+      case (StringConst(x), StringConst(y)) => if x != y then True else False
+      case _                                => NotEqual(l, r)
+
+  def less(l: QualifierExpr, r: QualifierExpr) =
+    (l, r) match
+      case (IntConst(x), IntConst(y))       => if x < y then True else False
+      case (DoubleConst(x), DoubleConst(y)) => if x < y then True else False
+      case _                                => Less(l, r)
+
+  def lessEqual(l: QualifierExpr, r: QualifierExpr) =
+    (l, r) match
+      case (IntConst(x), IntConst(y))       => if x <= y then True else False
+      case (DoubleConst(x), DoubleConst(y)) => if x <= y then True else False
+      case _                                => LessEqual(l, r)
+
+  def greater(l: QualifierExpr, r: QualifierExpr) =
+    (l, r) match
+      case (IntConst(x), IntConst(y))       => if x > y then True else False
+      case (DoubleConst(x), DoubleConst(y)) => if x > y then True else False
+      case _                                => Greater(l, r)
+
   def greaterEqual(l: QualifierExpr, r: QualifierExpr) =
     (l, r) match
-      case (IntConst(x), IntConst(y)) => if x >= y then True else False
-      case _                          => GreaterEqual(l, r)
+      case (IntConst(x), IntConst(y))       => if x >= y then True else False
+      case (DoubleConst(x), DoubleConst(y)) => if x >= y then True else False
+      case _                                => GreaterEqual(l, r)
 
   def intSum(l: QualifierExpr, r: QualifierExpr): QualifierExpr =
     (l, r) match
@@ -291,6 +322,18 @@ object QualifierExpr:
         case (Equal(xLeft, xRight), Equal(yLeft, yRight))               => xLeft.compareTo(yLeft) <=> xRight.compareTo(yRight)
         case (Equal(_, _), _)                                           => -1
         case (_, Equal(_, _))                                           => 1
+        case (NotEqual(xLeft, xRight), NotEqual(yLeft, yRight))         => xLeft.compareTo(yLeft) <=> xRight.compareTo(yRight)
+        case (NotEqual(_, _), _)                                        => -1
+        case (_, NotEqual(_, _))                                        => 1
+        case (Less(xLeft, xRight), Less(yLeft, yRight))                 => xLeft.compareTo(yLeft) <=> xRight.compareTo(yRight)
+        case (Less(_, _), _)                                            => -1
+        case (_, Less(_, _))                                            => 1
+        case (LessEqual(xLeft, xRight), LessEqual(yLeft, yRight))       => xLeft.compareTo(yLeft) <=> xRight.compareTo(yRight)
+        case (LessEqual(_, _), _)                                       => -1
+        case (_, LessEqual(_, _))                                       => 1
+        case (Greater(xLeft, xRight), Greater(yLeft, yRight))           => xLeft.compareTo(yLeft) <=> xRight.compareTo(yRight)
+        case (Greater(_, _), _)                                         => -1
+        case (_, Greater(_, _))                                         => 1
         case (GreaterEqual(xLeft, xRight), GreaterEqual(yLeft, yRight)) => xLeft.compareTo(yLeft) <=> xRight.compareTo(yRight)
         case (GreaterEqual(_, _), _)                                    => -1
         case (_, GreaterEqual(_, _))                                    => 1
@@ -303,4 +346,4 @@ object QualifierExpr:
         case (PredArg, PredArg)                                         => 0
         case (PredArg, _)                                               => -1
         case (_, PredArg)                                               => 1
-        case (Ref(id, name), Ref(id2, name2))                           => id.compareTo(id2)
+        case (Ref(x), Ref(y))                                           => System.identityHashCode(x).compareTo(System.identityHashCode(y))

@@ -4,7 +4,9 @@ package qualifiers
 
 import core.*
 import Types.*, Symbols.*, Contexts.*, ast.tpd.*
+
 import QualifierExpr.*
+import QualifierLogging.trace
 
 extension (tp: Type)
   def qualifierImplies(that: Type)(using Context): Boolean =
@@ -55,8 +57,7 @@ extension (expr: QualifierExpr)
       e match
         case ref: Ref if !visitedRefs(ref) =>
           visitedRefs += ref
-          val tp = QualifierExprs.toType(ref)
-          val pred = QualifierExprs.fromType(tp).subst(PredArg, ref)
+          val pred = QualifierExprs.fromType(ref.tp).subst(PredArg, ref)
           assumptions = and(assumptions, pred)
           pred.foreach(visit)
         case _ => ()
@@ -66,16 +67,17 @@ extension (expr: QualifierExpr)
   def innerTypes(using Context): List[SingletonType] =
     val buf = new collection.mutable.ListBuffer[SingletonType]
     expr.foreach:
-      case ref: Ref => buf += QualifierExprs.toType(ref)
+      case ref: Ref => buf += ref.tp
       case _        => ()
     buf.toList
 
   def typeMap(tm: TypeMap)(using Context): QualifierExpr =
-    QualifierLogging.trace(res => QualifierLogging.LogEvent.TypeMap(expr, res)):
+    trace[QualifierExpr](res => QualifierLogging.LogEvent.TypeMap(expr.show, res.show)):
       expr.map:
         case ref: Ref =>
-          val newTp: SingletonType = tm(QualifierExprs.toType(ref)) match
-            case singletonTp: SingletonType => singletonTp
-            case tp                         => SkolemType(tp)
-          QualifierExprs.fromSingletonType(newTp)
+          val newTp: SingletonType =
+            tm(ref.tp) match
+              case tp: SingletonType => tp
+              case tp                => SkolemType(tp)
+          Ref(newTp)
         case other => other

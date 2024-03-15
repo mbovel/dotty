@@ -13,6 +13,7 @@ import typer.ImportInfo
 import cc.CaptureSet
 
 import scala.annotation.internal.sharable
+import dotty.tools.dotc.qualifiers.QualifierExpr
 
 /** The base class of all printers
  */
@@ -109,6 +110,9 @@ abstract class Printer {
 
   /** Textual representation of a reference in a capture set */
   def toTextCaptureSet(cs: CaptureSet): Text
+
+  /** Textual representation of a qualifier expression */
+  def toTextQualifierExpr(e: QualifierExpr): Text
 
   /** Textual representation of symbol's declaration */
   def dclText(sym: Symbol): Text

@@ -12,19 +12,19 @@ object QualifierLogging:
     config.Printers.qual.println(msg)
 
   enum LogEvent:
-    case OfType(from: String, result: QualifierExpr)
-    case FromTree(from: String, arg: String, result: QualifierExpr)
+    case OfType(from: String, result: String)
+    case FromTree(from: String, arg: String, result: String)
     case Push(currentFacts: String)
-    case Assume(expr: QualifierExpr)
-    case TypeTryImply(from: String, to: String, result: QualifierExpr)
-    case Check(from: QualifierExpr, to: QualifierExpr, result: Boolean)
-    case QualifierImplies(from: QualifierExpr, to: QualifierExpr, result: Boolean)
-    case TryImply(from: QualifierExpr, to: QualifierExpr, frozen: Boolean, result: Boolean)
-    case LeafImplies(from: QualifierExpr, to: QualifierExpr, result: Boolean)
-    case LeafImpliesEquiv(from: QualifierExpr, to: QualifierExpr, result: Boolean)
-    case TypeMap(from: QualifierExpr, result: QualifierExpr)
-    case TryAddImplicationToLeaf(from: QualifierExpr, to: QualifierExpr, result: Boolean)
-    case TryAddImplicationToVar(from: QualifierExpr, to: QualifierExpr, result: Boolean)
+    case Assume(expr: String)
+    case TypeTryImply(from: String, to: String, result: String)
+    case Check(from: String, to: String, result: Boolean)
+    case QualifierImplies(from: String, to: String, result: Boolean)
+    case TryImply(from: String, to: String, frozen: Boolean, result: Boolean)
+    case LeafImplies(from: String, to: String, result: Boolean)
+    case LeafImpliesEquiv(from: String, to: String, result: Boolean)
+    case TypeMap(from: String, result: String)
+    case TryAddImplicationToLeaf(from: String, to: String, result: Boolean)
+    case TryAddImplicationToVar(from: String, to: String, result: Boolean)
 
   import LogEvent.*
 
@@ -88,11 +88,11 @@ object QualifierLogging:
     lazy val colorsRegex = "(\u001b|\u2190)\\[[0-9;]*m|ï»¿".r
     colorsRegex.replaceAllIn(line,"")
 
-  case class NaiveSolverVars(exprs: IArray[QualifierExpr], dependencies: IArray[IArray[Int]])
+  case class NaiveSolverVars(exprs: IArray[String], dependencies: IArray[IArray[Int]])
 
   val naiveSolverVars = ArrayBuffer[NaiveSolverVars]()
 
-  def logNaiveSolverVars(dependencies: IArray[IArray[QualifierExpr]]): Unit =
+  def logNaiveSolverVars(dependencies: IArray[IArray[String]]): Unit =
     if !enabled then return
     val exprs = IArray.from(dependencies.flatten.distinct)
     val vars = NaiveSolverVars(exprs, IArray.from(dependencies.map(_.map(exprs.indexOf(_)))))

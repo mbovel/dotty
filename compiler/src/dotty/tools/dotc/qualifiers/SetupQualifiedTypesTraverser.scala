@@ -27,6 +27,10 @@ class SetupQualifiedTypesTraverser(
           tree.tpt.rememberType(removeAnnotations(tree.tpt.knownType))
           traverse(tree.rhs)
       */
+      case tree: ValDef if tree.symbol.is(Flags.Case) =>
+        inContext(localCtx(tree)):
+          tree.tpt.rememberType(normalizeAnnotations(tree.tpt.knownType))
+          traverse(tree.rhs)
       case tree: DefDef =>
         inContext(localCtx(tree)):
           tree.paramss.foreach(traverse)

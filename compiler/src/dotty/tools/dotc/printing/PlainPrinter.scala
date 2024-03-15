@@ -160,6 +160,33 @@ class PlainPrinter(_ctx: Context) extends Printer {
            //     ~ Str("?").provided(!cs.isConst)
       core ~ cs.optionalInfo
 
+
+  def toTextQualifierExpr(e: QualifierExpr): Text =
+    import QualifierExpr.*
+    inline def mkText(args: List[QualifierExpr], sep: String) = Text(args.map(toTextQualifierExpr), sep)
+    e match
+      case ApplyVar(i, arg)          => f"?$i(" ~ toTextQualifierExpr(arg) ~ ")"
+      case True                      => "true"
+      case False                     => "false"
+      case And(args)                 => mkText(args, " and ")
+      case Or(args)                  => mkText(args, " or ")
+      case Not(arg)                  => "not (" ~ toTextQualifierExpr(arg) ~ ")"
+      case Equal(left, right)        => toTextQualifierExpr(left) ~ " == " ~ toTextQualifierExpr(right)
+      case NotEqual(left, right)     => toTextQualifierExpr(left) ~ " != " ~ toTextQualifierExpr(right)
+      case Less(left, right)         => toTextQualifierExpr(left) ~ " < " ~ toTextQualifierExpr(right)
+      case LessEqual(left, right)    => toTextQualifierExpr(left) ~ " <= " ~ toTextQualifierExpr(right)
+      case Greater(left, right)      => toTextQualifierExpr(left) ~ " > " ~ toTextQualifierExpr(right)
+      case GreaterEqual(left, right) => toTextQualifierExpr(left) ~ " >= " ~ toTextQualifierExpr(right)
+      case IntConst(value)           => value.toString
+      case DoubleConst(value)        => value.toString
+      case StringConst(value)        => value.toString
+      case PredArg                   => "it"
+      case Ref(tp: TermRef)          => ctx.printer.toTextRef(tp)
+      case Ref(tp)                   => tp.show
+      case App(fun, args)            => toTextQualifierExpr(fun) ~ "(" ~ mkText(args, ", ") ~ ")"
+      case IntSum(const, args)       => mkText(args, " + ") ~ (if const != 0 then f" + $const" else "")
+      case IntProduct(const, args)   => mkText(args, " * ") ~ (if const != 1 then f" * $const" else "")
+
   private def toTextRetainedElem[T <: Untyped](ref: Tree[T]): Text = ref match
     case ref: RefTree[?] if ref.typeOpt.exists =>
       toTextCaptureRef(ref.typeOpt)
@@ -242,7 +269,7 @@ class PlainPrinter(_ctx: Context) extends Printer {
         val refsText = if showAsCap then rootSetText else toTextCaptureSet(refs)
         toTextCapturing(parent, refsText, boxText)
       case tp @ QualifiedType(parent, qualifier) =>
-        "(" ~ toTextLocal(parent) ~ " with " ~ qualifier.toString() ~ ")"
+        "(" ~ toTextLocal(parent) ~ " with " ~ qualifier.show ~ ")"
       case tp @ RetainingType(parent, refs) =>
         val refsText = refs match
           case ref :: Nil if ref.symbol == defn.captureRoot => rootSetText

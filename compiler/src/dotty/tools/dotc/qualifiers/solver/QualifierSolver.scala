@@ -1,9 +1,11 @@
 package dotty.tools.dotc.qualifiers
 package solver
 
+import dotty.tools.dotc.core.Contexts.Context
+
 import QualifierExpr.*
 
-abstract class QualifierSolver:
+abstract class QualifierSolver(using Context):
   def assume(p: QualifierExpr): Unit
   def check(p: QualifierExpr): Boolean
   def push(): Unit
@@ -22,12 +24,6 @@ abstract class QualifierSolver:
   def freshVar(): ApplyVar =
     val res: ApplyVar = ApplyVar(maxVarIndex)
     maxVarIndex = maxVarIndex + 1
-    res
-
-  var maxRefIndex: Int = 0
-  def freshRef(name: String = f"fresh$maxRefIndex"): Ref =
-    val res: Ref = Ref(maxRefIndex, name)
-    maxRefIndex = maxRefIndex + 1
     res
 
   def debug(): Unit

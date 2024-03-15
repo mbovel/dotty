@@ -1,5 +1,5 @@
 
-class MyRange(val from: Int, val to: Int with to > from):
+class MyRange(val from: Int, val to: Int with from < to):
   def foreach(f: {i: Int with i >= from && i < to} => Unit): Unit =
     def loop(i: Int with i >= from && i <= to): Unit =
       i match
@@ -7,7 +7,7 @@ class MyRange(val from: Int, val to: Int with to > from):
         case _ => ()
     loop(from)
 
-def myRange(a: Int, b: Int with b > a): MyRange {val from: a.type; val to: b.type} =
+def myRange(a: Int, b: Int with a < b): MyRange {val from: a.type; val to: b.type} =
   new MyRange(a, b).asInstanceOf[MyRange {val from: a.type; val to: b.type}]
 
 def main =

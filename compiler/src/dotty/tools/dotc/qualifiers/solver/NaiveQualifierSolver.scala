@@ -2,16 +2,18 @@ package dotty.tools.dotc.qualifiers
 package solver
 
 import collection.mutable
-import QualifierExpr.*
-import QualifierLogging.log
 import math.Ordering.Implicits.{seqOrdering, infixOrderingOps}
-import dotty.tools.dotc.qualifiers.QualifierLogging.{trace, startTrace, endTrace, LogEvent, LogEventNode, logNaiveSolverVars}
 
-class NaiveQualifierSolver extends QualifierSolver:
+import dotty.tools.dotc.core.Contexts.Context
+
+import QualifierExpr.*
+import QualifierLogging.{trace, startTrace, endTrace, log, LogEvent, LogEventNode, logNaiveSolverVars}
+
+class NaiveQualifierSolver(using Context) extends QualifierSolver:
   final var contextStack = List(True)
 
   override final def push(): Unit =
-    startTrace(LogEvent.Push(contextStack.mkString(", ")))
+    startTrace(LogEvent.Push(contextStack.map(_.show).mkString(", ")))
     contextStack = contextStack.head :: contextStack
 
   override final def pop(): Unit =
@@ -20,16 +22,16 @@ class NaiveQualifierSolver extends QualifierSolver:
 
   override final def assume(p: QualifierExpr): Unit =
     val head = and(contextStack.head, p)
-    trace(LogEvent.Assume(p))
+    trace(LogEvent.Assume(p.show))
     contextStack = head :: contextStack.tail
 
   override final def check(to: QualifierExpr): Boolean =
     val from = contextStack.head
-    trace(res => LogEvent.Check(from, to, res)):
+    trace(res => LogEvent.Check(from.show, to.show, res)):
       tryImply(from, to, frozen = true) || tryImply(from, to, frozen = false)
 
   private final def tryImply(from: QualifierExpr, to: QualifierExpr, frozen: Boolean): Boolean =
-    trace(res => LogEvent.TryImply(from, to, frozen, res)):
+    trace(res => LogEvent.TryImply(from.show, to.show, frozen, res)):
       maybeRollback:
         to match
           case to: ApplyVar =>
@@ -67,11 +69,11 @@ class NaiveQualifierSolver extends QualifierSolver:
             from == to
       )
 
-    trace(res => LogEvent.LeafImplies(rootFrom, rootTo, res)):
+    trace(res => LogEvent.LeafImplies(rootFrom.show, rootTo.show, res)):
       rec(rootFrom, rootTo) || {
         val eqs = NaiveQualifierEquivalenceEngine(rootFrom)
         val rewrittenTo = eqs.rewrite(rootTo)
-        trace(res => LogEvent.LeafImpliesEquiv(eqs.premise, rewrittenTo, res)):
+        trace(res => LogEvent.LeafImpliesEquiv(eqs.premise.show, rewrittenTo.show, res)):
           rec(eqs.premise, rewrittenTo)
       }
 
@@ -121,7 +123,7 @@ class NaiveQualifierSolver extends QualifierSolver:
     ))
 
   final def tryAddImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar): Boolean =
-    trace(res => LogEvent.TryAddImplicationToVar(premise, conclusion, res)):
+    trace(res => LogEvent.TryAddImplicationToVar(premise.show, conclusion.show, res)):
       val implication = ImplicationToVar(premise, conclusion)
       val previousImplications = implicationsToVars.getOrElse(conclusion.i, Set.empty)
       implicationsToVars.update(conclusion.i, previousImplications + implication)
@@ -161,7 +163,7 @@ class NaiveQualifierSolver extends QualifierSolver:
       premise: QualifierExpr /* with it.hasVars */,
       conclusion: QualifierExpr /* with !it.hasVars */
   ): Boolean =
-    trace(res => LogEvent.TryAddImplicationToLeaf(premise, conclusion, res)):
+    trace(res => LogEvent.TryAddImplicationToLeaf(premise.show, conclusion.show, res)):
       val implication = ImplicationToLeaf(premise, conclusion)
       val canAdd = tryImply(instantiate(premise), conclusion, frozen = false)
       if canAdd then
@@ -196,6 +198,6 @@ class NaiveQualifierSolver extends QualifierSolver:
 
   override def debug(): Unit =
     val dependencies =
-      implicationsToVars.values.flatten.map(imp => IArray(imp.premise, imp.conclusion))
-      ++ implicationsToLeafs.values.flatten.map(imp => IArray(imp.premise, imp.conclusion))
+      implicationsToVars.values.flatten.map(imp => IArray(imp.premise.show, imp.conclusion.show))
+      ++ implicationsToLeafs.values.flatten.map(imp => IArray(imp.premise.show, imp.conclusion.show))
     logNaiveSolverVars(IArray.from(dependencies))

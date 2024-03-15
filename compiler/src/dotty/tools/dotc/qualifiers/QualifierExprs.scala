@@ -14,13 +14,13 @@ import QualifierExpr.*
 object QualifierExprs:
   def fromType(tp: Type)(using Context): QualifierExpr =
     // TODO(mbovel): cache
-    trace(res => LogEvent.OfType(tp.show, res)):
+    trace[QualifierExpr](res => LogEvent.OfType(tp.show, res.show)):
       tp.dealias match
         case QualifiedType(parent, pred) => and(pred, fromType(parent))
         case AndType(tp1, tp2)           => and(fromType(tp1), fromType(tp2))
         case OrType(tp1, tp2)            => if tp1.widen frozen_=:= tp2.widen then or(fromType(tp1), fromType(tp2)) else True
-        case ConstantType(value)         => Equal(PredArg, fromConst(value))
-        case tp: SingletonType           => and(Equal(PredArg, fromSingletonType(tp)), fromType(tp.underlying))
+        case ConstantType(value)         => equal(PredArg, fromConst(value))
+        case tp: SingletonType           => and(equal(PredArg, Ref(tp)), fromType(tp.underlying))
         case tp: TypeProxy               => fromType(tp.underlying)
         case _                           => True
 
@@ -35,11 +35,11 @@ object QualifierExprs:
 
   def fromTree(tree: Tree)(using predArgSymbol: Symbol)(using Context): QualifierExpr =
     // TODO(mbovel): cache
-    trace(res => LogEvent.FromTree(tree.show, predArgSymbol.toString(), res)):
+    trace[QualifierExpr](res => LogEvent.FromTree(tree.show, predArgSymbol.show, res.show)):
       tree match
         case id: Ident =>
           if id.symbol == predArgSymbol then PredArg
-          else fromSingletonType(id.symbol.termRef)
+          else Ref(id.symbol.termRef)
         case Apply(fun, args) =>
           fun match
             case Select(qualifier, name)
@@ -56,23 +56,23 @@ object QualifierExprs:
               val lhs = fromTree(qualifier)
               val rhs = fromTree(args(0))
               name match
-                case nme.EQ  => Equal(lhs, rhs)
-                case nme.NE  => Not(Equal(lhs, rhs))
-                case nme.GT  => and(Not(Equal(lhs, rhs)), GreaterEqual(lhs, rhs))
-                case nme.GE  => GreaterEqual(lhs, rhs)
-                case nme.LT  => Not(GreaterEqual(lhs, rhs))
-                case nme.LE  => Not(and(Not(Equal(lhs, rhs)), GreaterEqual(rhs, lhs)))
+                case nme.EQ  => equal(lhs, rhs)
+                case nme.NE  => notEqual(lhs, rhs)
+                case nme.GT  => greater(lhs, rhs)
+                case nme.GE  => greaterEqual(lhs, rhs)
+                case nme.LT  => less(lhs, rhs)
+                case nme.LE  => lessEqual(lhs, rhs)
                 case nme.ADD => intSum(lhs, rhs)
                 case nme.SUB => intSum(lhs, intNegate(rhs))
                 case nme.MUL => intProduct(lhs, rhs)
             case _ =>
               App(fromTree(fun), args.map(fromTree))
         case Select(qualifier, name) if tree.symbol.isRealMethod =>
-          App(fromSingletonType(tree.symbol.termRef), List(fromTree(qualifier)))
+          App(Ref(tree.symbol.termRef), List(fromTree(qualifier)))
         case Literal(c) if fromConst.isDefinedAt(c) =>
           fromConst(c)
         case _ if tree.tpe.isInstanceOf[SingletonType] =>
-          fromSingletonType(tree.tpe.asInstanceOf[SingletonType])
+          Ref(tree.tpe.asInstanceOf[SingletonType])
         case _ =>
           throw new Error(f"Cannot translate ${tree}")
 
@@ -82,17 +82,3 @@ object QualifierExprs:
     case Constant(value: String)  => StringConst(value)
     case Constant(value: Boolean) => if value then True else False
   }
-
-  private val _tpToRef = collection.mutable.HashMap[SingletonType, Ref]()
-  private val _refToTp = collection.mutable.HashMap[Ref, SingletonType]()
-
-  def fromSingletonType(tp: SingletonType)(using Context): Ref =
-    _tpToRef.get(tp) match
-      case Some(ref) => ref
-      case None =>
-        val ref = ctx.qualifierSolver.freshRef(tp.show)
-        _tpToRef(tp) = ref
-        _refToTp(ref) = tp
-        ref
-
-  def toType(ref: Ref)(using Context): SingletonType = _refToTp(ref)
