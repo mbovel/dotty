@@ -46,8 +46,8 @@ enum QualifierExpr:
       case PredArg                         => "it"
       case Ref(n, name)                    => name
       case App(fun, args)                  => showApp(fun.toString, args)
-      case IntSum(const, args)             => (IntConst(const) :: args).mkString(" + ")
-      case IntProduct(const, args)         => (IntConst(const) :: args).mkString(" * ")
+      case IntSum(const, args)             => args.mkString(" + ") + (if const != 0 then f" + $const" else "")
+      case IntProduct(const, args)         => args.mkString(" * ") + (if const != 1 then f" * $const" else "")
 
   def map(f: QualifierExpr => QualifierExpr): QualifierExpr =
     // TODO(mbovel): optimize allocations. `map(x => x)` shouldn't allocate
