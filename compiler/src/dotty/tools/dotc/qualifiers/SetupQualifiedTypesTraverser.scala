@@ -144,9 +144,9 @@ class SetupQualifiedTypesTraverser(
           updateInfo(sym, updatedInfo)
       case _ => ()
 
-  def isValWithInferredType(tree: Tree) =
+  def isValWithInferredType(tree: Tree)(using Context) =
     tree match
-      case tree: ValDef => tree.tpt.isInstanceOf[InferredTypeTree]
+      case tree: ValDef => tree.tpt.isInstanceOf[InferredTypeTree] && !tree.rhs.isEmpty
       case _ => false
 
   def normalizeAnnotations(using Context) = new TypeMap:
