@@ -71,6 +71,8 @@ object QualifierExprs:
           App(fromSingletonType(tree.symbol.termRef), List(fromTree(qualifier)))
         case Literal(c) if fromConst.isDefinedAt(c) =>
           fromConst(c)
+        case _ if tree.tpe.isInstanceOf[SingletonType] =>
+          fromSingletonType(tree.tpe.asInstanceOf[SingletonType])
         case _ =>
           throw new Error(f"Cannot translate ${tree}")
 
