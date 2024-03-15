@@ -47,17 +47,19 @@ class SetupQualifiedTypesTraverser(
                 tpt.rememberTypeAlways(defn.FunctionOf(params, newResType, isContextual))
               case _ => ()
           case _ => ()
+      /*
       case tree : ValDef if isValWithInferredType(tree) =>
         inContext(localCtx(tree)):
           tree.tpt.rememberType(removeAnnotations(tree.tpt.knownType))
           traverse(tree.rhs)
+      */
       case tree: DefDef =>
         inContext(localCtx(tree)):
           tree.paramss.foreach(traverse)
-          if tree.tpt.isInstanceOf[InferredTypeTree] then
-            tree.tpt.rememberType(removeAnnotations(tree.tpt.knownType))
-          else
-            tree.tpt.rememberType(normalizeAnnotations(tree.tpt.knownType))
+          val newResType = tree.tpt match
+            case tpt: InferredTypeTree => removeAnnotations(tree.tpt.knownType)
+            case tpt => normalizeAnnotations(tree.tpt.knownType)
+          tree.tpt.rememberType(newResType)
           traverse(tree.rhs)
       case tree: InferredTypeTree => tree.rememberTypeAlways(addVars(removeAnnotations(tree.knownType)))
       case tree: TypeTree => tree.rememberTypeAlways(normalizeAnnotations(tree.knownType))
@@ -136,10 +138,13 @@ class SetupQualifiedTypesTraverser(
               //capt.println(i"forcing $sym, printing = ${ctx.mode.is(Mode.Printing)}")
               //if ctx.mode.is(Mode.Printing) then new Error().printStackTrace()
               denot.info = newInfo
+              recheckDef(tree, sym)
+              /*
               val recheckedTp = recheckDef(tree, sym)
               if isValWithInferredType(tree) then
                 tree.tpt.rememberTypeAlways(recheckedTp)
                 denot.info = recheckedTp
+              */
 
           updateInfo(sym, updatedInfo)
       case _ => ()
