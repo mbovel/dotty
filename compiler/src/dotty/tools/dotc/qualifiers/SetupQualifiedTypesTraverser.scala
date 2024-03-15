@@ -21,32 +21,6 @@ class SetupQualifiedTypesTraverser(
 
   override def traverse(tree: Tree)(using Context) =
     tree match
-      case tree: Block =>
-        traverseChildren(tree)
-        tree match
-          case closureDef(mdef) =>
-            val msym = mdef.symbol
-            val mt = msym.info.asInstanceOf[MethodType]
-            val newResType =
-              if !mdef.tpt.isInstanceOf[InferredTypeTree] then
-                addVars(mdef.tpt.knownType)
-              else
-                mdef.tpt.knownType
-            val newInfo = mt.companion(mt.paramInfos, newResType)
-            val completer = new LazyType:
-              def complete(denot: SymDenotation)(using Context) =
-                denot.info = newInfo
-                recheckDef(mdef, msym)
-
-            msym.updateInfo(thisPhase, completer)
-            mdef.tpt.rememberTypeAlways(newResType)
-
-            val closure(env, meth, tpt) = tree: @unchecked
-            tpt.knownType match
-              case defn.FunctionOf(params, restpe, isContextual) =>
-                tpt.rememberTypeAlways(defn.FunctionOf(params, newResType, isContextual))
-              case _ => ()
-          case _ => ()
       /*
       case tree : ValDef if isValWithInferredType(tree) =>
         inContext(localCtx(tree)):
