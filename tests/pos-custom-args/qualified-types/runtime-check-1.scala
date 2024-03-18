@@ -1,3 +1,4 @@
+import scala.compiletime.ops.string
 
 
 // TODO(Valentin889):
@@ -7,7 +8,7 @@
 // 2. special-case CheckQualifiedTypes to not throw a type error when the actual
 //    type of `x.runtimeChecked` does not conform to the expected type. This
 //    should probably be done in the method checkConformsExpr that should be
-//    overridden in CheckQualifiedTypes. There, you should match `tree` to check
+//    overridden in CheckQualifiedTypes. There, you should match `tree` to ∏check
 //    if it is an application of `runtimeChecked`. Something like:
 //
 //     tree match case Apply(fun, ...) if fun.symbol == defn.runtimeChecked =>
