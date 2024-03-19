@@ -756,9 +756,7 @@ object Contexts {
           .updated(compilationUnitLoc, NoCompilationUnit)
       c._searchHistory = new SearchRoot
       c._gadtState = GadtState(GadtConstraint.empty)
-      c._QualifierSolver =
-        if Feature.qualifierChecksDisabled(using c) then NoChecksQualifierSolver(using c)
-        else NaiveQualifierSolver(using c)
+      c._QualifierSolver = NaiveQualifierSolver()
       c
   end FreshContext
 

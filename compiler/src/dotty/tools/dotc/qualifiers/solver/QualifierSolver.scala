@@ -5,20 +5,20 @@ import dotty.tools.dotc.core.Contexts.Context
 
 import QualifierExpr.*
 
-abstract class QualifierSolver(using Context):
-  def assume(p: QualifierExpr): Unit
-  def check(p: QualifierExpr): Boolean
-  def push(): Unit
-  def pop(): Unit
+abstract class QualifierSolver:
+  def assume(p: QualifierExpr)(using Context): Unit
+  def check(p: QualifierExpr)(using Context): Boolean
+  def push()(using Context): Unit
+  def pop()(using Context): Unit
 
-  def tryImply(p: QualifierExpr, q: QualifierExpr): Boolean =
+  def tryImply(p: QualifierExpr, q: QualifierExpr)(using Context): Boolean =
     push()
     assume(p)
     val res = check(q)
     pop()
     res
 
-  def instantiate(p: QualifierExpr): QualifierExpr
+  def instantiate(p: QualifierExpr)(using Context): QualifierExpr
 
   var maxVarIndex: Int = 0
   def freshVar(): ApplyVar =
@@ -26,4 +26,4 @@ abstract class QualifierSolver(using Context):
     maxVarIndex = maxVarIndex + 1
     res
 
-  def debug(): Unit
+  def debug()(using Context): Unit

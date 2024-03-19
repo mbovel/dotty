@@ -7,3 +7,7 @@ import dotty.tools.dotc.core.SymDenotations.SymDenotation
 
 class SetupQualifiedTypes extends PreRecheck, SymTransformer:
   override def transformSym(symd: SymDenotation)(using Context): SymDenotation = symd
+
+  override def run(using Context): Unit =
+    val (nextPhase: CheckQualifiedTypes) = (next: @unchecked)
+    SetupQualifiedTypesTraverser(this, nextPhase.recheckDef).traverse(ctx.compilationUnit.tpdTree)

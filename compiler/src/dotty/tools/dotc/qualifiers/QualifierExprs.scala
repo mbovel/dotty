@@ -20,7 +20,7 @@ object QualifierExprs:
         case AndType(tp1, tp2)           => and(fromType(tp1), fromType(tp2))
         case OrType(tp1, tp2)            => if tp1.widen frozen_=:= tp2.widen then or(fromType(tp1), fromType(tp2)) else True
         case ConstantType(value)         => equal(PredArg, fromConst(value))
-        case tp: SingletonType           => and(equal(PredArg, Ref(tp)), fromType(tp.underlying))
+        case tp: SingletonType           => equal(PredArg, Ref(tp))
         case tp: TypeProxy               => fromType(tp.underlying)
         case _                           => True
 

@@ -40,7 +40,7 @@ import java.lang.ref.WeakReference
 import compiletime.uninitialized
 import cc.{CapturingType, CaptureSet, derivedCapturingType, isBoxedCapturing, isCaptureChecking, isRetains, isRetainsLike}
 import CaptureSet.{CompareResult, IdempotentCaptRefMap, IdentityCaptRefMap}
-import qualifiers.{derivedQualifiedType, EventuallyQualifiedType, QualifierLogging, QualifiedType, QualifierExpr, QualifierExprs, typeMap, innerTypes}
+import qualifiers.{derivedQualifiedType, EventuallyQualifiedType, QualifierLogging, QualifiedType, QualifierExpr, QualifierExprs, mapTypes, innerTypes}
 
 import scala.annotation.internal.sharable
 import scala.annotation.threadUnsafe
@@ -3968,6 +3968,7 @@ object Types extends TypeUtils {
               case QualifiedType(parent, refinement) =>
                 refinement.innerTypes.foldLeft(status)(compute(_, _, theAcc))
               case EventuallyQualifiedType(parent, refinement) if ctx.phase.id < Phases.checkQualifiersPhase.id =>
+                // TODO(mbovel): can we remove this? All QualifiedTypes should have fresh parents after qualifiers setup.
                 combine(status, Provisional)
               case _ =>
                 if tp.annot.refersToParamOf(thisLambdaType) then TrueDeps
@@ -6075,7 +6076,7 @@ object Types extends TypeUtils {
     protected def mapQualifiedType(tp: Type, parent: Type, qualifier: QualifierExpr, v: Int): Type =
       val saved = variance
       variance = v
-      try derivedQualifiedType(tp, this(parent), qualifier.typeMap(this))
+      try derivedQualifiedType(tp, this(parent), qualifier.mapTypes(this))
       finally variance = saved
 
     /** Map this function over given type */

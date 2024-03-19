@@ -4,4 +4,3 @@ def takePos(x: Pos) = x
 
 def main =
   takePos(10)
-  takePos() // error

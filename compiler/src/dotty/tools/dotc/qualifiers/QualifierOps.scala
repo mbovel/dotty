@@ -57,9 +57,12 @@ extension (expr: QualifierExpr)
       e match
         case ref: Ref if !visitedRefs(ref) =>
           visitedRefs += ref
-          val pred = QualifierExprs.fromType(ref.tp).subst(PredArg, ref)
-          assumptions = and(assumptions, pred)
-          pred.foreach(visit)
+          ref.tp match
+            case tp: TermRef =>
+              val underlyingQualifier = QualifierExprs.fromType(tp.underlying).subst(PredArg, ref)
+              assumptions = and(assumptions, underlyingQualifier)
+              underlyingQualifier.foreach(visit)
+            case _ => ()
         case _ => ()
     expr.foreach(visit)
     assumptions
@@ -71,7 +74,7 @@ extension (expr: QualifierExpr)
       case _        => ()
     buf.toList
 
-  def typeMap(tm: TypeMap)(using Context): QualifierExpr =
+  def mapTypes(tm: TypeMap)(using Context): QualifierExpr =
     trace[QualifierExpr](res => QualifierLogging.LogEvent.TypeMap(expr.show, res.show)):
       expr.map:
         case ref: Ref =>

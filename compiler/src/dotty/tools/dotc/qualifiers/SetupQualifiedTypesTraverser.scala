@@ -43,7 +43,21 @@ class SetupQualifiedTypesTraverser(
       case tree: TypeTree => tree.rememberTypeAlways(normalizeAnnotations(tree.knownType))
       case _ => traverseChildren(tree)
 
-    postProcess(tree)
+    myPostProcess(tree)
+
+  def myPostProcess(tree: Tree)(using Context) =
+    tree match
+      case tree: ValDef =>
+        val sym = tree.symbol
+        if sym.exists then
+          val newInfo = tree.tpt.knownType
+          val updatedInfo = new LazyType:
+            def complete(denot: SymDenotation)(using Context) =
+              assert(ctx.phase == thisPhase.next, i"$sym")
+              denot.info = newInfo
+              recheckDef(tree, sym)
+          updateInfo(sym, updatedInfo)
+      case _ => ()
 
   def postProcess(tree: Tree)(using Context) =
     // Pasted from cc/Setup.scala:
@@ -52,10 +66,10 @@ class SetupQualifiedTypesTraverser(
         val sym = tree.symbol
 
         /** The return type of a constructor instantiated with local type and value
-       *  parameters. Constructors have `unit` result type, that's why we can't
-       *  get this type by reading the result type tree, and have to construct it
-       *  explicitly.
-       */
+          *  parameters. Constructors have `unit` result type, that's why we can't
+          *  get this type by reading the result type tree, and have to construct it
+          *  explicitly.
+          */
         def constrReturnType(info: Type, psymss: List[List[Symbol]]): Type = info match
           case info: MethodOrPoly =>
             constrReturnType(info.instantiate(psymss.head.map(_.namedType)), psymss.tail)
@@ -63,8 +77,8 @@ class SetupQualifiedTypesTraverser(
             info
 
         /** The local result type, which is the known type of the result type tree,
-       *  with special treatment for constructors.
-       */
+          *  with special treatment for constructors.
+          */
         def localReturnType =
           if sym.isConstructor then constrReturnType(sym.info, sym.paramSymss)
           else tree.tpt.knownType
@@ -106,7 +120,7 @@ class SetupQualifiedTypesTraverser(
               else SubstParams(prevPsymss, prevLambdas)(resType)
 
         if sym.exists then
-          val newInfo = integrateRT(sym.info, sym.paramSymss, localReturnType, Nil, Nil)
+          val newInfo = tree.tpt.knownType
           //  .showing(i"update info $sym: ${sym.info} = $result", capt)
           val updatedInfo = new LazyType:
             def complete(denot: SymDenotation)(using Context) =
@@ -131,33 +145,6 @@ class SetupQualifiedTypesTraverser(
     tree match
       case tree: ValDef => tree.tpt.isInstanceOf[InferredTypeTree] && !tree.rhs.isEmpty
       case _ => false
-
-  def normalizeAnnotations(using Context) = new TypeMap:
-    override def apply(tp: Type) =
-      tp match
-        case QualifiedType(parent, qualifier) =>
-          AnnotatedType(apply(parent), QualifiedAnnotation(qualifier))
-        case _ =>
-          mapOver(tp)
-
-  /** Removes @qualified annotations.
-    */
-  def removeAnnotations(using Context) = new TypeMap:
-    override def apply(tp: Type) =
-      tp match
-        case AnnotatedType(parent, annot) if annot.symbol == defn.QualifiedAnnot =>
-          apply(parent)
-        case _ =>
-          mapOver(tp)
-
-  def addVars(using Context) = new TypeMap:
-    override def apply(tp: Type) =
-      val tp0 = tp match
-        case tp: AppliedType =>
-          derivedAppliedType(tp, tp.tycon, mapArgs(tp.args, tyconTypeParams(tp)))
-        case _ =>
-          mapOver(tp)
-      AnnotatedType(tp0, QualifiedAnnotation(ctx.qualifierSolver.freshVar()))
 
   // Pasted from cc/Setup.scala:
   /** Update info of `sym` for CheckRefinements phase only */

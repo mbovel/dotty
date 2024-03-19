@@ -9,28 +9,28 @@ import dotty.tools.dotc.core.Contexts.Context
 import QualifierExpr.*
 import QualifierLogging.{trace, startTrace, endTrace, log, LogEvent, LogEventNode, logNaiveSolverVars}
 
-class NaiveQualifierSolver(using Context) extends QualifierSolver:
+class NaiveQualifierSolver extends QualifierSolver:
   final var contextStack = List(True)
 
-  override final def push(): Unit =
+  override final def push()(using Context): Unit =
     startTrace(LogEvent.Push(contextStack.map(_.show).mkString(", ")))
     contextStack = contextStack.head :: contextStack
 
-  override final def pop(): Unit =
+  override final def pop()(using Context): Unit =
     endTrace()
     contextStack = contextStack.tail
 
-  override final def assume(p: QualifierExpr): Unit =
+  override final def assume(p: QualifierExpr)(using Context): Unit =
     val head = and(contextStack.head, p)
     trace(LogEvent.Assume(p.show))
     contextStack = head :: contextStack.tail
 
-  override final def check(to: QualifierExpr): Boolean =
+  override final def check(to: QualifierExpr)(using Context): Boolean =
     val from = contextStack.head
     trace(res => LogEvent.Check(from.show, to.show, res)):
       tryImply(from, to, frozen = true) || tryImply(from, to, frozen = false)
 
-  private final def tryImply(from: QualifierExpr, to: QualifierExpr, frozen: Boolean): Boolean =
+  private final def tryImply(from: QualifierExpr, to: QualifierExpr, frozen: Boolean)(using Context): Boolean =
     trace(res => LogEvent.TryImply(from.show, to.show, frozen, res)):
       maybeRollback:
         to match
@@ -52,14 +52,15 @@ class NaiveQualifierSolver(using Context) extends QualifierSolver:
                       case from if from.hasVars =>
                         hasImplicationToLeaf(from, to) || (!frozen && tryAddImplicationToLeaf(from, to))
                       case _ =>
-                        assert(!from.hasVars)
                         leafImplies(from, to, frozen)
 
   protected def leafImplies(
       rootFrom: QualifierExpr /* with !it.hasVars */,
       rootTo: QualifierExpr /* with !it.hasVars */,
       frozen: Boolean
-  ): Boolean =
+  )(using Context): Boolean =
+    assert(!rootFrom.hasVars)
+
     def rec(from: QualifierExpr, to: QualifierExpr): Boolean =
       to == True || from == False || (
         from match
@@ -104,7 +105,7 @@ class NaiveQualifierSolver(using Context) extends QualifierSolver:
   /** Journal of all implicationsToLeaf that have been added. Used to rollback if needed. */
   private val implicationsToLeafJournal = mutable.ArrayBuffer[ImplicationToLeaf]()
 
-  override final def instantiate(p: QualifierExpr): QualifierExpr =
+  override final def instantiate(p: QualifierExpr)(using Context): QualifierExpr =
     // TODO(mbovel): memoize (and invalidate when adding premises).
     p.map {
       case v: ApplyVar =>
@@ -116,13 +117,13 @@ class NaiveQualifierSolver(using Context) extends QualifierSolver:
         p
     }
 
-  final def hasImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar): Boolean =
+  final def hasImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar)(using Context): Boolean =
     implicationsToVars.getOrElse(conclusion.i, Set.empty).contains(ImplicationToVar(
       premise,
       conclusion
     ))
 
-  final def tryAddImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar): Boolean =
+  final def tryAddImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar)(using Context): Boolean =
     trace(res => LogEvent.TryAddImplicationToVar(premise.show, conclusion.show, res)):
       val implication = ImplicationToVar(premise, conclusion)
       val previousImplications = implicationsToVars.getOrElse(conclusion.i, Set.empty)
@@ -152,7 +153,7 @@ class NaiveQualifierSolver(using Context) extends QualifierSolver:
   final def hasImplicationToLeaf(
       premise: QualifierExpr /* with it.hasVars */,
       conclusion: QualifierExpr /* with !it.hasVars */
-  ): Boolean =
+  )(using Context): Boolean =
     // TODO(mbovel): wrong; should split ands correctly.
     val firstVar = premise.vars.head
     implicationsToLeafs
@@ -162,7 +163,7 @@ class NaiveQualifierSolver(using Context) extends QualifierSolver:
   final def tryAddImplicationToLeaf(
       premise: QualifierExpr /* with it.hasVars */,
       conclusion: QualifierExpr /* with !it.hasVars */
-  ): Boolean =
+  )(using Context): Boolean =
     trace(res => LogEvent.TryAddImplicationToLeaf(premise.show, conclusion.show, res)):
       val implication = ImplicationToLeaf(premise, conclusion)
       val canAdd = tryImply(instantiate(premise), conclusion, frozen = false)
@@ -196,7 +197,7 @@ class NaiveQualifierSolver(using Context) extends QualifierSolver:
       implicationsToLeafJournal.takeInPlace(prevImplicationsToLeafJournalSize)
     res
 
-  override def debug(): Unit =
+  override def debug()(using Context): Unit =
     val dependencies =
       implicationsToVars.values.flatten.map(imp => IArray(imp.premise.show, imp.conclusion.show))
       ++ implicationsToLeafs.values.flatten.map(imp => IArray(imp.premise.show, imp.conclusion.show))

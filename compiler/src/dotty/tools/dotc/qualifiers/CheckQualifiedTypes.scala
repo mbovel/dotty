@@ -31,9 +31,6 @@ class CheckQualifiedTypes extends Recheck:
     /** Removes @qualified annotations in inferred types in the given `unit`. This runs before the recheck* methods below.
       */
     override def checkUnit(unit: CompilationUnit)(using Context) =
-      val (prevPhase: SetupQualifiedTypes) = (prev: @unchecked)
-      SetupQualifiedTypesTraverser(prevPhase, recheckDef).traverse(unit.tpdTree)
-
        // logging
       enableLogging()
       logTreeBefore(unit.tpdTree.show)
