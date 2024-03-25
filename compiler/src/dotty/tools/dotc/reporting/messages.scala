@@ -2916,7 +2916,7 @@ class MissingImplicitArgument(
             i"""$headline.
               |I found:
               |
-              |    ${original.show.replace("\n", "\n    ")}
+              |    ${original.showIndented(4)}
               |
               |But ${tpe.explanation}."""
           case _ => headline

@@ -5719,7 +5719,7 @@ object Types extends TypeUtils {
     def explanation(using Context): String = msg.message
   }
 
-  /** Note: Make sure an errors is reported before construtcing this
+  /** Note: Make sure an errors is reported before constructing this
    *  as the type of a tree.
    */
   object ErrorType:
