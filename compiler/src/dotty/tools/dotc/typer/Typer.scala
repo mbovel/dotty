@@ -3850,22 +3850,29 @@ class Typer(@constructorOnly nestingLevel: Int = 0) extends Namer
 
         val args = implicitArgs(wtp.paramInfos, 0, pt)
 
-        def issueErrors(failingArgs: List[Tree]): Tree = {
-          val firstNonAmbiguous = failingArgs.tpes.find(tp => tp.isError && !tp.isInstanceOf[AmbiguousImplicits])
-          def firstError = failingArgs.tpes.find(_.isError)
-          val propFail = firstNonAmbiguous.orElse(firstError).getOrElse(NoType)
-
-          def paramSymWithMethodTree(paramName: TermName) =
+        def issueErrors(): Tree = {
+          val paramSyms =
             if tree.symbol.exists then
               tree.symbol.paramSymss.flatten
                 .map(sym => sym.name -> sym)
                 .toMap
-                .get(paramName)
-                .map((_, tree))
             else
-              None
+              Map.empty
 
-          wtp.paramNames.lazyZip(wtp.paramInfos).lazyZip(failingArgs).foreach { (paramName, formal, arg) =>
+          def paramSymWithMethodTree(paramName: TermName) = paramSyms.get(paramName).map((_, tree))
+          def paramHasDefault(paramName: TermName) = paramSyms.get(paramName).map(_.is(HasDefault)).getOrElse(false)
+
+          val nonDefaultArgs: List[Tree] =
+            wtp.paramNames
+              .lazyZip(args)
+              .filter((paramName, arg) => !paramHasDefault(paramName))
+              .map(((paramName, arg) => arg))
+
+          var firstNonAmbiguous = nonDefaultArgs.tpes.find(tp => tp.isError && !tp.isInstanceOf[AmbiguousImplicits])
+          def firstError = nonDefaultArgs.tpes.find(_.isError)
+          val propFail: Type = firstNonAmbiguous.orElse(firstError).getOrElse(NoType)
+
+          wtp.paramNames.lazyZip(wtp.paramInfos).lazyZip(nonDefaultArgs).foreach { (paramName, formal, arg) =>
             arg.tpe match {
               case failure: SearchFailureType =>
                 report.error(
@@ -3875,7 +3882,7 @@ class Typer(@constructorOnly nestingLevel: Int = 0) extends Namer
               case _ =>
             }
           }
-          untpd.Apply(tree, failingArgs).withType(propFail)
+          untpd.Apply(tree, args).withType(propFail)
         }
 
         if (args.tpes.exists(_.isError)) {
@@ -3890,8 +3897,7 @@ class Typer(@constructorOnly nestingLevel: Int = 0) extends Namer
           // implicits are passed as named args.
           if hasDefaultParams then
             val namedArgs = wtp.paramNames.lazyZip(args).flatMap { (pname, arg) =>
-              if arg.tpe.isInstanceOf[NoMatchingImplicits] then Nil
-              else untpd.NamedArg(pname, untpd.TypedSplice(arg)) :: Nil
+              if arg.tpe.isError then Nil else untpd.NamedArg(pname, untpd.TypedSplice(arg)) :: Nil
             }
             val app = cpy.Apply(tree)(untpd.TypedSplice(tree), namedArgs)
             val needsUsing = wtp.isContextualMethod || wtp.match
@@ -3899,10 +3905,9 @@ class Typer(@constructorOnly nestingLevel: Int = 0) extends Namer
               case _ => false
             if needsUsing then app.setApplyKind(ApplyKind.Using)
             typr.println(i"try with default implicit args $app")
-            val tpdApply @ Apply(_, args1) = typed(app, pt, locked): @unchecked
-            println("tpdApply.tpe " + tpdApply.tpe)
-            if tpdApply.tpe.isError then issueErrors(args1) else tpdApply
-          else issueErrors(args)
+            val tpdApply = typed(app, pt, locked)
+            if tpdApply.tpe.isError then issueErrors() else tpdApply
+          else issueErrors()
         }
         else tree match {
           case tree: Block =>
