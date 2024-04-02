@@ -16,6 +16,6 @@ import scala.compiletime.ops.string
 
 
 def main =
-  val x: Int = 4
-  val y: {v: Int with v == 10} = x.runtimeChecked
+  val z: Int = ???
+  val y: {v: Int with v == 10} = z.runtimeChecked
   //  val y: Int @qualified[Int](v => v == 10) = x.runtimeChecked[{v: Int with v == 10}]
