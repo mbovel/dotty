@@ -38,7 +38,7 @@ class QualifiedTypesRuntimeChecks extends MiniPhase{
         println("isInstance " + tree.args(0).isInstance(tree.knownType))
 
 
-        /*
+
 
         //Create a new val
         val valDef = SyntheticValDef(
@@ -46,18 +46,43 @@ class QualifiedTypesRuntimeChecks extends MiniPhase{
           tree.args(0)
         )
 
+        println("1")
+
+        // Create the exception type (replace ExceptionType with the actual type of the exception)
+        val exceptionType = defn.IllegalArgumentExceptionType
+
+
+        println("2")
+        // Create the exception argument (replace ExceptionArgument with the actual argument to the exception constructor)
+        val exceptionArgument = Literal(Constant("Exception"))
+
+
+        println("3")
+        // Create the New tree node for constructing the exception
+        val newException = New(exceptionType, List())
+
+
+        println("4")
+        // Create the Throw tree node for throwing the exception
+        val throwException = Throw(newException)
+
+        println("5")
+
         val condition = tree.args(0).isInstance(tree.knownType) // Change this to your actual condition
 
         val thenBranch = tree.args(0).asInstance(tree.knownType)
-        val elseBranch = tree
+        val elseBranch = throwException
 
         val ifStatement = If(condition, thenBranch, elseBranch)
 
 
         //import tasty._
         val blockStats = List(
+
+
           valDef,
           ifStatement
+
         )
         val blockExpr = Block(
           blockStats,
@@ -65,7 +90,7 @@ class QualifiedTypesRuntimeChecks extends MiniPhase{
         )
         // Create the block tree
         return blockExpr
-        */
+
 
 
 
