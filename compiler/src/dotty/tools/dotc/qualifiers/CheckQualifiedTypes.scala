@@ -50,13 +50,15 @@ class CheckQualifiedTypes extends Recheck:
 
     override def checkConformsExpr(actual: Type, expected: Type, tree: tpd.Tree, addenda: Addenda)(using Context): Type =
 
+      println("New check conform expr")
       tree match
         case Apply(fn, args) if (fn.symbol == defn.RuntimeCheckedMethod) =>
           //Don't trow exception here
           println(defn.RuntimeCheckedMethod)
           println("fn.symbol: " + fn.symbol)
+          println("We return the expected type : " + expected)
           //super.checkConformsExpr(actual, expected, tree, addenda)
-          actual
+          expected
         case _ =>
           super.checkConformsExpr(actual, expected, tree, addenda)
 
