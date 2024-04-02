@@ -5,10 +5,12 @@ import transform.MegaPhase.MiniPhase
 import ast.{TreeTypeMap, tpd}
 import core.*
 import Contexts.*
-import dotty.tools.dotc.config.Printers.overload
+import config.Printers.overload
+import core.Symbols.defn
+import core.Decorators.*
 
 
-class RuntimeCheck extends MiniPhase{
+class QualifiedTypesRuntimeChecks extends MiniPhase{
 
   import tpd.*
 
@@ -20,17 +22,52 @@ class RuntimeCheck extends MiniPhase{
   override def transformApply(tree: Apply)(using Context): Tree =
     println("***********************************")
     println(tree)
-    tree.fun match
-      case Ident(name) if name.toString == phaseName =>
-        println(tree.args(0))
-        println(tree.args(0).tpe)
-        tree.args(0) match
-          case Ident(name) =>
+    if (tree.fun.symbol == defn.RuntimeCheckedMethod) then
 
-        //Check that the type of the argument has the correct type with an assertion
+        //compare tree.tpe and args(0) with args(0).isInstanceOf[TypeTree] use method isInstance inside tpd
 
-      case _ =>
-        println("not ident")
+        import Recheck.knownType
+        import tpd.*
+        import Symbols.*
+        import NameKinds.UniqueName
+        import tasty._
+        import Constants.*
+
+        //println("isInstance " + tree.args(0).isInstance(tree.tpe).show)
+        println(i"known type : ${tree.knownType}")
+        println("isInstance " + tree.args(0).isInstance(tree.knownType))
+
+
+        /*
+
+        //Create a new val
+        val valDef = SyntheticValDef(
+          "x".toTermName,
+          tree.args(0)
+        )
+
+        val condition = tree.args(0).isInstance(tree.knownType) // Change this to your actual condition
+
+        val thenBranch = tree.args(0).asInstance(tree.knownType)
+        val elseBranch = tree
+
+        val ifStatement = If(condition, thenBranch, elseBranch)
+
+
+        //import tasty._
+        val blockStats = List(
+          valDef,
+          ifStatement
+        )
+        val blockExpr = Block(
+          blockStats,
+          tree
+        )
+        // Create the block tree
+        return blockExpr
+        */
+
+
 
 
     println("***********************************")
