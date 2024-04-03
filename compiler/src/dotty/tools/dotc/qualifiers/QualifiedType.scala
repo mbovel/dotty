@@ -28,6 +28,6 @@ object EventuallyQualifiedType:
     tp match
       case tp: AnnotatedType if tp.annot.symbol == defn.QualifiedAnnot =>
         tp.annot match
-          case QualifiedAnnotation(pred) => throw new Error("Use QualifierType.unapply instead")
+          case QualifiedAnnotation(pred) => Some((tp.parent, tp.annot.tree))
           case _                         => Some((tp.parent, tp.annot.argument(0).get))
       case _ => None
