@@ -37,7 +37,6 @@ class QualifiedTypesRuntimeChecks extends MiniPhase{
         println(i"known type: ${tree.knownType}")
         println("isInstance " + tree.args(0).isInstance(tree.knownType))
 
-
         //Create a new val
         val valDef = SyntheticValDef(
           "x".toTermName,
@@ -53,9 +52,11 @@ class QualifiedTypesRuntimeChecks extends MiniPhase{
         // Create the Throw tree node for throwing the exception
         val throwException = Throw(newException)
 
-        val condition = tree.args(0).isInstance(tree.knownType)
+        val valIdent = Ident(valDef.symbol.termRef)
 
-        val thenBranch = tree.args(0).asInstance(tree.knownType)
+        val condition = valIdent.isInstance(tree.knownType)
+
+        val thenBranch = valIdent.asInstance(tree.knownType)
 
         val elseBranch = throwException
 
