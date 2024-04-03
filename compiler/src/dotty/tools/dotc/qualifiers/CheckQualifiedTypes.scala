@@ -41,7 +41,7 @@ class CheckQualifiedTypes extends Recheck:
       log(i"checkQualifiedTypes setup:\n${Recheck.addRecheckedTypes.transform(ctx.compilationUnit.tpdTree)}")
       super.checkUnit(unit)
       ctx.qualifierSolver.debug()
-      //instantiateTraverser.traverse(ctx.compilationUnit.tpdTree)
+      instantiateTraverser.traverse(ctx.compilationUnit.tpdTree)
 
     val instantiateTraverser = new TreeTraverser:
       override def traverse(tree: Tree)(using Context) =

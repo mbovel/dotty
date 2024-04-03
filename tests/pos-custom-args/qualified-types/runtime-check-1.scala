@@ -1,6 +1,5 @@
 import scala.compiletime.ops.string
 
-
 // TODO(Valentin889):
 // 1. move this extension method to the Scala 3 lib.
 //   - add it somewhere in /library/src

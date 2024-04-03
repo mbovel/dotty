@@ -7,7 +7,7 @@ import Types.*, Symbols.*, Contexts.*, ast.tpd.*
 
 object QualifiedType:
   def apply(parent: Type, pred: QualifierExpr)(using Context): Type =
-    AnnotatedType(parent, QualifiedAnnotation(pred))
+    AnnotatedType(parent, QualifiedAnnotation(pred, parent))
 
   /** An extractor that succeeds only during CheckRefinements.
     */
@@ -16,7 +16,7 @@ object QualifiedType:
       tp match
         case tp: AnnotatedType if tp.annot.symbol == defn.QualifiedAnnot =>
           tp.annot match
-            case QualifiedAnnotation(pred) => Some((tp.parent, pred))
+            case QualifiedAnnotation(pred, _) => Some((tp.parent, pred))
             case _                         => Some((tp.parent,  QualifierExprs.fromClosure(tp.annot.argument(0).get)))
         case _ => None
     else None
@@ -28,6 +28,6 @@ object EventuallyQualifiedType:
     tp match
       case tp: AnnotatedType if tp.annot.symbol == defn.QualifiedAnnot =>
         tp.annot match
-          case QualifiedAnnotation(pred) => Some((tp.parent, tp.annot.tree))
+          case QualifiedAnnotation(pred, _) => Some((tp.parent, tp.annot.tree))
           case _                         => Some((tp.parent, tp.annot.argument(0).get))
       case _ => None

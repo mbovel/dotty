@@ -15,7 +15,7 @@ import dotty.tools.dotc.printing.Texts.Text
 import dotty.tools.dotc.qualifiers.QualifierLogging.log
 
 import QualifierExpr.*
-import dotty.tools.dotc.core.Decorators.i
+import dotty.tools.dotc.core.Decorators.{i, toTermName}
 
 object QualifierExprs:
   private val cache = collection.mutable.HashMap[Type, QualifierExpr]()
@@ -79,6 +79,40 @@ object QualifierExprs:
         throw new Error(f"Cannot translate ${tree}")
     log(i"fromTree($tree, $predArgSymbol) == ${res}")
     res
+
+
+  def toClosure(expr: QualifierExpr, predArgType: Type)(using Context): Tree =
+    val lambdaType: MethodType = MethodType(List("it".toTermName))(_ => List(predArgType), _ => defn.BooleanType)
+    val res = ast.tpd.Lambda(lambdaType, (args) => {
+      val predArg = Ident(args(0).symbol.termRef)
+      toTree(expr, predArg, predArgType)
+    })
+    //println(i"toClosure($expr, $predArgType) == $res")
+    res
+
+  def toTree(expr: QualifierExpr, predArg: Tree, predArgType: Type)(using Context): Tree =
+    expr match
+      case ApplyVar(i, arg) => throw new Error("Cannot convert ApplyVar to Tree")
+      case True => Literal(Constant(true))
+      case False => EmptyTree
+      case And(args) => EmptyTree
+      case Or(args) => EmptyTree
+      case Not(arg) => EmptyTree
+      case Equal(left, right) =>
+        val lhs = toTree(left, predArg, predArgType)
+        val rhs = toTree(right, predArg, predArgType)
+        println(i"lhs: ${lhs.tpe}, rhs: ${rhs.tpe}")
+        Apply(Select(lhs, nme.EQ), List(rhs))
+      case LessThan(left, right) => EmptyTree
+      case PredArg => predArg
+      case Ref(id, name) => EmptyTree
+      case App(fun, args) => EmptyTree
+      case QualifierExpr.Lambda(params, body) => EmptyTree
+      case IntSum(const, args) => EmptyTree
+      case IntProduct(const, args) => EmptyTree
+      case IntConst(value) => Literal(Constant(value))
+      case DoubleConst(value) => Literal(Constant(value))
+      case StringConst(value) => Literal(Constant(value))
 
   val fromConst: PartialFunction[Constant, QualifierExpr] = {
     case Constant(value: Int)    => IntConst(value)

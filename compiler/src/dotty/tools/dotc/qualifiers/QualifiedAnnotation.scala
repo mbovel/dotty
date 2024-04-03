@@ -9,11 +9,11 @@ import dotty.tools.dotc.printing.Printer
 import dotty.tools.dotc.printing.Texts.Text
 
 import dotty.tools.dotc.ast.Trees.EmptyTree
+import dotty.tools.dotc.qualifiers.QualifierExprs.toClosure
 
-case class QualifiedAnnotation(pred: QualifierExpr) extends Annotation:
+case class QualifiedAnnotation(pred: QualifierExpr, predArgType: Type) extends Annotation:
 
-  // TODO(mbovel): create the right tree
-  override def tree(using Context): tpd.Tree = EmptyTree()
+  override def tree(using Context): tpd.Tree = toClosure(pred, predArgType)
 
   override def symbol(using Context) = defn.QualifiedAnnot
 

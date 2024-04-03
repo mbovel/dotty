@@ -63,7 +63,7 @@ final class SetupQualifiedTypes(
     override def apply(tp: Type) =
       tp match
         case QualifiedType(parent, qualifier) =>
-          AnnotatedType(apply(parent), QualifiedAnnotation(qualifier))
+          QualifiedType(apply(parent), qualifier)
         case _ =>
           mapOver(tp)
 
@@ -84,7 +84,7 @@ final class SetupQualifiedTypes(
           derivedAppliedType(tp, tp.tycon, mapArgs(tp.args, tyconTypeParams(tp)))
         case _ =>
           mapOver(tp)
-      AnnotatedType(tp0, QualifiedAnnotation(ctx.qualifierSolver.freshVar()))
+      QualifiedType(tp0, ctx.qualifierSolver.freshVar())
 
   def updateTreeInfo(tree: Tree)(using Context) =
     // Pasted from cc/Setup.scala:
