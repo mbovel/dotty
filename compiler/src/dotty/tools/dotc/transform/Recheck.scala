@@ -595,7 +595,6 @@ abstract class Recheck extends Phase, SymTransformer:
       }
 
     def checkConformsExpr(actual: Type, expected: Type, tree: Tree, addenda: Addenda = NothingToAdd)(using Context): Type =
-      println(i"check conforms $actual <:< $expected with tree $tree")
       if !isCompatible(actual, expected) then
         recheckr.println(i"conforms failed for ${tree}: $actual vs $expected")
         err.typeMismatch(tree.withType(actual), expected, addenda)

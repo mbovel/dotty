@@ -30,6 +30,8 @@ class CheckQualifiedTypes extends Recheck:
   override def newRechecker()(using Context): Rechecker = new Rechecker(ctx):
     given QualifierSolver = ctx.qualifierSolver
 
+    override def keepType(tree: Tree): Boolean = true
+
     /** Removes @qualified annotations in inferred types in the given `unit`. This runs before the recheck* methods
       * below.
       */
@@ -55,8 +57,8 @@ class CheckQualifiedTypes extends Recheck:
         case Apply(fn, args) if (fn.symbol == defn.RuntimeCheckedMethod) =>
           //Don't trow exception here
           println(defn.RuntimeCheckedMethod)
-          println("fn.symbol: " + fn.symbol)
-          println("We return the expected type : " + expected)
+          println(i"fn.symbol: ${fn.symbol}")
+          println(i"We return the expected type: $expected")
           //super.checkConformsExpr(actual, expected, tree, addenda)
           expected
         case _ =>
