@@ -94,22 +94,33 @@ object QualifierExprs:
     expr match
       case ApplyVar(i, arg) => throw new Error("Cannot convert ApplyVar to Tree")
       case True => Literal(Constant(true))
-      case False => EmptyTree
-      case And(args) => EmptyTree
-      case Or(args) => EmptyTree
-      case Not(arg) => EmptyTree
+      case False =>  Literal(Constant(false))
+      case And(args) =>
+        args.map(toTree(_, predArg, predArgType)).reduce((a, b) => Apply(Select(a, nme.AND), List(b)))
+      case Or(args) =>
+        args.map(toTree(_, predArg, predArgType)).reduce((a, b) => Apply(Select(a, nme.OR), List(b)))
+      case Not(arg) =>
+        Apply(Select(toTree(arg, predArg, predArgType), nme.UNARY_!), List())
       case Equal(left, right) =>
         val lhs = toTree(left, predArg, predArgType)
         val rhs = toTree(right, predArg, predArgType)
         println(i"lhs: ${lhs.tpe}, rhs: ${rhs.tpe}")
         Apply(Select(lhs, nme.EQ), List(rhs))
-      case LessThan(left, right) => EmptyTree
+
+      case LessThan(left, right) =>
+        val lhs = toTree(left, predArg, predArgType)
+        val rhs = toTree(right, predArg, predArgType)
+        Apply(Select(lhs, nme.LT), List(rhs))
       case PredArg => predArg
       case Ref(id, name) => EmptyTree
       case App(fun, args) => EmptyTree
       case QualifierExpr.Lambda(params, body) => EmptyTree
-      case IntSum(const, args) => EmptyTree
-      case IntProduct(const, args) => EmptyTree
+      case IntSum(const, args) =>
+        val a = args.map(toTree(_, predArg, predArgType)).reduce((a, b) => Apply(Select(a, nme.ADD), List(b)))
+        Apply(Select(a, nme.ADD), List(Literal(Constant(const))))
+      case IntProduct(const, args) =>
+        val a = args.map(toTree(_, predArg, predArgType)).reduce((a, b) => Apply(Select(a, nme.MUL), List(b)))
+        Apply(Select(a, nme.MUL), List(Literal(Constant(const))))
       case IntConst(value) => Literal(Constant(value))
       case DoubleConst(value) => Literal(Constant(value))
       case StringConst(value) => Literal(Constant(value))
