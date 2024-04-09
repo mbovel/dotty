@@ -1,5 +1,3 @@
-import scala.compiletime.ops.string
-
 // TODO(Valentin889):
 // 1. move this extension method to the Scala 3 lib.
 //   - add it somewhere in /library/src
@@ -14,7 +12,7 @@ import scala.compiletime.ops.string
 //          ...
 
 
-def main =
-  val z: Int = ???
+@main def Main =
+  val z: Int = 9
   val y: {v: Int with v == 10} = z.runtimeChecked
   //  val y: Int @qualified[Int](v => v == 10) = x.runtimeChecked[{v: Int with v == 10}]
