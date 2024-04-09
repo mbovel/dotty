@@ -104,8 +104,7 @@ object QualifierExprs:
       case Equal(left, right) =>
         val lhs = toTree(left, predArg, predArgType)
         val rhs = toTree(right, predArg, predArgType)
-        println(i"lhs: ${lhs.tpe}, rhs: ${rhs.tpe}")
-        Apply(Select(lhs, nme.EQ), List(rhs))
+        lhs.select(defn.Int_==).appliedTo(rhs)
 
       case LessThan(left, right) =>
         val lhs = toTree(left, predArg, predArgType)
