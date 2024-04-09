@@ -108,7 +108,8 @@ object QualifierExprs:
       case LessThan(left, right) =>
         val lhs = toTree(left, predArg, predArgType)
         val rhs = toTree(right, predArg, predArgType)
-        Apply(Select(lhs, nme.LT), List(rhs))
+        applyOverloaded(lhs, nme.LT, rhs :: Nil, Nil, defn.BooleanType)
+
       case PredArg => predArg
       case Ref(id, name) => EmptyTree // No need to do it
       case App(fun, args) => EmptyTree // TODO(Valentin889)
