@@ -155,6 +155,8 @@
                 return `<code>push()</code> <code class="res">facts = ${event.currentFacts}</code>`;
               case "Assume":
                 return `<code>assume(${event.expr})</code>`;
+              case "CheckExprConforms":
+                return `<code>checkExprConforms(${event.from}, ${event.to})</code> <code class="res"> == ${event.result}</code>`;
               case "Check":
                 return `<code>check(${event.from}, ${event.to})</code> <code class="res"> == ${event.result}</code>`;
               case "TryImply":

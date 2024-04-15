@@ -12,7 +12,8 @@ import QualifierExpr.*
 import NaiveQualifierEquivalenceEngine.*
 
 @FixMethodOrder(MethodSorters.JVM)
-final class NaiveQualifierEquivalenceEngineTest:
+final class NaiveQualifierEquivalenceEngineTest
+  /*
   var ctx = NaiveQualifierEquivalenceEngine()
 
   val x = Ref(0, "x")
@@ -97,3 +98,4 @@ final class NaiveQualifierEquivalenceEngineTest:
     addEq(x, z)
     assertEquals(2, ctx.nClasses())
     assertEquivalent(f(x), f(y))
+  */

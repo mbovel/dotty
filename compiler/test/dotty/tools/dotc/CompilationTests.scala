@@ -38,7 +38,7 @@ class CompilationTests {
       compileFile("tests/pos-special/sourcepath/outer/nested/Test4.scala", defaultOptions.and("-sourcepath", "tests/pos-special/sourcepath")),
       compileFilesInDir("tests/pos-scala2", defaultOptions.and("-source", "3.0-migration")),
       compileFilesInDir("tests/pos-custom-args/captures", defaultOptions.and("-language:experimental.captureChecking")),
-      compileFilesInDir("tests/pos-custom-args/qualified-types", defaultOptions.and("-language:experimental.qualifiedTypes")),
+      compileFilesInDir("tests/pos-custom-args/qualified-types", defaultOptions.and("-language:experimental.qualifiedTypes", "-language:experimental.setNotation")),
       compileFile("tests/pos-special/utf8encoded.scala", defaultOptions.and("-encoding", "UTF8")),
       compileFile("tests/pos-special/utf16encoded.scala", defaultOptions.and("-encoding", "UTF16")),
       compileDir("tests/pos-special/i18589", defaultOptions.and("-Ysafe-init").without("-Ycheck:all")),
@@ -180,7 +180,9 @@ class CompilationTests {
     implicit val testGroup: TestGroup = TestGroup("testPickling")
     aggregateTests(
       compileFilesInDir("tests/pos", picklingOptions, FileFilter.exclude(TestSources.posTestPicklingBlacklisted)),
-      compileFilesInDir("tests/run", picklingOptions, FileFilter.exclude(TestSources.runTestPicklingBlacklisted))
+      compileFilesInDir("tests/run", picklingOptions, FileFilter.exclude(TestSources.runTestPicklingBlacklisted)),
+      compileFilesInDir("tests/pos-custom-args/qualified-types", picklingOptions.and("-language:experimental.qualifiedTypes")),
+      compileFilesInDir("tests/run-custom-args/qualified-types", picklingOptions.and("-language:experimental.qualifiedTypes")),
     ).checkCompile()
   }
 

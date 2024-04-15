@@ -7,13 +7,13 @@ import math.Ordering.Implicits.{seqOrdering, infixOrderingOps}
 import dotty.tools.dotc.core.Contexts.Context
 
 import QualifierExpr.*
-import QualifierLogging.{trace, startTrace, endTrace, log, LogEvent, LogEventNode, logNaiveSolverVars}
+import QualifierLogging.{trace, startTrace, endTrace, log, TraceEvent, TraceEventNode, logNaiveSolverVars}
 
 class NaiveQualifierSolver extends QualifierSolver:
   final var contextStack = List(True)
 
   override final def push()(using Context): Unit =
-    startTrace(LogEvent.Push(contextStack.map(_.show).mkString(", ")))
+    startTrace(TraceEvent.Push(contextStack.map(_.show).mkString(", ")))
     contextStack = contextStack.head :: contextStack
 
   override final def pop()(using Context): Unit =
@@ -22,16 +22,16 @@ class NaiveQualifierSolver extends QualifierSolver:
 
   override final def assume(p: QualifierExpr)(using Context): Unit =
     val head = and(contextStack.head, p)
-    trace(LogEvent.Assume(p.show))
+    trace(TraceEvent.Assume(p.show))
     contextStack = head :: contextStack.tail
 
   override final def check(to: QualifierExpr)(using Context): Boolean =
     val from = contextStack.head
-    trace(res => LogEvent.Check(from.show, to.show, res)):
+    trace(res => TraceEvent.Check(from.show, to.show, res)):
       tryImply(from, to, frozen = true) || tryImply(from, to, frozen = false)
 
   private final def tryImply(from: QualifierExpr, to: QualifierExpr, frozen: Boolean)(using Context): Boolean =
-    trace(res => LogEvent.TryImply(from.show, to.show, frozen, res)):
+    trace(res => TraceEvent.TryImply(from.show, to.show, frozen, res)):
       maybeRollback:
         to match
           case to: ApplyVar =>
@@ -70,11 +70,11 @@ class NaiveQualifierSolver extends QualifierSolver:
             from == to
       )
 
-    trace(res => LogEvent.LeafImplies(rootFrom.show, rootTo.show, res)):
+    trace(res => TraceEvent.LeafImplies(rootFrom.show, rootTo.show, res)):
       rec(rootFrom, rootTo) || {
         val eqs = NaiveQualifierEquivalenceEngine(rootFrom)
         val rewrittenTo = eqs.rewrite(rootTo)
-        trace(res => LogEvent.LeafImpliesEquiv(eqs.premise.show, rewrittenTo.show, res)):
+        trace(res => TraceEvent.LeafImpliesEquiv(eqs.premise.show, rewrittenTo.show, res)):
           rec(eqs.premise, rewrittenTo)
       }
 
@@ -124,7 +124,7 @@ class NaiveQualifierSolver extends QualifierSolver:
     ))
 
   final def tryAddImplicationToVar(premise: QualifierExpr, conclusion: ApplyVar)(using Context): Boolean =
-    trace(res => LogEvent.TryAddImplicationToVar(premise.show, conclusion.show, res)):
+    trace(res => TraceEvent.TryAddImplicationToVar(premise.show, conclusion.show, res)):
       val implication = ImplicationToVar(premise, conclusion)
       val previousImplications = implicationsToVars.getOrElse(conclusion.i, Set.empty)
       implicationsToVars.update(conclusion.i, previousImplications + implication)
@@ -164,7 +164,7 @@ class NaiveQualifierSolver extends QualifierSolver:
       premise: QualifierExpr /* with it.hasVars */,
       conclusion: QualifierExpr /* with !it.hasVars */
   )(using Context): Boolean =
-    trace(res => LogEvent.TryAddImplicationToLeaf(premise.show, conclusion.show, res)):
+    trace(res => TraceEvent.TryAddImplicationToLeaf(premise.show, conclusion.show, res)):
       val implication = ImplicationToLeaf(premise, conclusion)
       val canAdd = tryImply(instantiate(premise), conclusion, frozen = false)
       if canAdd then

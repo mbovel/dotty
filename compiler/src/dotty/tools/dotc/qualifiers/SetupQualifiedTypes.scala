@@ -1,13 +1,11 @@
 package dotty.tools.dotc.qualifiers
 
-import dotty.tools.dotc.transform.PreRecheck
 import dotty.tools.dotc.core.Contexts.Context
-import dotty.tools.dotc.core.DenotTransformers.SymTransformer
+import dotty.tools.dotc.core.DenotTransformers.IdentityDenotTransformer
+import dotty.tools.dotc.core.Symbols.Symbol
 import dotty.tools.dotc.core.SymDenotations.SymDenotation
+import dotty.tools.dotc.core.Types.Type
 
-class SetupQualifiedTypes extends PreRecheck, SymTransformer:
-  override def transformSym(symd: SymDenotation)(using Context): SymDenotation = symd
+import dotty.tools.dotc.transform.PreRecheck
 
-  override def run(using Context): Unit =
-    val (nextPhase: CheckQualifiedTypes) = (next: @unchecked)
-    SetupQualifiedTypesTraverser(this, nextPhase.recheckDef).traverse(ctx.compilationUnit.tpdTree)
+class SetupQualifiedTypes extends PreRecheck, IdentityDenotTransformer

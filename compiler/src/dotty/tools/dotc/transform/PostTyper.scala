@@ -19,6 +19,7 @@ import config.Feature
 import util.SrcPos
 import reporting.*
 import NameKinds.WildcardParamName
+import qualifiers.QualifiedAnnotation
 
 object PostTyper {
   val name: String = "posttyper"
@@ -144,7 +145,8 @@ class PostTyper extends MacroTransform with InfoTransformer { thisPhase =>
     }
 
     private def transformAnnot(annot: Annotation)(using Context): Annotation =
-      annot.derivedAnnotation(transformAnnot(annot.tree))
+      if annot.isInstanceOf[QualifiedAnnotation] then annot
+      else annot.derivedAnnotation(transformAnnot(annot.tree))
 
     private def processMemberDef(tree: Tree)(using Context): tree.type = {
       val sym = tree.symbol

@@ -22,54 +22,46 @@ class SetupQualifiedTypesTraverser(
   override def traverse(tree: Tree)(using Context) =
     tree match
       /*
-      case tree : ValDef if isValWithInferredType(tree) =>
-        inContext(localCtx(tree)):
-          tree.tpt.rememberType(removeAnnotations(tree.tpt.knownType))
-          traverse(tree.rhs)
-      */
-      case tree: ValDef if tree.symbol.is(Flags.Case) =>
-        inContext(localCtx(tree)):
-          tree.tpt.rememberType(normalizeAnnotations(tree.tpt.knownType))
-          traverse(tree.rhs)
       case tree: DefDef =>
         inContext(localCtx(tree)):
           tree.paramss.foreach(traverse)
           val newResType = tree.tpt match
             case tpt: InferredTypeTree => removeAnnotations(tree.tpt.knownType)
-            case tpt => normalizeAnnotations(tree.tpt.knownType)
+            case tpt => transformExplicitType(tree.tpt.knownType)
           tree.tpt.rememberType(newResType)
           traverse(tree.rhs)
-      case tree: InferredTypeTree => tree.rememberTypeAlways(addVars(removeAnnotations(tree.knownType)))
-      case tree: TypeTree => tree.rememberTypeAlways(normalizeAnnotations(tree.knownType))
-      case _ => traverseChildren(tree)
+      */
+      case tree: ValDef if tree.symbol.is(Flags.Case) =>
+        inContext(localCtx(tree)):
+          tree.tpt.rememberType(transformExplicitType(tree.tpt.knownType))
+          traverse(tree.rhs)
+      case tree: InferredTypeTree =>
+        tree.rememberType(transformInferredType(tree.knownType))
+      case tree: TypeTree =>
+        tree.rememberType(transformExplicitType(tree.knownType))
+      case _ =>
+        traverseChildren(tree)
 
-    myPostProcess(tree)
+    postProcess(tree)
 
-  def myPostProcess(tree: Tree)(using Context) =
-    tree match
-      case tree: ValDef =>
-        val sym = tree.symbol
-        if sym.exists then
-          val newInfo = tree.tpt.knownType
-          val updatedInfo = new LazyType:
-            def complete(denot: SymDenotation)(using Context) =
-              assert(ctx.phase == thisPhase.next, i"$sym")
-              denot.info = newInfo
-              recheckDef(tree, sym)
-          updateInfo(sym, updatedInfo)
-      case _ => ()
+  def transformExplicitType(tp: Type)(using Context) =
+    // Nothing to do for now :)
+    tp
 
-  def postProcess(tree: Tree)(using Context) =
+  def transformInferredType(tp: Type)(using Context) =
+    addVars(removeAnnotations(tp))
+
+  def postProcess(tree: Tree)(using Context): Unit =
     // Pasted from cc/Setup.scala:
     tree match
       case tree: ValOrDefDef =>
         val sym = tree.symbol
 
         /** The return type of a constructor instantiated with local type and value
-          *  parameters. Constructors have `unit` result type, that's why we can't
-          *  get this type by reading the result type tree, and have to construct it
-          *  explicitly.
-          */
+         *  parameters. Constructors have `unit` result type, that's why we can't
+         *  get this type by reading the result type tree, and have to construct it
+         *  explicitly.
+         */
         def constrReturnType(info: Type, psymss: List[List[Symbol]]): Type = info match
           case info: MethodOrPoly =>
             constrReturnType(info.instantiate(psymss.head.map(_.namedType)), psymss.tail)
@@ -77,8 +69,8 @@ class SetupQualifiedTypesTraverser(
             info
 
         /** The local result type, which is the known type of the result type tree,
-          *  with special treatment for constructors.
-          */
+         *  with special treatment for constructors.
+         */
         def localReturnType =
           if sym.isConstructor then constrReturnType(sym.info, sym.paramSymss)
           else tree.tpt.knownType
@@ -88,6 +80,9 @@ class SetupQualifiedTypesTraverser(
             case param: ValDef => param.tpt.hasRememberedType
             case param: TypeDef => param.rhs.hasRememberedType
           case _ => false
+
+        def signatureChanges =
+          tree.tpt.hasRememberedType && !sym.isConstructor || paramSignatureChanges
 
         // Replace an existing symbol info with inferred types where capture sets of
         // TypeParamRefs and TermParamRefs put in correspondence by BiTypeMaps with the
@@ -119,32 +114,70 @@ class SetupQualifiedTypesTraverser(
               if prevLambdas.isEmpty then resType
               else SubstParams(prevPsymss, prevLambdas)(resType)
 
-        if sym.exists then
-          val newInfo = tree.tpt.knownType
+        if sym.exists && signatureChanges then
+          val newInfo = integrateRT(sym.info, sym.paramSymss, localReturnType, Nil, Nil)
           //  .showing(i"update info $sym: ${sym.info} = $result", capt)
-          val updatedInfo = new LazyType:
-            def complete(denot: SymDenotation)(using Context) =
-              // infos of other methods are determined from their definitions which
-              // are checked on demand
-              assert(ctx.phase == thisPhase.next, i"$sym")
-              //capt.println(i"forcing $sym, printing = ${ctx.mode.is(Mode.Printing)}")
-              //if ctx.mode.is(Mode.Printing) then new Error().printStackTrace()
-              denot.info = newInfo
-              recheckDef(tree, sym)
-              /*
-              val recheckedTp = recheckDef(tree, sym)
-              if isValWithInferredType(tree) then
-                tree.tpt.rememberTypeAlways(recheckedTp)
-                denot.info = recheckedTp
-              */
+          if newInfo ne sym.info then
+            val updatedInfo =
+              if sym.isAnonymousFunction
+                  || sym.is(Param)
+                  || sym.is(ParamAccessor)
+                  || sym.isPrimaryConstructor
+              then
+                // closures are handled specially; the newInfo is constrained from
+                // the expected type and only afterwards we recheck the definition
+                newInfo
+              else new LazyType:
+                def complete(denot: SymDenotation)(using Context) =
+                  // infos of other methods are determined from their definitions which
+                  // are checked on demand
+                  assert(ctx.phase == thisPhase.next, i"$sym")
+                  //capt.println(i"forcing $sym, printing = ${ctx.mode.is(Mode.Printing)}")
+                  //if ctx.mode.is(Mode.Printing) then new Error().printStackTrace()
+                  denot.info = newInfo
+                  recheckDef(tree, sym)
+            updateInfo(sym, updatedInfo)
 
-          updateInfo(sym, updatedInfo)
-      case _ => ()
-
-  def isValWithInferredType(tree: Tree)(using Context) =
-    tree match
-      case tree: ValDef => tree.tpt.isInstanceOf[InferredTypeTree] && !tree.rhs.isEmpty
-      case _ => false
+      case tree: Bind =>
+        val sym = tree.symbol
+        updateInfo(sym, transformInferredType(sym.info))
+      case tree: TypeDef =>
+        tree.symbol match
+          case cls: ClassSymbol =>
+            val cinfo @ ClassInfo(prefix, _, ps, decls, selfInfo) = cls.classInfo
+            def innerModule = cls.is(ModuleClass) && !cls.isStatic
+            val selfInfo1 =
+              // TODO(mbovel): adapt this?
+              selfInfo
+              //if (selfInfo ne NoType) && !innerModule then
+              //  // if selfInfo is explicitly given then use that one, except if
+              //  // self info applies to non-static modules, these still need to be inferred
+              //  selfInfo
+              //else if cls.isPureClass then
+              //  // is cls is known to be pure, nothing needs to be added to self type
+              //  selfInfo
+              //else if !cls.isEffectivelySealed && !cls.baseClassHasExplicitSelfType then
+              //  // assume {cap} for completely unconstrained self types of publicly extensible classes
+              //  CapturingType(cinfo.selfType, CaptureSet.universal)
+              //else
+              //  // Infer the self type for the rest, which is all classes without explicit
+              //  // self types (to which we also add nested module classes), provided they are
+              //  // neither pure, nor are publicily extensible with an unconstrained self type.
+              //  CapturingType(cinfo.selfType, CaptureSet.Var(cls))
+            val ps1 = inContext(ctx.withOwner(cls)):
+              ps.mapConserve(transformExplicitType(_))
+            if (selfInfo1 ne selfInfo) || (ps1 ne ps) then
+              val newInfo = ClassInfo(prefix, cls, ps1, decls, selfInfo1)
+              updateInfo(cls, newInfo)
+              //capt.println(i"update class info of $cls with parents $ps selfinfo $selfInfo to $newInfo")
+              cls.thisType.asInstanceOf[ThisType].invalidateCaches()
+              //if cls.is(ModuleClass) then
+              //  // if it's a module, the capture set of the module reference is the capture set of the self type
+              //  val modul = cls.sourceModule
+              //  updateInfo(modul, CapturingType(modul.info, selfInfo1.asInstanceOf[Type].captureSet))
+              //  modul.termRef.invalidateCaches()
+          case _ =>
+      case _ =>
 
   // Pasted from cc/Setup.scala:
   /** Update info of `sym` for CheckRefinements phase only */

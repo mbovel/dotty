@@ -6,6 +6,7 @@ import core.*
 import Types.*, Contexts.*, Flags.*
 import Symbols.*, Annotations.*, Trees.*, Symbols.*, Constants.Constant
 import Decorators.*
+import qualifiers.QualifiedAnnotation
 
 
 /** A map that applies three functions and a substitution together to a tree and
@@ -173,7 +174,9 @@ class TreeTypeMap(
 
   def apply[ThisTree <: Tree](tree: ThisTree): ThisTree = transform(tree).asInstanceOf[ThisTree]
 
-  def apply(annot: Annotation): Annotation = annot.derivedAnnotation(apply(annot.tree))
+  def apply(annot: Annotation): Annotation =
+      if annot.isInstanceOf[QualifiedAnnotation] then annot
+      else annot.derivedAnnotation(apply(annot.tree))
 
   /** The current tree map composed with a substitution [from -> to] */
   def withSubstitution(from: List[Symbol], to: List[Symbol]): TreeTypeMap =

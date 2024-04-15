@@ -40,7 +40,7 @@ import java.lang.ref.WeakReference
 import compiletime.uninitialized
 import cc.{CapturingType, CaptureSet, derivedCapturingType, isBoxedCapturing, isCaptureChecking, isRetains, isRetainsLike}
 import CaptureSet.{CompareResult, IdempotentCaptRefMap, IdentityCaptRefMap}
-import qualifiers.{derivedQualifiedType, EventuallyQualifiedType, QualifierLogging, QualifiedType, QualifierExpr, QualifierExprs, mapTypes, innerTypes}
+import qualifiers.{EventuallyQualifiedType, QualifiedAnnotation, QualifierLogging, QualifiedType, QualifierExpr, QualifierExprs, derivedQualifiedType, mapTypes, innerTypes}
 
 import scala.annotation.internal.sharable
 import scala.annotation.threadUnsafe
@@ -3965,11 +3965,13 @@ object Types extends TypeUtils {
                     case tp: TermParamRef if tp.binder eq thisLambdaType => combine(s, CaptureDeps)
                     case _ => s
                 }
-              case QualifiedType(parent, refinement) =>
-                refinement.innerTypes.foldLeft(status)(compute(_, _, theAcc))
-              case EventuallyQualifiedType(parent, refinement) if ctx.phase.id < Phases.checkQualifiersPhase.id =>
-                // TODO(mbovel): can we remove this? All QualifiedTypes should have fresh parents after qualifiers setup.
-                combine(status, Provisional)
+              case EventuallyQualifiedType(parent, qualifier) =>
+                var currentStatus = compute(status, parent, theAcc)
+                qualifier.foreach:
+                  case QualifierExpr.Ref(tp) =>
+                    currentStatus = compute(currentStatus, tp, theAcc)
+                  case _ => ()
+                currentStatus
               case _ =>
                 if tp.annot.refersToParamOf(thisLambdaType) then TrueDeps
                 else compute(status, tp.parent, theAcc)
@@ -5682,7 +5684,8 @@ object Types extends TypeUtils {
     def make(underlying: Type, annots: List[Annotation])(using Context): Type =
       annots.foldLeft(underlying)(apply(_, _))
     def apply(parent: Type, annot: Annotation)(using Context): AnnotatedType =
-      unique(CachedAnnotatedType(parent, annot))
+      val annot1 = if annot.symbol == defn.QualifiedAnnot then QualifiedAnnotation(annot, parent) else annot
+      unique(CachedAnnotatedType(parent, annot1))
   end AnnotatedType
 
   // Special type objects and classes -----------------------------------------------------
@@ -6191,7 +6194,10 @@ object Types extends TypeUtils {
       }
     }
 
-    private def treeTypeMap = new TreeTypeMap(typeMap = this)
+    private def treeTypeMap =
+      new TreeTypeMap(typeMap = this):
+        override def withMappedSyms(syms: List[Symbol]): TreeTypeMap =
+          withMappedSyms(syms, mapSymbols(syms, this, mapAlways = true))
 
     def mapOver(syms: List[Symbol]): List[Symbol] = mapSymbols(syms, treeTypeMap)
 

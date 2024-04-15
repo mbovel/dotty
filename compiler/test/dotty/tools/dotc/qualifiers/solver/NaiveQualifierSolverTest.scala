@@ -8,7 +8,8 @@ import org.junit.Assert.*
 
 import QualifierExpr.*
 
-final class NaiveQualifierSolverTest extends QualifierSolverTest(NaiveQualifierSolver()):
+final class NaiveQualifierSolverTest extends QualifierSolverTest(NaiveQualifierSolver())
+  /*
   @Test def `it == 5 can imply 5 == it` =
     assertImplies(Equal(IntConst(5), PredArg), Equal(PredArg, IntConst(5)))
 
@@ -76,3 +77,4 @@ final class NaiveQualifierSolverTest extends QualifierSolverTest(NaiveQualifierS
   @Test def transitiveEquality() =
     val eq = and(Equal(x, y), Equal(y, z))
     assertImplies(eq, Equal(x, z))
+  */

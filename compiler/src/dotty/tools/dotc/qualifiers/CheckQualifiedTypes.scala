@@ -13,11 +13,12 @@ import config.Printers.qual
 import Recheck.*
 import annotation.constructorOnly
 import ast.tpd
-import solver.QualifierSolver
-import QualifierExpr.*
-import dotty.tools.dotc.qualifiers.QualifierLogging.{log, logTreeBefore, logTreeSetup, logTreeAfter, dumpLogs, enableLogging, disableLogging}
 import dotty.tools.dotc.interactive.Interactive.Include.overridden
-import dotty.tools.dotc.cc.Setup
+
+import QualifierExpr.*
+import QualifierLogging.{log, logTreeBefore, logTreeSetup, logTreeAfter, dumpLogs, enableLogging, disableLogging, TraceEvent, trace}
+import solver.QualifierSolver
+import dotty.tools.dotc.typer.ErrorReporting.Addenda
 
 class CheckQualifiedTypes extends Recheck:
   override def phaseName = "checkQualifiedTypes"
@@ -28,18 +29,17 @@ class CheckQualifiedTypes extends Recheck:
   override def newRechecker()(using Context): Rechecker = new Rechecker(ctx):
     given QualifierSolver = ctx.qualifierSolver
 
-    /** Removes @qualified annotations in inferred types in the given `unit`. This runs before the recheck* methods below.
-      */
     override def checkUnit(unit: CompilationUnit)(using Context) =
-       // logging
       enableLogging()
       logTreeBefore(unit.tpdTree.show)
+
+      val (prevPhase: SetupQualifiedTypes) = (prev: @unchecked)
+      SetupQualifiedTypesTraverser(prevPhase, recheckDef).traverse(unit.tpdTree)
       logTreeSetup(Recheck.addRecheckedTypes.transform(unit.tpdTree).show)
 
       super.checkUnit(unit)
       instantiateTraverser.traverse(unit.tpdTree)
 
-      // logging
       logTreeAfter(Recheck.addRecheckedTypes.transform(unit.tpdTree).show)
       ctx.qualifierSolver.debug()
       dumpLogs(f"qualifier-logging.json")
@@ -88,6 +88,11 @@ class CheckQualifiedTypes extends Recheck:
                     ErrorType(msg)
                   else tree.knownType
         case _ => tree.knownType
+
+
+    override def checkConformsExpr(actual: Type, expected: Type, tree: tpd.Tree, addenda: Addenda)(using Context): Type =
+      trace[Type](res => TraceEvent.CheckExprConforms(actual.show, expected.show, res.show)):
+        super.checkConformsExpr(actual, expected, tree, addenda)
 
 object CheckQualifiedTypes:
   class Pre extends PreRecheck, IdentityDenotTransformer:

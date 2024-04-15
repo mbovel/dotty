@@ -28,6 +28,7 @@ import config.{Config, Feature}
 import dotty.tools.dotc.util.SourcePosition
 import dotty.tools.dotc.ast.untpd.{MemberDef, Modifiers, PackageDef, RefTree, Template, TypeDef, ValOrDefDef}
 import cc.{CaptureSet, CapturingType, toCaptureSet, IllegalCaptureRef, isRetains}
+import qualifiers.{EventuallyQualifiedType, QualifierExpr}
 import dotty.tools.dotc.parsing.JavaParsers
 
 class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
@@ -647,7 +648,10 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
             && Feature.ccEnabled && !printDebug
             && Phases.checkCapturesPhase.exists // might be missing on -Ytest-pickler
         then toTextRetainsAnnot
-        else toTextAnnot
+        else
+          tree.typeOpt match
+            case EventuallyQualifiedType(_, _) if !printDebug => typeText(toText(tree.typeOpt))
+            case _ => toTextAnnot
       case EmptyTree =>
         "<empty>"
       case TypedSplice(t) =>
@@ -1198,4 +1202,32 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
       case Str(s, _) => Str(s, LineRange(pos.line, pos.endLine))
       case _ => txt
     }
+
+  override def toTextQualifierExpr(e: QualifierExpr): Text =
+    import QualifierExpr.*
+    inline def mkText(args: List[QualifierExpr], sep: String) = Text(args.map(toTextQualifierExpr), sep)
+    e match
+      case ApplyVar(i, arg)          => f"?$i(" ~ toTextQualifierExpr(arg) ~ ")"
+      case True                      => "true"
+      case False                     => "false"
+      case And(args)                 => mkText(args, " and ")
+      case Or(args)                  => mkText(args, " or ")
+      case Not(arg)                  => "!(" ~ toTextQualifierExpr(arg) ~ ")"
+      case Equal(left, right)        => toTextQualifierExpr(left) ~ " == " ~ toTextQualifierExpr(right)
+      case NotEqual(left, right)     => toTextQualifierExpr(left) ~ " != " ~ toTextQualifierExpr(right)
+      case Less(left, right)         => toTextQualifierExpr(left) ~ " < " ~ toTextQualifierExpr(right)
+      case LessEqual(left, right)    => toTextQualifierExpr(left) ~ " <= " ~ toTextQualifierExpr(right)
+      case Greater(left, right)      => toTextQualifierExpr(left) ~ " > " ~ toTextQualifierExpr(right)
+      case GreaterEqual(left, right) => toTextQualifierExpr(left) ~ " >= " ~ toTextQualifierExpr(right)
+      case IntConst(value)           => value.toString
+      case DoubleConst(value)        => value.toString
+      case StringConst(value)        => value.toString
+      case PredArg                   => "it"
+      case Ref(tp)             => if printDebug then ctx.printer.toText(tp) else ctx.printer.toTextRef(tp)
+      case Get(qual, name)           => toTextQualifierExpr(qual) ~ "." ~ name.show
+      case App(fun, args)            => toTextQualifierExpr(fun) ~ "(" ~ mkText(args, ", ") ~ ")"
+      case IntSum(const, args)       => (if const != 0 then f"$const + " else "") ~ mkText(args, " + ")
+      case IntProduct(const, args)   =>
+        if const == -1 then "-(" ~ mkText(args, " * ") ~ ")"
+        else (if const != 1 then f"$const * " else "") ~ mkText(args, " * ")
 }

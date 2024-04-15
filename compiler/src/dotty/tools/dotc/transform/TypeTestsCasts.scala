@@ -336,12 +336,6 @@ object TypeTestsCasts {
               transformTypeTest(e, tp1, flagUnrelated)
                 .and(transformTypeTest(e, tp2, flagUnrelated))
             }
-          case qualifiers.EventuallyQualifiedType(baseType, closureDef(qualifier: DefDef)) =>
-            evalOnce(expr) { e =>
-              // e.isInstanceOf[baseType] && qualifier(e.asInstanceOf[baseType])
-              transformTypeTest(e, baseType, flagUnrelated)
-                .and(BetaReduce(qualifier, List(List(e.asInstance(baseType)))))
-            }
           case defn.MultiArrayOf(elem, ndims) if isGenericArrayElement(elem, isScala2 = false) =>
             def isArrayTest(arg: Tree) =
               ref(defn.runtimeMethodRef(nme.isArray)).appliedTo(arg, Literal(Constant(ndims)))

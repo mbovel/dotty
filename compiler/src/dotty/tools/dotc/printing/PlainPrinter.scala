@@ -16,7 +16,7 @@ import scala.util.control.NonFatal
 import scala.annotation.switch
 import config.{Config, Feature}
 import cc.{CapturingType, RetainingType, CaptureSet, ReachCapability, MaybeCapability, isBoxed, levelOwner, retainedElems}
-import qualifiers.{QualifiedAnnotation, QualifiedType, QualifierExpr, QualifierExprs}
+import qualifiers.{QualifiedType, QualifierExpr}
 
 class PlainPrinter(_ctx: Context) extends Printer {
 
@@ -160,32 +160,7 @@ class PlainPrinter(_ctx: Context) extends Printer {
            //     ~ Str("?").provided(!cs.isConst)
       core ~ cs.optionalInfo
 
-
-  def toTextQualifierExpr(e: QualifierExpr): Text =
-    import QualifierExpr.*
-    inline def mkText(args: List[QualifierExpr], sep: String) = Text(args.map(toTextQualifierExpr), sep)
-    e match
-      case ApplyVar(i, arg)          => f"?$i(" ~ toTextQualifierExpr(arg) ~ ")"
-      case True                      => "true"
-      case False                     => "false"
-      case And(args)                 => mkText(args, " and ")
-      case Or(args)                  => mkText(args, " or ")
-      case Not(arg)                  => "not (" ~ toTextQualifierExpr(arg) ~ ")"
-      case Equal(left, right)        => toTextQualifierExpr(left) ~ " == " ~ toTextQualifierExpr(right)
-      case NotEqual(left, right)     => toTextQualifierExpr(left) ~ " != " ~ toTextQualifierExpr(right)
-      case Less(left, right)         => toTextQualifierExpr(left) ~ " < " ~ toTextQualifierExpr(right)
-      case LessEqual(left, right)    => toTextQualifierExpr(left) ~ " <= " ~ toTextQualifierExpr(right)
-      case Greater(left, right)      => toTextQualifierExpr(left) ~ " > " ~ toTextQualifierExpr(right)
-      case GreaterEqual(left, right) => toTextQualifierExpr(left) ~ " >= " ~ toTextQualifierExpr(right)
-      case IntConst(value)           => value.toString
-      case DoubleConst(value)        => value.toString
-      case StringConst(value)        => value.toString
-      case PredArg                   => "it"
-      case Ref(tp: TermRef)          => ctx.printer.toTextRef(tp)
-      case Ref(tp)                   => tp.show
-      case App(fun, args)            => toTextQualifierExpr(fun) ~ "(" ~ mkText(args, ", ") ~ ")"
-      case IntSum(const, args)       => mkText(args, " + ") ~ (if const != 0 then f" + $const" else "")
-      case IntProduct(const, args)   => mkText(args, " * ") ~ (if const != 1 then f" * $const" else "")
+  def toTextQualifierExpr(e: QualifierExpr): Text = e.toString
 
   private def toTextRetainedElem[T <: Untyped](ref: Tree[T]): Text = ref match
     case ref: RefTree[?] if ref.typeOpt.exists =>
@@ -268,13 +243,13 @@ class PlainPrinter(_ctx: Context) extends Printer {
         val showAsCap = refs.isUniversal && (refs.elems.size == 1 || !printDebug)
         val refsText = if showAsCap then rootSetText else toTextCaptureSet(refs)
         toTextCapturing(parent, refsText, boxText)
-      case tp @ QualifiedType(parent, qualifier) =>
-        "(" ~ toTextLocal(parent) ~ " with " ~ qualifier.show ~ ")"
       case tp @ RetainingType(parent, refs) =>
         val refsText = refs match
           case ref :: Nil if ref.symbol == defn.captureRoot => rootSetText
           case _ => toTextRetainedElems(refs)
         toTextCapturing(parent, refsText, "") ~ Str("R").provided(printDebug)
+      case tp @ QualifiedType(parent, qualifier) =>
+        "(" ~ toTextLocal(parent) ~ " with " ~ qualifier.show ~ ")"
       case tp: PreviousErrorType if ctx.settings.XprintTypes.value =>
         "<error>" // do not print previously reported error message because they may try to print this error type again recuresevely
       case tp: ErrorType =>

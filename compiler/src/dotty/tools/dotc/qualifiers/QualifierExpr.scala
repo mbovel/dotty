@@ -2,15 +2,18 @@ package dotty.tools.dotc.qualifiers
 
 import scala.annotation.threadUnsafe
 import scala.collection.mutable
-import math.Ordering.Implicits.{seqOrdering, infixOrderingOps}
+import scala.math.Ordering.Implicits.{seqOrdering, infixOrderingOps}
 
 import dotty.tools.dotc.core.Contexts.{ctx, Context}
-import dotty.tools.dotc.core.Types.{TermRef, SingletonType}
-import dotty.tools.dotc.printing.Showable
+import dotty.tools.dotc.core.Constants.Constant
+import dotty.tools.dotc.core.Names.Name
+import dotty.tools.dotc.core.Types.{ConstantType, NamedType, RecThis, SingletonType, SuperType, TermRef, TermParamRef, ThisType, Type}
+import dotty.tools.dotc.printing.{Printer, Showable}
+import dotty.tools.dotc.printing.Texts.Text
 
 import QualifierExpr.*
-import dotty.tools.dotc.printing.Printer
-import dotty.tools.dotc.printing.Texts.Text
+
+type ReferenceType = TermRef | ThisType | SuperType | TermParamRef | RecThis
 
 enum QualifierExpr extends Showable:
   // Predicates:
@@ -29,7 +32,8 @@ enum QualifierExpr extends Showable:
 
   // General expressions:
   case PredArg
-  case Ref(tp: SingletonType)
+  case Ref(tp: ReferenceType)
+  case Get(prefix: QualifierExpr, name: Name)
   case App(fun: QualifierExpr, args: List[QualifierExpr])
   case IntSum(const: Int, args: List[QualifierExpr])
   case IntProduct(const: Int, args: List[QualifierExpr])
@@ -55,13 +59,14 @@ enum QualifierExpr extends Showable:
       case NotEqual(left, right)     => f(notEqual(left.map(f), right.map(f)))
       case Less(left, right)         => f(less(left.map(f), right.map(f)))
       case LessEqual(left, right)    => f(lessEqual(left.map(f), right.map(f)))
-      case GreaterEqual(left, right) => f(greaterEqual(left.map(f), right.map(f)))
       case Greater(left, right)      => f(greater(left.map(f), right.map(f)))
+      case GreaterEqual(left, right) => f(greaterEqual(left.map(f), right.map(f)))
       case IntConst(value)           => f(this)
       case DoubleConst(value)        => f(this)
       case StringConst(value)        => f(this)
       case PredArg                   => f(this)
       case Ref(tp)                   => f(this)
+      case Get(prefix, name)         => f(Get(f(prefix), name))
       case App(fun, args)            => f(App(fun.map(f), args.map(_.map(f))))
       case IntSum(const, args)       => f(args.map(_.map(f)).foldRight(IntConst(const))(intSum))
       case IntProduct(const, args)   => f(args.map(_.map(f)).foldRight(IntConst(const))(intProduct))
@@ -78,6 +83,7 @@ enum QualifierExpr extends Showable:
       case LessEqual(left, right)    => left.foreach(f); right.foreach(f)
       case Greater(left, right)      => left.foreach(f); right.foreach(f)
       case GreaterEqual(left, right) => left.foreach(f); right.foreach(f)
+      case Get(prefix, name)         => prefix.foreach(f)
       case App(fun, args)            => fun.foreach(f); args.foreach(_.foreach(f))
       case IntSum(const, args)       => args.foreach(_.foreach(f))
       case IntProduct(const, args)   => args.foreach(_.foreach(f))
@@ -108,14 +114,11 @@ enum QualifierExpr extends Showable:
       case LessEqual(left, right)    => left.vars ++ right.vars
       case Greater(left, right)      => left.vars ++ right.vars
       case GreaterEqual(left, right) => left.vars ++ right.vars
-      case PredArg                   => Nil
-      case Ref(tp)                   => Nil
+      case Get(prefix, name)         => prefix.vars
       case App(fun, args)            => fun.vars ++ args.flatMap(_.vars)
       case IntSum(const, args)       => args.flatMap(_.vars)
       case IntProduct(const, args)   => args.flatMap(_.vars)
-      case IntConst(value)           => Nil
-      case DoubleConst(value)        => Nil
-      case StringConst(value)        => Nil
+      case _                         => Nil
 
   def hasVars: Boolean = vars.nonEmpty
 
@@ -282,6 +285,11 @@ object QualifierExpr:
       case IntConst(c)         => IntConst(-c)
       case _                   => IntProduct(-1, List(x))
 
+  def get(x: QualifierExpr, name: Name)(using Context): QualifierExpr =
+    x match
+      case Ref(tp: TermRef) => Ref(tp.select(name.asTermName))
+      case _                => Get(x, name)
+
   /** Spaceship operator */
   extension (x: Int) inline def <=>(inline y: Int) = if x != 0 then x else y
 
@@ -337,13 +345,17 @@ object QualifierExpr:
         case (GreaterEqual(xLeft, xRight), GreaterEqual(yLeft, yRight)) => xLeft.compareTo(yLeft) <=> xRight.compareTo(yRight)
         case (GreaterEqual(_, _), _)                                    => -1
         case (_, GreaterEqual(_, _))                                    => 1
-        case (App(xFun, xArgs), App(yFun, yArgs))                       => xFun.compareTo(yFun) <=> xArgs.compareTo(yArgs)
-        case (App(_, _), _)                                             => -1
-        case (_, App(_, _))                                             => 1
-        case (ApplyVar(x, xArg), ApplyVar(y, yArg))                     => x.compareTo(y) <=> xArg.compareTo(yArg)
-        case (ApplyVar(_, _), _)                                        => -1
-        case (_, ApplyVar(_, _))                                        => 1
-        case (PredArg, PredArg)                                         => 0
-        case (PredArg, _)                                               => -1
-        case (_, PredArg)                                               => 1
-        case (Ref(x), Ref(y))                                           => System.identityHashCode(x).compareTo(System.identityHashCode(y))
+        case (Get(xPrefix, xName), Get(yPrefix, yName)) =>
+          xPrefix.compareTo(yPrefix) <=> System.identityHashCode(xName).compareTo(System.identityHashCode(yName))
+        case (Get(_, _), _)                         => -1
+        case (_, Get(_, _))                         => 1
+        case (App(xFun, xArgs), App(yFun, yArgs))   => xFun.compareTo(yFun) <=> xArgs.compareTo(yArgs)
+        case (App(_, _), _)                         => -1
+        case (_, App(_, _))                         => 1
+        case (ApplyVar(x, xArg), ApplyVar(y, yArg)) => x.compareTo(y) <=> xArg.compareTo(yArg)
+        case (ApplyVar(_, _), _)                    => -1
+        case (_, ApplyVar(_, _))                    => 1
+        case (PredArg, PredArg)                     => 0
+        case (PredArg, _)                           => -1
+        case (_, PredArg)                           => 1
+        case (Ref(x), Ref(y))                       => System.identityHashCode(x).compareTo(System.identityHashCode(y))

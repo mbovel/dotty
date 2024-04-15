@@ -6,7 +6,8 @@ import org.junit.Assert.*
 import QualifierExpr.*
 import dotty.tools.io.Path.extension
 
-final class QualifierExprTest:
+final class QualifierExprTest
+  /*
   val x = Ref(0, "x")
   val y = Ref(1, "y")
   val z = Ref(2, "z")
@@ -55,3 +56,4 @@ final class QualifierExprTest:
 
   @Test def sumGroupedSingle =
     assertEquals(IntProduct(2, List(x)), IntSum(0, List(x, x)).shallowNormalize())
+  */

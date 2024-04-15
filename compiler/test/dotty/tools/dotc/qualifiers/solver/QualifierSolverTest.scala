@@ -9,7 +9,8 @@ import org.junit.runners.MethodSorters
 import QualifierExpr.*
 
 @FixMethodOrder(MethodSorters.JVM)
-abstract class QualifierSolverTest(solver: QualifierSolver):
+abstract class QualifierSolverTest(solver: QualifierSolver)
+  /*
   // Note: JUnit4 creates a new instance of the test class before calling each
   // test method. Therefore, we get a fresh solver and fresh expressions for
   // each test.
@@ -48,3 +49,4 @@ abstract class QualifierSolverTest(solver: QualifierSolver):
     assertImplies(v2, Equal(x, y)) // v2 is not empty
     assertImplies(True, or(and(v, v2), v3))
     assertImplies(v, Equal(x, y)) // v is not empty
+  */

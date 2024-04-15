@@ -11,12 +11,12 @@ object QualifierLogging:
   inline def log(inline msg: => String): Unit =
     config.Printers.qual.println(msg)
 
-  enum LogEvent:
+  enum TraceEvent:
     case OfType(from: String, result: String)
     case FromTree(from: String, arg: String, result: String)
     case Push(currentFacts: String)
     case Assume(expr: String)
-    case TypeTryImply(from: String, to: String, result: String)
+    case CheckExprConforms(from: String, to: String, result: String)
     case Check(from: String, to: String, result: Boolean)
     case QualifierImplies(from: String, to: String, result: Boolean)
     case TryImply(from: String, to: String, frozen: Boolean, result: Boolean)
@@ -26,36 +26,36 @@ object QualifierLogging:
     case TryAddImplicationToLeaf(from: String, to: String, result: Boolean)
     case TryAddImplicationToVar(from: String, to: String, result: Boolean)
 
-  import LogEvent.*
+  import TraceEvent.*
 
-  private case class LogEventNode(event: LogEvent, children: ArrayBuffer[LogEventNode] = ArrayBuffer.empty)
+  private case class TraceEventNode(event: TraceEvent, children: ArrayBuffer[TraceEventNode] = ArrayBuffer.empty)
 
-  private var eventsStack = ArrayBuffer(ArrayBuffer[LogEventNode]())
+  private var eventsStack = ArrayBuffer(ArrayBuffer[TraceEventNode]())
 
-  def trace(event: LogEvent): Unit =
+  def trace(event: TraceEvent): Unit =
     if !enabled then return
-    eventsStack.last += LogEventNode(event)
+    eventsStack.last += TraceEventNode(event)
 
-  def trace[T](event: T => LogEvent)(compute: => T): T =
+  def trace[T](event: T => TraceEvent)(compute: => T): T =
     if !enabled then return compute
-    val children = ArrayBuffer[LogEventNode]()
+    val children = ArrayBuffer[TraceEventNode]()
     eventsStack += children
     val result = compute
     eventsStack.remove(eventsStack.length - 1)
-    eventsStack.last += LogEventNode(event(result), children)
+    eventsStack.last += TraceEventNode(event(result), children)
     result
 
-  def startTrace(event: LogEvent): Unit =
+  def startTrace(event: TraceEvent): Unit =
     if !enabled then return
-    val children = ArrayBuffer[LogEventNode]()
-    eventsStack.last += LogEventNode(event, children)
+    val children = ArrayBuffer[TraceEventNode]()
+    eventsStack.last += TraceEventNode(event, children)
     eventsStack += children
 
   def endTrace(): Unit =
     if !enabled then return
     eventsStack.remove(eventsStack.length - 1)
 
-  private def eventNodeToJson(node: LogEventNode): String =
+  private def eventNodeToJson(node: TraceEventNode): String =
     val childrenJson = node.children.map(eventNodeToJson).mkString("[", ",", "]")
     s"""{"event": ${productToJson(node.event)}, "children": $childrenJson}"""
 
@@ -138,7 +138,7 @@ object QualifierLogging:
     Files.write(Paths.get(file), jsonStr.getBytes)
 
   def enableLogging(): Unit =
-    eventsStack = ArrayBuffer(ArrayBuffer[LogEventNode]())
+    eventsStack = ArrayBuffer(ArrayBuffer[TraceEventNode]())
     naiveSolverVars.clear()
     treeBefore = null
     treeAfter = null

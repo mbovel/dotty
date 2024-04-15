@@ -4,29 +4,20 @@ package qualifiers
 
 import core.*
 import Types.*, Symbols.*, Contexts.*, ast.tpd.*, Decorators.*
+import Annotations.{Annotation, ConcreteAnnotation}
 
 object QualifiedType:
-  def apply(parent: Type, pred: QualifierExpr)(using Context): Type =
-    AnnotatedType(parent, QualifiedAnnotation(pred))
+  def apply(parent: Type, pred: QualifierExpr)(using Context): AnnotatedType =
+    AnnotatedType(parent, QualifiedAnnotation(pred, parent))
 
-  /** An extractor that succeeds only during CheckRefinements. */
+  /** An extractor that succeeds only during the phase CheckQualifiedTypes. */
   def unapply(tp: Type)(using Context): Option[(Type, QualifierExpr)] =
-    if ctx.phase == Phases.checkQualifiersPhase then
-      tp match
-        case tp: AnnotatedType if tp.annot.symbol == defn.QualifiedAnnot =>
-          tp.annot match
-            case QualifiedAnnotation(pred) => Some((tp.parent, pred))
-            case _                         => None
-        case _ => None
-    else None
+    if ctx.phase != Phases.checkQualifiersPhase then None
+    else EventuallyQualifiedType.unapply(tp)
 
-/** An extractor for types that will be refinement types at phase CheckRefinements.
-  */
 object EventuallyQualifiedType:
-  def unapply(tp: Type)(using Context): Option[(Type, Tree)] =
+  /** An extractor for types that will be qualified types at phase CheckQualifiedTypes. */
+  def unapply(tp: Type)(using Context): Option[(Type, QualifierExpr)] =
     tp match
-      case tp: AnnotatedType if tp.annot.symbol == defn.QualifiedAnnot =>
-        tp.annot match
-          case QualifiedAnnotation(pred) => throw new Error("No tree available for QualifiedAnnotation at this point.") // TODO(mbovel)
-          case _                         => Some((tp.parent, tp.annot.argument(0).get))
-      case _ => None
+      case AnnotatedType(parent, QualifiedAnnotation(pred, _)) => Some((parent, pred))
+      case _                                                => None

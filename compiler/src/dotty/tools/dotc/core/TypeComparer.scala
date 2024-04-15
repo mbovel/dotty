@@ -25,7 +25,7 @@ import annotation.constructorOnly
 import cc.*
 import NameKinds.WildcardParamName
 
-import dotty.tools.dotc.qualifiers.{QualifierExprs, QualifiedType, stripRefinements, derivedQualifiedType, qualifierImplies}
+import dotty.tools.dotc.qualifiers.{QualifierExprs, QualifiedType, stripQualifiers, derivedQualifiedType, qualifierImplies}
 import dotty.tools.dotc.qualifiers.QualifierExpr
 import dotty.tools.dotc.qualifiers.solver.QualifierSolver
 
@@ -548,7 +548,7 @@ class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling
           else thirdTry
         compareCapturing
       case tp1 @ QualifiedType(parent1, refinement1) =>
-        if recur(tp1.stripRefinements, tp2.stripRefinements) then tp1.qualifierImplies(tp2)
+        if recur(stripQualifiers(tp1), stripQualifiers(tp2)) then tp1.qualifierImplies(tp2)
         else thirdTry
       case tp1: AnnotatedType if !tp1.isRefining =>
         recur(tp1.parent, tp2)
@@ -865,7 +865,7 @@ class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling
             throw ex
         compareCapturing || fourthTry
       case tp2 @ QualifiedType(parent2, refinement2) =>
-        if recur(tp1.stripRefinements, tp2.stripRefinements) then tp1.qualifierImplies(tp2)
+        if recur(stripQualifiers(tp1), stripQualifiers(tp2)) then tp1.qualifierImplies(tp2)
         else fourthTry
       case tp2: AnnotatedType if tp2.isRefining =>
         (tp1.derivesAnnotWith(tp2.annot.sameAnnotation) || tp1.isBottomType) &&
