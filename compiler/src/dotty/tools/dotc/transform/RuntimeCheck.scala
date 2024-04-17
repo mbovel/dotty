@@ -10,6 +10,7 @@ import core.Symbols.defn
 import core.Decorators.*
 
 
+// TODO(Valentin889): Move to `qualifiers` package.
 class QualifiedTypesRuntimeChecks extends MiniPhase{
 
   import tpd.*

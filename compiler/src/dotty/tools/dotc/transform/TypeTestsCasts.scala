@@ -336,9 +336,16 @@ object TypeTestsCasts {
               transformTypeTest(e, tp1, flagUnrelated)
                 .and(transformTypeTest(e, tp2, flagUnrelated))
             }
+
           case qualifiers.EventuallyQualifiedType(baseType, closureDef(qualifier: DefDef)) =>
             evalOnce(expr) { e =>
-              // e.isInstanceOf[baseType] && qualifier(e.asInstanceOf[baseType])
+              // e.isInstanceOf[baseType] && (qualifier)(e.asInstanceOf[baseType])
+
+              // BetaReduce(it => it > 0, x)
+              // ===>   (it => it > 0)(x)
+              // ===>   x > 0
+
+              // TODO(Valentin889): Move this to a separate miniphase.
               transformTypeTest(e, baseType, flagUnrelated)
                 .and(BetaReduce(qualifier, List(List(e.asInstance(baseType)))))
             }
