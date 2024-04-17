@@ -1,6 +1,5 @@
 import language.experimental.setNotation
 
-
 type Pos = {x: Int with x > 0}
 
 inline val isPosTrue = "It Pos"
@@ -12,7 +11,6 @@ def isPos(x: Any) = x match
 
 
 type NonEmptyString = {s: String with !s.isEmpty}
-
 type PoliteString = {s: NonEmptyString with s.head.isUpper && s.takeRight(6) == "please"}
 
 inline val isPoliteTrue = "It Polite"
@@ -22,9 +20,7 @@ def isPolite(x: Any) = x match
   case x: PoliteString => isPoliteTrue
   case _ => isPoliteFalse
 
-@main
-def Test =
-
+@main def Test =
   val l0 = List[Int](-1, 0, 1, 4)
   val l1 = for case (x: Pos) <- l0 yield x
   val l2 = l0.collect{ case x: (Pos | 0) => math.sqrt(x) }
