@@ -110,9 +110,9 @@ object QualifierExprs:
         val rhs = toTree(right, predArg, predArgType)
         Apply(Select(lhs, nme.LT), List(rhs))
       case PredArg => predArg
-      case Ref(id, name) => EmptyTree
-      case App(fun, args) => EmptyTree
-      case QualifierExpr.Lambda(params, body) => EmptyTree
+      case Ref(id, name) => EmptyTree // No need to do it
+      case App(fun, args) => EmptyTree // TODO(Valentin889)
+      case QualifierExpr.Lambda(params, body) => EmptyTree // No need to do it
       case IntSum(const, args) =>
         val a = args.map(toTree(_, predArg, predArgType)).reduce((a, b) => Apply(Select(a, nme.ADD), List(b)))
         Apply(Select(a, nme.ADD), List(Literal(Constant(const))))
