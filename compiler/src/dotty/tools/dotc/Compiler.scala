@@ -91,6 +91,7 @@ class Compiler {
     List(new CheckQualifiedTypes.Pre) ::
     List(new CheckQualifiedTypes) ::
     List(new QualifiedTypesRuntimeChecks) ::
+    List(new EventuallyQualifiedType) ::
     List(new ElimOpaque,             // Turn opaque into normal aliases
          new sjs.ExplicitJSClasses,  // Make all JS classes explicit (Scala.js only)
          new ExplicitOuter,          // Add accessors to outer classes from nested ones.
