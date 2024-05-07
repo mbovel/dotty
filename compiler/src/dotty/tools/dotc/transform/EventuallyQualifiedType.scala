@@ -26,6 +26,8 @@ import dotty.tools.dotc.util.SrcPos
 import ast.tpd.*
 import typer.Inferencing.maximizeType
 import typer.ProtoTypes.constrained
+import dotty.tools.dotc.cc.CaptureSet.empty
+import typer.*
 
 
 class EventuallyQualifiedType extends MiniPhase{
@@ -34,11 +36,30 @@ class EventuallyQualifiedType extends MiniPhase{
 
   override def description: String = EventuallyQualifiedType.description
 
-  override def transformApply(tree: Apply)(using Context): Tree = trace(s"transforming ${tree.show}", show = true) {
+  override def transformTypeApply(tree: tpd.TypeApply)(using Context): tpd.Tree =
+
+    println("***** transformTypeApply")
+
+    val ntree = {
+        // Use erased-type semantic to intercept TypeApply in explicit nulls
+        val interceptCtx = if ctx.explicitNulls then ctx.retractMode(Mode.SafeNulls) else ctx
+        interceptTypeApply(tree.asInstanceOf[TypeApply])(using interceptCtx)
+      }.withSpan(tree.span)
+
+
+
+    println(tree.show)
+    println(ntree.show)
+    ntree
+
+
+  def interceptTypeApply(tree: TypeApply)(using Context): Tree = trace(s"transforming ${tree.show}", show = true) {
     /** Intercept `expr.xyz[XYZ]` */
     def interceptWith(expr: Tree): Tree =
+      println("***** expr : " + expr.show)
       if (expr.isEmpty) tree
       else {
+        println("***** not empty")
         val sym = tree.symbol
 
         def isPrimitive(tp: Type) = tp.classSymbol.isPrimitiveValueClass
@@ -47,12 +68,13 @@ class EventuallyQualifiedType extends MiniPhase{
           cpy.TypeApply(tree)(expr1.select(sym).withSpan(expr.span), List(TypeTree(tp)))
 
         def inMatch =
-          tree.fun.symbol == defn.Any_typeTest ||  // new scheme<
+          tree.fun.symbol == defn.Any_typeTest ||  // new scheme
           expr.symbol.is(Case)                // old scheme
 
         def transformIsInstanceOf(
             expr: Tree, testType: Type,
             unboxedTestType: Type, flagUnrelated: Boolean): Tree = {
+          println("***** transformIsInstanceOf")
           def testCls = effectiveClass(testType.widen)
           def unboxedTestCls = effectiveClass(unboxedTestType.widen)
 
@@ -228,9 +250,11 @@ class EventuallyQualifiedType extends MiniPhase{
         }
 
         if (sym.isTypeTest) {
+          println("***** isTypeTest")
           val argType = tree.args.head.tpe
           val isTrusted = tree.hasAttachment(PatternMatcher.TrustedTypeTestKey)
           if !isTrusted then
+            println("***** not trusted")
             checkTypePattern(expr.tpe, argType, expr.srcPos)
           transformTypeTest(expr, argType,
             flagUnrelated = enclosingInlineds.isEmpty) // if test comes from inlined code, dont't flag it even if it always false
@@ -250,19 +274,7 @@ class EventuallyQualifiedType extends MiniPhase{
     interceptWith(expr)
   }
 
-  private def checkTypePattern(exprTpe: Type, castTpe: Type, pos: SrcPos)(using Context) =
-    val isUnchecked = exprTpe.widenTermRefExpr.hasAnnotation(defn.UncheckedAnnot)
-    if !isUnchecked then
-      val whyNot = whyUncheckable(exprTpe, castTpe, pos.span)
-      if whyNot.nonEmpty then
-        report.uncheckedWarning(UncheckedTypePattern(castTpe, whyNot), pos)
-
-  private def effectiveClass(tp: Type)(using Context): Symbol =
-    if tp.isRef(defn.PairClass) then effectiveClass(erasure(tp))
-    else if tp.isRef(defn.AnyValClass) then defn.AnyClass
-    else tp.classSymbol
-
-  private def whyUncheckable(X: Type, P: Type, span: Span)(using Context): String = atPhase(Phases.refchecksPhase.next) {
+  def whyUncheckable(X: Type, P: Type, span: Span)(using Context): String = atPhase(Phases.refchecksPhase.next) {
     extension (inline s1: String) inline def &&(inline s2: String): String = if s1 == "" then s2 else s1
     extension (inline b: Boolean) inline def |||(inline s: String): String = if b then "" else s
 
@@ -387,14 +399,28 @@ class EventuallyQualifiedType extends MiniPhase{
     res
   }
 
+  private def checkTypePattern(exprTpe: Type, castTpe: Type, pos: SrcPos)(using Context) =
+    val isUnchecked = exprTpe.widenTermRefExpr.hasAnnotation(defn.UncheckedAnnot)
+    if !isUnchecked then
+      val whyNot = whyUncheckable(exprTpe, castTpe, pos.span)
+      if whyNot.nonEmpty then
+        report.uncheckedWarning(UncheckedTypePattern(castTpe, whyNot), pos)
+
+  private def effectiveClass(tp: Type)(using Context): Symbol =
+    if tp.isRef(defn.PairClass) then effectiveClass(erasure(tp))
+    else if tp.isRef(defn.AnyValClass) then defn.AnyClass
+    else tp.classSymbol
+
   private[transform] def foundClasses(tp: Type)(using Context): List[Symbol] =
     def go(tp: Type, acc: List[Type])(using Context): List[Type] = tp.dealias match
       case  OrType(tp1, tp2) => go(tp2, go(tp1, acc))
       case AndType(tp1, tp2) => (for t1 <- go(tp1, Nil); t2 <- go(tp2, Nil) yield AndType(t1, t2)) ::: acc
       case _                 => tp :: acc
     go(tp, Nil).map(effectiveClass)
-
 }
+
+
+
 object EventuallyQualifiedType:
   val name: String = "EventuallyQualifiedType"
   val description: String = ""
