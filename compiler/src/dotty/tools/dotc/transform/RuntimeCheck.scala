@@ -21,6 +21,7 @@ class QualifiedTypesRuntimeChecks extends MiniPhase{
 
 
   override def transformApply(tree: Apply)(using Context): Tree =
+
     if (tree.fun.symbol == defn.RuntimeCheckedMethod) then
 
         //compare tree.tpe and args(0) with args(0).isInstanceOf[TypeTree] use method isInstance inside tpd
@@ -32,16 +33,8 @@ class QualifiedTypesRuntimeChecks extends MiniPhase{
         import tasty._
         import Constants.*
 
-        //println("isInstance " + tree.args(0).isInstance(tree.tpe).show)
-        println(i"tree: $tree")
-        println(i"known type: ${tree.knownType}")
-        println("isInstance " + tree.args(0).isInstance(tree.knownType))
-
         //Create a new val
-        val valDef = SyntheticValDef(
-          "x".toTermName,
-          tree.args(0)
-        )
+        val valDef = SyntheticValDef("x".toTermName, tree.args(0))
 
         // Create the exception type
         val exceptionType = defn.IllegalArgumentExceptionType // Need a better exception
@@ -62,16 +55,10 @@ class QualifiedTypesRuntimeChecks extends MiniPhase{
 
         val ifStatement = If(condition, thenBranch, elseBranch)
 
-
         //import tasty._
-        val blockStats = List(
-          valDef,
-        )
-        val blockExpr = Block(
-          blockStats,
-          ifStatement
-        )
-        // Create the block tree
+        val blockStats = List(valDef)
+        val blockExpr = Block(blockStats, ifStatement)
+
         return blockExpr
 
     super.transformApply(tree)
