@@ -12,14 +12,16 @@ object QualifiedType:
   /** An extractor that succeeds only during CheckRefinements.
     */
   def unapply(tp: Type)(using Context): Option[(Type, QualifierExpr)] =
-    if ctx.phase == Phases.checkQualifiersPhase then
-      tp match
-        case tp: AnnotatedType if tp.annot.symbol == defn.QualifiedAnnot =>
-          tp.annot match
-            case QualifiedAnnotation(pred, _) => Some((tp.parent, pred))
-            case _                         => Some((tp.parent,  QualifierExprs.fromClosure(tp.annot.argument(0).get)))
-        case _ => None
-    else None
+    tp match
+      case tp: AnnotatedType if tp.annot.symbol == defn.QualifiedAnnot =>
+        tp.annot match
+          case QualifiedAnnotation(pred, _) => Some((tp.parent, pred))
+          case _ =>
+            if ctx.phase == Phases.checkQualifiersPhase then
+              Some((tp.parent,  QualifierExprs.fromClosure(tp.annot.argument(0).get)))
+            else
+              None
+      case _ => None
 
 /** An extractor for types that will be refinement types at phase CheckRefinements.
   */

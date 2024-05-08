@@ -816,7 +816,6 @@ object Erasure {
         interceptTypeApply(tree.asInstanceOf[TypeApply])(using interceptCtx)
       }.withSpan(tree.span)
 
-      println("******************************")
       ntree match {
         case TypeApply(fun, args) =>
           val fun1 = typedExpr(fun, AnyFunctionProto)
@@ -827,10 +826,7 @@ object Erasure {
             case _ => fun1
           }
         case _ =>
-          println("***** Case _")
-          println(ntree)
           val a = typedExpr(ntree, pt)
-          println(a)
           a
       }
 
