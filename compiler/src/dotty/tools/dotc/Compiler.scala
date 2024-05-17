@@ -90,8 +90,8 @@ class Compiler {
     List(new cc.CheckCaptures) ::    // Check captures, enabled under captureChecking
     List(new CheckQualifiedTypes.Pre) ::
     List(new CheckQualifiedTypes) ::
-    List(new QualifiedTypesRuntimeChecks) ::
-    List(new EventuallyQualifiedType) ::
+    List(new QualifiedTypesRuntimeChecked) ::
+    List(new QualifiedTypesTypeTests) ::
     List(new ElimOpaque,             // Turn opaque into normal aliases
          new sjs.ExplicitJSClasses,  // Make all JS classes explicit (Scala.js only)
          new ExplicitOuter,          // Add accessors to outer classes from nested ones.

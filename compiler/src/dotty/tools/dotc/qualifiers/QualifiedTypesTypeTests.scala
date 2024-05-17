@@ -33,13 +33,14 @@ import Recheck.knownType
 import qualifiers.QualifierExprs
 
 
-class EventuallyQualifiedType extends MiniPhase{
+class QualifiedTypesTypeTests extends MiniPhase{
 
-  override def phaseName: String = EventuallyQualifiedType.name
+  override def phaseName: String = QualifiedTypesTypeTests.name
 
-  override def description: String = EventuallyQualifiedType.description
+  override def description: String = QualifiedTypesTypeTests.description
 
   override def transformTypeApply(tree: TypeApply)(using Context): tpd.Tree =
+    println("************ transformTypeApply ************")
     if tree.symbol.isTypeTest then
       val expr = tree.fun match
         case Select(expr, _) => expr
@@ -52,10 +53,8 @@ class EventuallyQualifiedType extends MiniPhase{
           throw new Exception("Unreachable code")
         case _ => tree
       val testType = tree.args.head.knownType
+      println(i"expr: $expr, testType: $testType")
 
-      println("***** transformTypeTest")
-      println(i"expr: $expr")
-      println(s"testType: $testType")
       transformTypeTest(expr, testType)
     else
       tree
@@ -70,6 +69,7 @@ class EventuallyQualifiedType extends MiniPhase{
           println("qualifier: " + qualifier)
           val exprCast = expr.asInstance(baseType)
           val appliedQualifier = QualifierExprs.toTree(qualifier, exprCast, baseType)
+          println("appliedQualifier: " + appliedQualifier)
           transformTypeTest(expr, baseType).and(appliedQualifier)
         case _ =>
           expr.isInstance(testType)
@@ -85,7 +85,7 @@ class EventuallyQualifiedType extends MiniPhase{
 
 
 
-object EventuallyQualifiedType:
-  val name: String = "EventuallyQualifiedType"
+object QualifiedTypesTypeTests:
+  val name: String = "QualifiedTypesTypeTests"
   val description: String = ""
 

@@ -1,5 +1,5 @@
 package dotty.tools.dotc
-package transform
+package qualifiers
 
 import transform.MegaPhase.MiniPhase
 import ast.{TreeTypeMap, tpd}
@@ -11,7 +11,7 @@ import core.Decorators.*
 
 
 // TODO(Valentin889): Move to `qualifiers` package.
-class QualifiedTypesRuntimeChecks extends MiniPhase{
+class QualifiedTypesRuntimeChecked extends MiniPhase{
 
   import tpd.*
 
@@ -65,5 +65,5 @@ class QualifiedTypesRuntimeChecks extends MiniPhase{
 }
 
 object RuntimeCheck:
-  val name: String = "runtimeChecked"
+  val name: String = "QualifiedTypesRuntimeChecked"
   val description: String = "runtime check for qualified types"
