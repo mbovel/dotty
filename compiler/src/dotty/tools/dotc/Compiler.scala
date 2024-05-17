@@ -5,6 +5,7 @@ import core.*
 import Contexts.*
 import typer.{TyperPhase, RefChecks}
 import qualifiers.CheckQualifiedTypes
+import qualifiers.QualifiedTypesRuntimeChecked
 import parsing.Parser
 import Phases.Phase
 import transform.*

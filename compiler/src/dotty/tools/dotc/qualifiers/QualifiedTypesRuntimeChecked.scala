@@ -26,7 +26,7 @@ class QualifiedTypesRuntimeChecked extends MiniPhase{
 
         //compare tree.tpe and args(0) with args(0).isInstanceOf[TypeTree] use method isInstance inside tpd
 
-        import Recheck.knownType
+        import transform.Recheck.knownType
         import tpd.*
         import Symbols.*
         import NameKinds.UniqueName
