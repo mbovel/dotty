@@ -77,7 +77,7 @@ object QualifierExprs:
         fromConst(c)
       case _ =>
         throw new Error(f"Cannot translate ${tree}")
-    log(i"fromTree($tree, $predArgSymbol) == ${res}")
+    println(i"fromTree($tree, $predArgSymbol) ===> ${res}")
     res
 
 
@@ -91,16 +91,22 @@ object QualifierExprs:
     res
 
   def toTree(expr: QualifierExpr, predArg: Tree, predArgType: Type)(using Context): Tree =
+    println("************ toTree ************")
+    println(i"expr: $expr, predArg: $predArg, predArgType: $predArgType")
+    def unaryOpToTree(name: Name, left: QualifierExpr): Tree =
+      val lhs = toTree(left, predArg, predArgType)
+      applyOverloaded(lhs, name.toTermName, List(), Nil, defn.BooleanType)
+
     expr match
       case ApplyVar(i, arg) => throw new Error("Cannot convert ApplyVar to Tree")
       case True => Literal(Constant(true))
       case False =>  Literal(Constant(false))
       case And(args) =>
-        args.map(toTree(_, predArg, predArgType)).reduce((a, b) => Apply(Select(a, nme.AND), List(b)))
+        args.map(toTree(_, predArg, predArgType)).reduce((a, b) =>  a.select(defn.Boolean_&&).appliedTo(b))
       case Or(args) =>
-        args.map(toTree(_, predArg, predArgType)).reduce((a, b) => Apply(Select(a, nme.OR), List(b)))
+        args.map(toTree(_, predArg, predArgType)).reduce((a, b) => a.select(defn.Boolean_||).appliedTo(b))
       case Not(arg) =>
-        Apply(Select(toTree(arg, predArg, predArgType), nme.UNARY_!), List())
+        toTree(arg, predArg, predArgType).select(defn.Boolean_!)
       case Equal(left, right) =>
         val lhs = toTree(left, predArg, predArgType)
         val rhs = toTree(right, predArg, predArgType)
