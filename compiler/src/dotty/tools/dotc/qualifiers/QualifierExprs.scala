@@ -49,6 +49,7 @@ object QualifierExprs:
 
   def fromTree(tree: Tree)(using predArgSymbol: Symbol)(using Context): QualifierExpr =
     // TODO(mbovel): cache
+    // TODO(Valentin889): Add float | double | String
     val res = tree match
       case id: Ident =>
         if id.symbol == predArgSymbol then PredArg
