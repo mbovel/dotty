@@ -65,25 +65,16 @@ class QualifiedTypesTypeTests extends MiniPhase{
     val newTree =
       testType match
         case AndType(tp1, tp2) if containsQualifiedTypes(tp1) || containsQualifiedTypes(tp2) =>
-          if containsQualifiedTypes(tp1) then
-            if containsQualifiedTypes(tp2) then
-              throw new Exception("TODO")
-            else
-              transformTypeTest(expr, tp1)
-          else
-            transformTypeTest(expr, tp2)
+          println("AndType")
+          val expr1 = transformTypeTest(expr, tp1)
+          val expr2 = transformTypeTest(expr, tp2)
+          expr1.and(expr2)
 
         case OrType(tp1, tp2) if containsQualifiedTypes(tp1) || containsQualifiedTypes(tp2)  =>
-
-          if containsQualifiedTypes(tp1) then
-            if containsQualifiedTypes(tp2) then
-              throw new Exception("TODO")
-            else
-              transformTypeTest(expr, tp1)
-
-
-          else
-            transformTypeTest(expr, tp2)
+          println("OrType")
+          val expr1 = transformTypeTest(expr, tp1)
+          val expr2 = transformTypeTest(expr, tp2)
+          expr1.or(expr2)
 
 
 

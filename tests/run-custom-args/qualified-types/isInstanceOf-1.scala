@@ -3,11 +3,23 @@ def f[T] = ()
 def Test =
   val n: Any = ???
 
+  if n.isInstanceOf[ String | Float | {v: Int with v > 0}] then println("n is an Int with value > 0 or a String or a float")
+  else println("n is not an Int with > 0 or a String or a float")
 
 
-  if n.isInstanceOf[ String & {v: Int with v > 0}] then println("n is an Int with value > 0 or a String")
-  else println("n is not an Int with > 0 or a String")
   /*
+  if n.isInstanceOf[ String & {v: Int with v > 0}] then println("n is an Int with value > 0 and a String")
+  else println("n is not an Int with > 0 and a String")
+
+  if n.isInstanceOf[ String | {v: Int with v > 0}] then println("n is an Int with value > 0 or a String")
+  else println("n is not an Int with > 0 or a String")
+
+
+
+  // this order crashes
+  if n.isInstanceOf[ {v: Int with v > 0} | String] then println("n is an Int with value > 0 or a String")
+  else println("n is not an Int with > 0 or a String")
+
 
   if n.isInstanceOf[Int | String] then println("n is an Int or a String")
   else println("n is not an Int or a String")
