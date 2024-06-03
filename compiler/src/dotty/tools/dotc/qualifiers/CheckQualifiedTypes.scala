@@ -30,6 +30,8 @@ class CheckQualifiedTypes extends Recheck:
   override def newRechecker()(using Context): Rechecker = new Rechecker(ctx):
     given QualifierSolver = ctx.qualifierSolver
 
+    override def keepType(tree: Tree): Boolean = true // TODO(Valentin889): remove this. The phase to translate isInstanceOf of qualified types should use `.knownType` instead of `.tpe`, so we don't need to keep the types (setting the flag to true copies all `knownType` to `tpe`).
+
     /** Removes @qualified annotations in inferred types in the given `unit`. This runs before the recheck* methods
       * below.
       */

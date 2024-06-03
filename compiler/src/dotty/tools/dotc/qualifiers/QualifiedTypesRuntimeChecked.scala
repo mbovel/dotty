@@ -28,7 +28,13 @@ class QualifiedTypesRuntimeChecked extends MiniPhase{
 
   override def transformApply(tree: Apply)(using Context): Tree =
 
+    println("************ transformApply RuntimeChecked ************")
+
     if (tree.fun.symbol == defn.RuntimeCheckedMethod) then
+
+        println("************ transformApply RuntimeChecked method ************")
+        println(tree.knownType)
+
 
         //compare tree.tpe and args(0) with args(0).isInstanceOf[TypeTree] use method isInstance inside tpd
 
