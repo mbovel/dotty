@@ -70,6 +70,13 @@ object QualifierExprs:
               case nme.ADD => intSum(lhs, rhs)
               case nme.SUB => intSum(lhs, intNegate(rhs))
               case nme.MUL => intProduct(lhs, rhs)
+          case Select(qualifier, name)
+              if intBinOps.contains(name) && qualifier.tpe <:< defn.StringType =>
+            val lhs = fromTree(qualifier)
+            val rhs = fromTree(args(0))
+            name match
+              case nme.EQ  => Equal(lhs, rhs)
+              case nme.NE  => Not(Equal(lhs, rhs))
           case _ =>
             App(fromTree(fun), args.map(fromTree))
       case Select(qualifier, name) if tree.symbol.isRealMethod =>
