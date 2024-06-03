@@ -8,6 +8,12 @@ import Contexts.*
 import config.Printers.overload
 import core.Symbols.defn
 import core.Decorators.*
+import transform.Recheck.knownType
+import tpd.*
+import Symbols.*
+import NameKinds.UniqueName
+import tasty._
+import Constants.*
 
 
 // TODO(Valentin889): Move to `qualifiers` package.
@@ -26,12 +32,6 @@ class QualifiedTypesRuntimeChecked extends MiniPhase{
 
         //compare tree.tpe and args(0) with args(0).isInstanceOf[TypeTree] use method isInstance inside tpd
 
-        import transform.Recheck.knownType
-        import tpd.*
-        import Symbols.*
-        import NameKinds.UniqueName
-        import tasty._
-        import Constants.*
 
         //Create a new val
         val valDef = SyntheticValDef("x".toTermName, tree.args(0))
