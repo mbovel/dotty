@@ -61,11 +61,7 @@ class CheckQualifiedTypes extends Recheck:
       trace[Type](res => TraceEvent.CheckExprConforms(actual.show, expected.show, res.show)):
         tree match
           case Apply(fn, args) if (fn.symbol == defn.RuntimeCheckedMethod) =>
-            // Don't trow exception here
-            println(defn.RuntimeCheckedMethod)
-            println(i"fn.symbol: ${fn.symbol}")
-            println(i"We return the expected type: $expected")
-            // super.checkConformsExpr(actual, expected, tree, addenda)
+            // Will be handled by a runtime check generated in QualifiedTypesRuntimeChecked.
             expected
           case _ =>
             super.checkConformsExpr(actual, expected, tree, addenda)

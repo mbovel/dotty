@@ -12,12 +12,10 @@ import transform.Recheck.knownType
 import tpd.*
 import Symbols.*
 import NameKinds.UniqueName
-import tasty._
+import tasty.*
 import Constants.*
 
-
-// TODO(Valentin889): Move to `qualifiers` package.
-class QualifiedTypesRuntimeChecked extends MiniPhase{
+class QualifiedTypesRuntimeChecked extends MiniPhase:
 
   import tpd.*
 
@@ -25,50 +23,37 @@ class QualifiedTypesRuntimeChecked extends MiniPhase{
 
   override def description: String = RuntimeCheck.description
 
-
   override def transformApply(tree: Apply)(using Context): Tree =
+    if tree.fun.symbol == defn.RuntimeCheckedMethod then
+      // Create a new val
+      val valDef = SyntheticValDef("x".toTermName, tree.args(0))
 
-    println("************ transformApply RuntimeChecked ************")
+      // Create the exception type
+      val exceptionType = defn.IllegalArgumentExceptionType // Need a better exception
 
-    if (tree.fun.symbol == defn.RuntimeCheckedMethod) then
+      // Create the New tree node for constructing the exception
+      val newException = New(exceptionType, List())
 
-        println("************ transformApply RuntimeChecked method ************")
-        println(tree.knownType)
+      // Create the Throw tree node for throwing the exception
+      val throwException = Throw(newException)
 
+      val valIdent = Ident(valDef.symbol.termRef)
 
-        //compare tree.tpe and args(0) with args(0).isInstanceOf[TypeTree] use method isInstance inside tpd
+      val condition = valIdent.isInstance(tree.knownType)
 
+      val thenBranch = valIdent.asInstance(tree.knownType)
 
-        //Create a new val
-        val valDef = SyntheticValDef("x".toTermName, tree.args(0))
+      val elseBranch = throwException
 
-        // Create the exception type
-        val exceptionType = defn.IllegalArgumentExceptionType // Need a better exception
+      val ifStatement = If(condition, thenBranch, elseBranch)
 
-        // Create the New tree node for constructing the exception
-        val newException = New(exceptionType, List())
+      // import tasty._
+      val blockStats = List(valDef)
+      val blockExpr = Block(blockStats, ifStatement)
 
-        // Create the Throw tree node for throwing the exception
-        val throwException = Throw(newException)
-
-        val valIdent = Ident(valDef.symbol.termRef)
-
-        val condition = valIdent.isInstance(tree.knownType)
-
-        val thenBranch = valIdent.asInstance(tree.knownType)
-
-        val elseBranch = throwException
-
-        val ifStatement = If(condition, thenBranch, elseBranch)
-
-        //import tasty._
-        val blockStats = List(valDef)
-        val blockExpr = Block(blockStats, ifStatement)
-
-        return blockExpr
+      return blockExpr
 
     super.transformApply(tree)
-}
 
 object RuntimeCheck:
   val name: String = "QualifiedTypesRuntimeChecked"
