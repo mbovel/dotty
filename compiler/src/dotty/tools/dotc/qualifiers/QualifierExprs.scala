@@ -131,6 +131,94 @@ object QualifierExprs:
       case IntConst(value)           => Literal(Constant(value))
       case DoubleConst(value)        => Literal(Constant(value))
       case StringConst(value)        => Literal(Constant(value))
+    // TODO(Valentin889): Add float | double | String
+    val res = tree match
+      case id: Ident =>
+        if id.symbol == predArgSymbol then PredArg
+        else fromSymbol(id.symbol)
+      case Apply(fun, args) =>
+        fun match
+          case Select(qualifier, name)
+              if intBinOps.contains(name) && qualifier.tpe <:< defn.IntType =>
+            val lhs = fromTree(qualifier)
+            val rhs = fromTree(args(0))
+            name match
+              case nme.EQ  => Equal(lhs, rhs)
+              case nme.NE  => Not(Equal(lhs, rhs))
+              case nme.GT  => and(Not(Equal(lhs, rhs)), Not(LessThan(lhs, rhs)))
+              case nme.GE  => Not(LessThan(lhs, rhs))
+              case nme.LT  => LessThan(lhs, rhs)
+              case nme.LE  => and(Not(Equal(lhs, rhs)), LessThan(lhs, rhs))
+              case nme.ADD => intSum(lhs, rhs)
+              case nme.SUB => intSum(lhs, intNegate(rhs))
+              case nme.MUL => intProduct(lhs, rhs)
+          case Select(qualifier, name)
+              if intBinOps.contains(name) && qualifier.tpe <:< defn.StringType =>
+            val lhs = fromTree(qualifier)
+            val rhs = fromTree(args(0))
+            name match
+              case nme.EQ  => Equal(lhs, rhs)
+              case nme.NE  => Not(Equal(lhs, rhs))
+          case _ =>
+            App(fromTree(fun), args.map(fromTree))
+      case Select(qualifier, name) if tree.symbol.isRealMethod =>
+        App(fromSymbol(tree.symbol), List(fromTree(qualifier)))
+      case Literal(c) if fromConst.isDefinedAt(c) =>
+        fromConst(c)
+      case _ =>
+        throw new Error(f"Cannot translate ${tree}")
+    println(i"fromTree($tree, $predArgSymbol) ===> ${res}")
+    res
+
+
+  def toClosure(expr: QualifierExpr, predArgType: Type)(using Context): Tree =
+    val lambdaType: MethodType = MethodType(List("it".toTermName))(_ => List(predArgType), _ => defn.BooleanType)
+    val res = ast.tpd.Lambda(lambdaType, (args) => {
+      val predArg = Ident(args(0).symbol.termRef)
+      toTree(expr, predArg, predArgType)
+    })
+    //println(i"toClosure($expr, $predArgType) == $res")
+    res
+
+  def toTree(expr: QualifierExpr, predArg: Tree, predArgType: Type)(using Context): Tree =
+    println("************ toTree ************")
+    println(i"expr: $expr, predArg: $predArg, predArgType: $predArgType")
+    def unaryOpToTree(name: Name, left: QualifierExpr): Tree =
+      val lhs = toTree(left, predArg, predArgType)
+      applyOverloaded(lhs, name.toTermName, List(), Nil, defn.BooleanType)
+
+    expr match
+      case ApplyVar(i, arg) => throw new Error("Cannot convert ApplyVar to Tree")
+      case True => Literal(Constant(true))
+      case False =>  Literal(Constant(false))
+      case And(args) =>
+        args.map(toTree(_, predArg, predArgType)).reduce((a, b) =>  a.select(defn.Boolean_&&).appliedTo(b))
+      case Or(args) =>
+        args.map(toTree(_, predArg, predArgType)).reduce((a, b) => a.select(defn.Boolean_||).appliedTo(b))
+      case Not(arg) =>
+        toTree(arg, predArg, predArgType).select(defn.Boolean_!)
+      case Equal(left, right) =>
+        val lhs = toTree(left, predArg, predArgType)
+        val rhs = toTree(right, predArg, predArgType)
+        lhs.equal(rhs)
+      case LessThan(left, right) =>
+        val lhs = toTree(left, predArg, predArgType)
+        val rhs = toTree(right, predArg, predArgType)
+        applyOverloaded(lhs, nme.LT, rhs :: Nil, Nil, defn.BooleanType)
+
+      case PredArg => predArg
+      case Ref(id, name) => EmptyTree // No need to do it
+      case App(fun, args) => EmptyTree // TODO(Valentin889)
+      case QualifierExpr.Lambda(params, body) => EmptyTree // No need to do it
+      case IntSum(const, args) =>
+        val a = args.map(toTree(_, predArg, predArgType)).reduce((a, b) => Apply(Select(a, nme.ADD), List(b)))
+        Apply(Select(a, nme.ADD), List(Literal(Constant(const))))
+      case IntProduct(const, args) =>
+        val a = args.map(toTree(_, predArg, predArgType)).reduce((a, b) => Apply(Select(a, nme.MUL), List(b)))
+        Apply(Select(a, nme.MUL), List(Literal(Constant(const))))
+      case IntConst(value) => Literal(Constant(value))
+      case DoubleConst(value) => Literal(Constant(value))
+      case StringConst(value) => Literal(Constant(value))
 
   val fromConst: PartialFunction[Constant, QualifierExpr] = {
     case Constant(value: Int)     => IntConst(value)

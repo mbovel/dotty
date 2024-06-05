@@ -4,7 +4,7 @@ package dotc
 import core.*
 import Contexts.*
 import typer.{TyperPhase, RefChecks}
-import qualifiers.{SetupQualifiedTypes, CheckQualifiedTypes}
+import qualifiers.{CheckQualifiedTypes, QualifiedTypesRuntimeChecked, QualifiedTypesTypeTests, SetupQualifiedTypes}
 import parsing.Parser
 import Phases.Phase
 import transform.*
@@ -90,6 +90,8 @@ class Compiler {
     List(new cc.CheckCaptures) ::    // Check captures, enabled under captureChecking
     List(new SetupQualifiedTypes) ::
     List(new CheckQualifiedTypes) ::
+    List(new QualifiedTypesRuntimeChecked) ::
+    List(new QualifiedTypesTypeTests) ::
     List(new ElimOpaque,             // Turn opaque into normal aliases
          new sjs.ExplicitJSClasses,  // Make all JS classes explicit (Scala.js only)
          new ExplicitOuter,          // Add accessors to outer classes from nested ones.

@@ -29,6 +29,11 @@ class CheckQualifiedTypes extends Recheck:
   override def newRechecker()(using Context): Rechecker = new Rechecker(ctx):
     given QualifierSolver = ctx.qualifierSolver
 
+    override def keepType(tree: Tree): Boolean = true
+
+    /** Removes @qualified annotations in inferred types in the given `unit`.
+      * This runs before the recheck* methods below.
+      */
     override def checkUnit(unit: CompilationUnit)(using Context) =
       enableLogging()
       logTreeBefore(unit.tpdTree.show)
@@ -51,6 +56,19 @@ class CheckQualifiedTypes extends Recheck:
         tree match
           case tree: TypeTree => tree.rememberTypeAlways(instantiateMap(tree.knownType))
           case _              => ()
+
+    override def checkConformsExpr(actual: Type, expected: Type, tree: tpd.Tree, addenda: Addenda)(using Context): Type =
+      trace[Type](res => TraceEvent.CheckExprConforms(actual.show, expected.show, res.show)):
+        tree match
+          case Apply(fn, args) if (fn.symbol == defn.RuntimeCheckedMethod) =>
+            // Don't trow exception here
+            println(defn.RuntimeCheckedMethod)
+            println(i"fn.symbol: ${fn.symbol}")
+            println(i"We return the expected type: $expected")
+            // super.checkConformsExpr(actual, expected, tree, addenda)
+            expected
+          case _ =>
+            super.checkConformsExpr(actual, expected, tree, addenda)
 
     def instantiateMap(using Context) = new TypeMap:
       def apply(t: Type) =
@@ -88,11 +106,6 @@ class CheckQualifiedTypes extends Recheck:
                     ErrorType(msg)
                   else tree.knownType
         case _ => tree.knownType
-
-
-    override def checkConformsExpr(actual: Type, expected: Type, tree: tpd.Tree, addenda: Addenda)(using Context): Type =
-      trace[Type](res => TraceEvent.CheckExprConforms(actual.show, expected.show, res.show)):
-        super.checkConformsExpr(actual, expected, tree, addenda)
 
 object CheckQualifiedTypes:
   class Pre extends PreRecheck, IdentityDenotTransformer:

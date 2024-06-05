@@ -1,0 +1,4 @@
+n1 is an Int with value > 0 or a String
+n2 is an Int with value > 0 or a String
+n3 is not an Int with > 0 or a String
+n4 is not an Int with > 0 or a String

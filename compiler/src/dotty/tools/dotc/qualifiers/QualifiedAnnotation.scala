@@ -10,9 +10,9 @@ import dotty.tools.dotc.printing.Printer
 import dotty.tools.dotc.printing.Texts.{stringToText, Text}
 
 import dotty.tools.dotc.ast.Trees.EmptyTree
+import dotty.tools.dotc.qualifiers.QualifierExprs.toClosure
 
 case class QualifiedAnnotation(qualifier: QualifierExpr, qualifierArgType: Type) extends Annotation:
-
   override def tree(using Context): Tree =
     val qualifierTree = QualifierExprs.toClosure(qualifier, qualifierArgType)
     New(defn.QualifiedAnnot.typeRef.appliedTo(qualifierArgType), List(qualifierTree))

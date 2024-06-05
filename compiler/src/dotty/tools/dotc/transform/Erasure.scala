@@ -35,6 +35,7 @@ import ExplicitOuter.*
 import core.Mode
 import util.Property
 import reporting.*
+import dotty.tools.dotc.ast.Trees.ntrees
 
 class Erasure extends Phase with DenotTransformer {
 
@@ -48,7 +49,10 @@ class Erasure extends Phase with DenotTransformer {
   override def changesMembers: Boolean = true // the phase adds bridges
   override def changesParents: Boolean = true // the phase drops Any
 
-  def transform(ref: SingleDenotation)(using Context): SingleDenotation = ref match {
+  def transform(ref: SingleDenotation)(using Context): SingleDenotation =
+
+    ref match {
+
     case ref: SymDenotation =>
       def isCompacted(symd: SymDenotation) =
         symd.isAnonymousFunction && {
@@ -805,6 +809,7 @@ object Erasure {
       }
 
     override def typedTypeApply(tree: untpd.TypeApply, pt: Type)(using Context): Tree = {
+
       val ntree = atPhase(erasurePhase){
         // Use erased-type semantic to intercept TypeApply in explicit nulls
         val interceptCtx = if ctx.explicitNulls then ctx.retractMode(Mode.SafeNulls) else ctx
@@ -820,8 +825,11 @@ object Erasure {
               untpd.cpy.TypeApply(tree)(fun1, args1).withType(funTpe.instantiate(args1.tpes))
             case _ => fun1
           }
-        case _ => typedExpr(ntree, pt)
+        case _ =>
+          val a = typedExpr(ntree, pt)
+          a
       }
+
     }
 
     override def typedBind(tree: untpd.Bind, pt: Type)(using Context): Bind =

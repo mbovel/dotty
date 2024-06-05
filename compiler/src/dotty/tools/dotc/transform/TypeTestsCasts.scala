@@ -336,6 +336,8 @@ object TypeTestsCasts {
               transformTypeTest(e, tp1, flagUnrelated)
                 .and(transformTypeTest(e, tp2, flagUnrelated))
             }
+          case qualifiers.EventuallyQualifiedType(_, _) =>
+            throw new Exception("Unreachable code: qualified types should have been eliminated from type tests in the `EventuallyQualifiedType` phase.")
           case defn.MultiArrayOf(elem, ndims) if isGenericArrayElement(elem, isScala2 = false) =>
             def isArrayTest(arg: Tree) =
               ref(defn.runtimeMethodRef(nme.isArray)).appliedTo(arg, Literal(Constant(ndims)))
@@ -373,6 +375,8 @@ object TypeTestsCasts {
           transformAsInstanceOf(erasure(tree.args.head.tpe))
         else tree
       }
+    // x.isInstanceOf[T]
+    // TypeApply(Select(Ident(x), isInstanceOf), List(TypeTree(T)))
     val expr = tree.fun match {
       case Select(expr, _) => expr
       case i: Ident =>

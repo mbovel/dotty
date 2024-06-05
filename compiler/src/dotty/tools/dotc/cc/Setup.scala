@@ -488,7 +488,6 @@ class Setup extends PreRecheck, SymTransformer, SetupAPI:
 
         if sym.exists && signatureChanges then
           val newInfo = integrateRT(sym.info, sym.paramSymss, localReturnType, Nil, Nil)
-            .showing(i"update info $sym: ${sym.info} = $result", capt)
           if newInfo ne sym.info then
             val updatedInfo =
               if sym.isAnonymousFunction
