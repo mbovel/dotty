@@ -57,7 +57,7 @@ class QualifiedTypesTypeTests extends MiniPhase:
 
   def transformTypeTest(expr: Tree, testType: Type)(using Context): Tree =
     val newTree =
-      testType match
+      testType.dealiasKeepQualifyingAnnots match
         case AndType(tp1, tp2) if containsQualifiedTypes(tp1) || containsQualifiedTypes(tp2) =>
           val expr1 = transformTypeTest(expr, tp1)
           val expr2 = transformTypeTest(expr, tp2)
