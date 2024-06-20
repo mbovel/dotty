@@ -69,9 +69,12 @@
       <pre id="before"></pre>
       <h2>Tree setup</h2>
       <pre id="setup"></pre>
+      <h2>Implications</h2>
+      <div id="implications"></div>
       <h2>Tree after</h2>
       <pre id="after"></pre>
     </section>
+    <script src="viz-standalone.js"></script>
     <script type="module">
       import hljs from "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/es/highlight.min.js";
       import scala from "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/es/languages/scala.min.js";
@@ -91,6 +94,19 @@
         before.innerHTML = hljs.highlight(data["treeBefore"], { language: "scala" }).value;
         const setup = document.getElementById("setup");
         setup.innerHTML = hljs.highlight(data["treeSetup"], { language: "scala" }).value;
+        const implications = document.getElementById("implications");
+        Viz.instance().then(function(viz) {
+          for(const graph of data["naiveSolverVars"]) {
+            // graph.exprs contains nodes texts
+            // graph.dependencies contains edges
+            const nodes = graph.exprs.map((expr, i) => `n${i} [label="${expr}"];`).join("\n");
+            const edges = graph.dependencies.map(([from, to]) => `n${from} -> n${to};`).join("\n");
+            const dot = `digraph {\nrankdir=LR\n${nodes}\n${edges}\n}`;
+            console.log(dot)
+            const svg = viz.renderSVGElement(dot);
+            implications.appendChild(svg);
+          }
+        });
         const after = document.getElementById("after");
         after.innerHTML = hljs.highlight(data["treeAfter"], { language: "scala" }).value;
 

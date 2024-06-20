@@ -1,6 +1,6 @@
 type Pos = {x: Int with x >= 0}
 
-def takePos(x: Pos) = x
+def takePos(x: Pos): Pos = x
 
 def main =
-  takePos(10)
+  val y: {x: Int with 0 <= x} = takePos(10)

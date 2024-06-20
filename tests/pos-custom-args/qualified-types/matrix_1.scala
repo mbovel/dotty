@@ -1,10 +1,11 @@
 type Index = {x: Int with x >= 0}
 type LongIndex = {x: Long with x >= 0}
+
 trait Matrix[T]:
   def lastRow: Index
   def lastColumn: Index
   type RowIndex = {i: Index with i <= lastRow}
-  type ColumnIndex = {i: Index with i < lastColumn}
+  type ColumnIndex = {i: Index with i <= lastColumn}
   def apply(i: RowIndex, j: ColumnIndex): T
 
 def printMatrix[T](pr: T => String, m: Matrix[T]): Unit =

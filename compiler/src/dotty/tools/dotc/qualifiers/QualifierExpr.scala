@@ -132,9 +132,6 @@ enum QualifierExpr extends Showable:
       case Equal(left, right) if right < left =>
         Equal(right, left)
       case NotEqual(left, right)  => not(equalNorm(left, right))
-      case Less(left, right)      => and(not(equalNorm(left, right)), greaterEqual(left, right))
-      case LessEqual(left, right) => not(and(not(Equal(left, right)), greaterEqual(right, left)))
-      case Greater(left, right)   => not(greaterEqual(left, right))
       case IntSum(const, args)    =>
         /*
         // Stable sort implementation.

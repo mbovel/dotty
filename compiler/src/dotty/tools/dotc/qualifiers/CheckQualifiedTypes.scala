@@ -45,8 +45,8 @@ class CheckQualifiedTypes extends Recheck:
       super.checkUnit(unit)
       instantiateTraverser.traverse(unit.tpdTree)
 
-      logTreeAfter(Recheck.addRecheckedTypes.transform(unit.tpdTree).show)
       ctx.qualifierSolver.debug()
+      logTreeAfter(Recheck.addRecheckedTypes.transform(unit.tpdTree).show)
       dumpLogs(f"qualifier-logging.json")
       disableLogging()
 
@@ -58,7 +58,7 @@ class CheckQualifiedTypes extends Recheck:
           case _              => ()
 
     override def checkConformsExpr(actual: Type, expected: Type, tree: tpd.Tree, addenda: Addenda)(using Context): Type =
-      trace[Type](res => TraceEvent.CheckExprConforms(actual.show, expected.show, res.show)):
+      trace[Type](res => TraceEvent.CheckExprConforms(actual.show, expected.toString, res.show)):
         tree match
           case Apply(fn, args) if (fn.symbol == defn.RuntimeCheckedMethod) =>
             // Will be handled by a runtime check generated in QualifiedTypesRuntimeChecked.

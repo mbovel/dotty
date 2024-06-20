@@ -96,7 +96,7 @@ extension (expr: QualifierExpr)
             case ConstantType(value) => QualifierExprs.fromConst(value)
             case mappedTp: ReferenceType  => Ref(mappedTp)
             case mappedTp                  =>
-              // TODO(mbovel): approximate depending on variance
               //throw new Error(f"Expected a singleton named type, but got ${tp} --> ${mappedTp}")
+              // TODO(mbovel): when variance is 0, report a warning
               if tm.variance > 0 then True else False
         case other         => other

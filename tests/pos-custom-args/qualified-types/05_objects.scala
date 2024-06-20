@@ -1,5 +1,5 @@
 
-class EqualPair(val x: Int, val y: Int @annotation.qualified[Int](it => x == it)):
+class EqualPair(val x: Int, val y: Int with x == y):
   def foo: Int = 42
 
 def getY(q: EqualPair): {v: Int with q.x == v} = q.y

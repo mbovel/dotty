@@ -33,5 +33,8 @@ def Main =
     val z: Int with z == 10 = x
     ()
 
+  def g(a: Int, b: Int with a < b): Int = 42
+  def f(a: Int, b: Int with a < b): Int = g(a, b)
+
 
 
