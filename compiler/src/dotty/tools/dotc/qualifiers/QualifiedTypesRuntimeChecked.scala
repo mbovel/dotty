@@ -25,33 +25,29 @@ class QualifiedTypesRuntimeChecked extends MiniPhase:
 
   override def transformApply(tree: Apply)(using Context): Tree =
     if tree.fun.symbol == defn.RuntimeCheckedMethod then
-      // Create a new val
-      val valDef = SyntheticValDef("x".toTermName, tree.args(0))
 
-      // Create the exception type
-      val exceptionType = defn.IllegalArgumentExceptionType // Need a better exception
+      return evalOnce(tree.args(0)) { e =>
 
-      // Create the New tree node for constructing the exception
-      val newException = New(exceptionType, List())
+        // Create the exception type
+        val exceptionType = defn.IllegalArgumentExceptionType // Need a better exception
 
-      // Create the Throw tree node for throwing the exception
-      val throwException = Throw(newException)
+        // Create the New tree node for constructing the exception
+        val newException = New(exceptionType, List())
 
-      val valIdent = Ident(valDef.symbol.termRef)
+        // Create the Throw tree node for throwing the exception
+        val throwException = Throw(newException)
 
-      val condition = valIdent.isInstance(tree.knownType)
+        val valIdent = Ident(e.symbol.termRef)
 
-      val thenBranch = valIdent.asInstance(tree.knownType)
+        val condition = e.isInstance(tree.knownType)
 
-      val elseBranch = throwException
+        val thenBranch = e.asInstance(tree.knownType)
 
-      val ifStatement = If(condition, thenBranch, elseBranch)
+        val elseBranch = throwException
 
-      // import tasty._
-      val blockStats = List(valDef)
-      val blockExpr = Block(blockStats, ifStatement)
+        If(condition, thenBranch, elseBranch)
 
-      return blockExpr
+      }
 
     super.transformApply(tree)
 
