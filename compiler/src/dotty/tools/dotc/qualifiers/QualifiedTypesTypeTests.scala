@@ -56,22 +56,39 @@ class QualifiedTypesTypeTests extends MiniPhase:
       tree
 
   def transformTypeTest(expr: Tree, testType: Type)(using Context): Tree =
+
+
     val newTree =
       testType.dealiasKeepQualifyingAnnots match
         case AndType(tp1, tp2) if containsQualifiedTypes(tp1) || containsQualifiedTypes(tp2) =>
+          evalOnce(expr) { e =>
+              transformTypeTest(e, tp1)
+                .and(transformTypeTest(e, tp2))
+            }
+          /*
           val expr1 = transformTypeTest(expr, tp1)
           val expr2 = transformTypeTest(expr, tp2)
           expr1.and(expr2)
+          */
 
         case OrType(tp1, tp2) if containsQualifiedTypes(tp1) || containsQualifiedTypes(tp2) =>
+          evalOnce(expr) { e =>
+            transformTypeTest(e, tp1)
+              .or(transformTypeTest(e, tp2))
+          }
+          /*
           val expr1 = transformTypeTest(expr, tp1)
           val expr2 = transformTypeTest(expr, tp2)
           expr1.or(expr2)
+          */
 
         case EventuallyQualifiedType(baseType, qualifier) =>
-          val exprCast = expr.asInstance(baseType)
-          val appliedQualifier = QualifierExprs.toTree(qualifier, exprCast, baseType)
-          transformTypeTest(expr, baseType).and(appliedQualifier)
+          evalOnce(expr) { e =>
+            val exprCast = e.asInstance(baseType)
+            val appliedQualifier = QualifierExprs.toTree(qualifier, exprCast, baseType)
+
+            transformTypeTest(e, baseType).and(appliedQualifier)
+          }
 
         case _ =>
           expr.isInstance(testType)
