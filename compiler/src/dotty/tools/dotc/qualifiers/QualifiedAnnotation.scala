@@ -28,7 +28,6 @@ case class QualifiedAnnotation(qualifier: QualifierExpr, qualifierArgType: Type)
     QualifiedAnnotation(qualifier.mapTypes(tm), tm(qualifierArgType))
 
 object QualifiedAnnotation:
-
   def apply(annot: Annotation, qualifierArgType: Type)(using Context): Annotation =
     annot match
       case _: QualifiedAnnotation => annot
