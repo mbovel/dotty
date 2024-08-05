@@ -5,7 +5,7 @@ import annotation.qualified
 def return10(): {v: Int with v == 10} = 10
 def require12(x: {v: Int with v == 12}): Int = x
 
-def id(x: Int): Int @qualified[Int](v => v == x) = x
+def id(x: Int): Int @qualified[Int](v => ((v2: Int) => v2 == x)(v)) = x
 def equal(x: Int, y: {v: Int with v == x}): Int = y
 
 def myApply(x: Int)(f: {y: Int with y == x} => Unit) = f(x)

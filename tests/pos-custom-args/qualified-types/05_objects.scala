@@ -2,6 +2,12 @@
 class EqualPair(val x: Int, val y: Int with x == y):
   def foo: Int = 42
 
+
+class C(val p: EqualPair with p.x == 0)
+
+
+case class EqualPair2(x: Int)(val y: Int with x == y)
+
 def getY(q: EqualPair): {v: Int with q.x == v} = q.y
 
 def main =
@@ -10,3 +16,6 @@ def main =
   val v1: {v: Int with p.x == v} = p.y
   val v2: {v: Int with p.x == v} = getY(p)
   val v3: {v: Int with p.foo == v} = p.foo // No purity checks for now. In the future, should fail if `foo` is not pure.
+
+  def readInt(): Int = ???
+  val c2 = EqualPair2(42)(readInt().runtimeChecked)

@@ -7,3 +7,4 @@ def Main =
   val v4: {v: Int with v < 1} = 0
   val v5: {v: Int with v > -1} = 0
   val v6: {v: Int with v != 1} = 0
+  val v7: {v: Int with v == v6 + 1} = (??? : {v: Int with v == 1 + v6})
