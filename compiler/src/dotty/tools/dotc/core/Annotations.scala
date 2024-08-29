@@ -3,9 +3,8 @@ package dotc
 package core
 
 import Symbols.*, Types.*, Contexts.*, Constants.*, Phases.*
-import ast.{tpd, untpd, TreeTypeMap}
-import tpd.*
-import util.Spans.{Span, NoSpan}
+import ast.tpd, tpd.*
+import util.Spans.Span
 import printing.{Showable, Printer}
 import printing.Texts.Text
 
@@ -69,12 +68,7 @@ object Annotations {
               foldOver(if !tp1.exists || (tp1 frozen_=:= tree.tpe) then x else tp1, tree)
         val diff = findDiff(NoType, args)
         if tm.isRange(diff) then EmptyAnnotation
-        else if diff.exists then
-          // If the annotation has been transformed, we need to make sure that the
-          // symbol are copied so that we don't end up with the same symbol in different
-          // trees, which would lead to a crash in pickling.
-          val mappedTree = TreeTypeMap(typeMap = tm, alwaysCopySymbols = true).transform(tree)
-          derivedAnnotation(mappedTree)
+        else if diff.exists then derivedAnnotation(tm.mapOver(tree))
         else this
 
     /** Does this annotation refer to a parameter of `tl`? */

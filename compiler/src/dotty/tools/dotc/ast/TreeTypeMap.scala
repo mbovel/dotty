@@ -21,9 +21,6 @@ import Decorators.*
  *  @param newOwners New owners, replacing previous owners.
  *  @param substFrom The symbols that need to be substituted.
  *  @param substTo   The substitution targets.
- *  @param cpy       A tree copier that is used to create new trees.
- *  @param alwaysCopySymbols If set, symbols are always copied, even when they
- *                           are not impacted by the transformation.
  *
  *  The reason the substitution is broken out from the rest of the type map is
  *  that all symbols have to be substituted at the same time. If we do not do this,
@@ -41,9 +38,7 @@ class TreeTypeMap(
   val newOwners: List[Symbol] = Nil,
   val substFrom: List[Symbol] = Nil,
   val substTo: List[Symbol] = Nil,
-  cpy: tpd.TreeCopier = tpd.cpy,
-  alwaysCopySymbols: Boolean = false,
-)(using Context) extends tpd.TreeMap(cpy) {
+  cpy: tpd.TreeCopier = tpd.cpy)(using Context) extends tpd.TreeMap(cpy) {
   import tpd.*
 
   def copy(
@@ -53,7 +48,7 @@ class TreeTypeMap(
       newOwners: List[Symbol],
       substFrom: List[Symbol],
       substTo: List[Symbol])(using Context): TreeTypeMap =
-    new TreeTypeMap(typeMap, treeMap, oldOwners, newOwners, substFrom, substTo, cpy, alwaysCopySymbols)
+    new TreeTypeMap(typeMap, treeMap, oldOwners, newOwners, substFrom, substTo)
 
   /** If `sym` is one of `oldOwners`, replace by corresponding symbol in `newOwners` */
   def mapOwner(sym: Symbol): Symbol = sym.subst(oldOwners, newOwners)
@@ -212,7 +207,7 @@ class TreeTypeMap(
    *  between original and mapped symbols.
    */
   def withMappedSyms(syms: List[Symbol]): TreeTypeMap =
-    withMappedSyms(syms, mapSymbols(syms, this, mapAlways = alwaysCopySymbols))
+    withMappedSyms(syms, mapSymbols(syms, this))
 
   /** The tree map with the substitution between originals `syms`
    *  and mapped symbols `mapped`. Also goes into mapped classes
@@ -233,10 +228,6 @@ class TreeTypeMap(
         origDcls.lazyZip(mappedDcls).foreach(cls.asClass.replace)
         tmap1
       }
-
-  def withAlwaysCopySymbols: TreeTypeMap =
-    if alwaysCopySymbols then this
-    else new TreeTypeMap(typeMap, treeMap, oldOwners, newOwners, substFrom, substTo, cpy, alwaysCopySymbols = true)
 
   override def toString =
     def showSyms(syms: List[Symbol]) =
