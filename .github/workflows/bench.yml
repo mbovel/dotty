@@ -1,0 +1,120 @@
+name: Benchmarks
+
+on:
+  push:
+    branches:
+      - main
+      - mb/benchmarks
+  repository_dispatch:
+    types: [run_benchmarks]
+  schedule:
+    # every night at 03:33
+    - cron: '33 3 * * *'
+
+jobs:
+  benchmarks_push:
+    name: On-Push Benchmarks
+    if: github.event_name == 'push'
+    runs-on: ['self-hosted', 'benchmarks']
+
+    steps:
+    - name: Check out the repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'true'
+
+    - name: Set Path
+      run: |
+        echo "/home/scalabenchs/.local/share/coursier/bin" >> $GITHUB_PATH
+
+    - name: Run Benchmarks
+      # Select benchmarks that do not contain `Nightly` or `Bootstrapped` in
+      # their name.
+      # `-foe true` means "fail on error".
+      # `-gc true` launches the garbage collector between each iterations, which
+      # significantly reduces the noise.
+      run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Nightly -e Bootstrapped'"
+
+    - name: Run Bootstrapped Benchmarks
+      # Select benchmarks that contain `Bootstrapped` in their name, but not
+      # `Nightly`.
+      run: "sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true -e Nightly Bootstrapped'"
+
+    - name: Upload Results
+      run: "echo 'Uploading results...'"
+
+    # - name: Post Comment
+    #   if: github.event_name == 'issue_comment'
+    #   uses: actions/github-script@v6
+    #   with:
+    #     script: |
+    #       const issue_number = context.payload.issue.number;
+    #       const comment = `Benchmarks have been triggered. The results will be posted soon.`;
+    #       await github.issues.createComment({
+    #         issue_number: issue_number,
+    #         owner: context.repo.owner,
+    #         repo: context.repo.repo,
+    #         body: comment,
+    #       });
+
+
+  benchmarks_manual:
+    name: Manually Triggered Benchmarks
+    if: github.event_name == 'repository_dispatch'
+    runs-on: ['self-hosted', 'benchmarks']
+
+    steps:
+    - name: Check out the repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'true'
+        ref: ${{ github.event.client_payload.commit }}
+        repository: ${{ github.event.client_payload.repo }}
+
+    - name: Set Path
+      run: |
+        echo "/home/scalabenchs/.local/share/coursier/bin" >> $GITHUB_PATH
+
+    - name: Run Benchmarks
+      run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped'"
+
+    - name: Run Bootstrapped Benchmarks
+      run: "sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true Bootstrapped'"
+
+    - name: Upload Results
+      run: "echo 'Uploading results...'"
+
+    # - name: Post Comment
+    #   if: github.event_name == 'issue_comment'
+    #   uses: actions/github-script@v6
+    #   with:
+    #     script: |
+    #       const issue_number = context.payload.issue.number;
+    #       const comment = `Benchmarks have been triggered. The results will be posted soon.`;
+    #       await github.issues.createComment({
+    #         issue_number: issue_number,
+    #         owner: context.repo.owner,
+    #         repo: context.repo.repo,
+    #         body: comment,
+    #       });
+
+  benchmarks_nightly:
+    name: Nightly Benchmarks
+    if: github.event_name == 'schedule'
+    runs-on: ['self-hosted', 'benchmarks']
+
+    steps:
+    - name: Check out the repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'true'
+
+    - name: Set Path
+      run: |
+        echo "/home/scalabenchs/.local/share/coursier/bin" >> $GITHUB_PATH
+
+    - name: Run Benchmarks
+      run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped Nightly'"
+
+    - name: Upload Results
+      run: "echo 'Uploading results...'"
