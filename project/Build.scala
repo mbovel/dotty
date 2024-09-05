@@ -264,7 +264,8 @@ object Build {
     organizationName := "LAMP/EPFL",
     organizationHomepage := Some(url("http://lamp.epfl.ch")),
 
-    // Note: bench/profiles/projects.yml should be updated accordingly.
+    // The `dotty` method in `bench/src/main/scala/CompilationBenchmarks.scala`
+    // should be updated accordingly.
     scalacOptions ++= Seq(
       "-feature",
       "-deprecation",
@@ -583,8 +584,6 @@ object Build {
   )
 
   lazy val commonBenchmarkSettings = Seq(
-    Jmh / bspEnabled := false,
-    Jmh / run / mainClass := Some("dotty.tools.benchmarks.Bench"), // custom main for jmh:run
     javaOptions += "-DBENCH_COMPILER_CLASS_PATH=" + Attributed.data((`scala3-bootstrapped` / Compile / fullClasspath).value).mkString("", File.pathSeparator, ""),
     javaOptions += "-DBENCH_CLASS_PATH=" + Attributed.data((`scala3-library-bootstrapped` / Compile / fullClasspath).value).mkString("", File.pathSeparator, "")
   )
@@ -710,7 +709,8 @@ object Build {
 
   // Settings shared between scala3-compiler and scala3-compiler-bootstrapped
   lazy val commonDottyCompilerSettings = Seq(
-      // Note: bench/profiles/projects.yml should be updated accordingly.
+      // The `dotty` method in `bench/src/main/scala/CompilationBenchmarks.scala`
+      // should be updated accordingly.
       Compile / scalacOptions ++= Seq("-Yexplicit-nulls", "-Wsafe-init"),
 
       // Use source 3.3 to avoid fatal migration warnings on scalajs-ir
