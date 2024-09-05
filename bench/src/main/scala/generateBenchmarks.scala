@@ -18,7 +18,7 @@ def generateBenchmarks(genDirName: String) =
     if !Files.exists(file) ||
         Files.getLastModifiedTime(file).toMillis() <
         Files.getLastModifiedTime(thisFile).toMillis() then
-      println(f"Generate benchmark $file")
+      //println(f"Generate benchmark $file")
       Files.write(file, make().getBytes())
 
   // Big compile-time sums of constant integer types: (1.type + 2.type + …).
