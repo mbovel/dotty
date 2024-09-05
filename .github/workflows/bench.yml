@@ -1,0 +1,113 @@
+name: Benchmarks
+
+on:
+  pull_request:
+    types:
+      - closed
+  repository_dispatch:
+    types: [run_benchmarks]
+  schedule:
+    # every night at 01:11 UTC
+    - cron: '11 1 * * *'
+
+env:
+  DATA_PATH: /home/scalabenchs/bench-data-v3
+  SAVE_RESULTS_COMMAND: scala $DATA_PATH/scripts --main-class importResults --
+  MAKE_VIZUALIZER_DATA_COMMAND: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH/data.csv $DATA_PATH/data
+
+jobs:
+  benchmarks_merge:
+    name: Benchmarks (merge)
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    runs-on: ['self-hosted', 'benchmarks']
+
+    steps:
+    - name: Check out the repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'true'
+
+    - name: Set path (temporary)
+      run: "echo "/home/scalabenchs/.local/share/coursier/bin" >> $GITHUB_PATH"
+
+    - name: Run benchmarks
+      # Select benchmarks that do not contain `Nightly` or `Bootstrapped` in their name.
+      # `-foe true` means "fail on error".
+      # `-gc true` launches the garbage collector between each iterations, which significantly reduces noise.
+      run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Nightly -e Bootstrapped' | tee jmh_output.txt"
+
+    - name: Save benchmarks results
+      run: "$SAVE_RESULTS_COMMAND ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv"
+
+    - name: Run bootstrapped benchmarks
+      # Select benchmarks that contain `Bootstrapped` in their name, but not `Nightly`.
+      run: "sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true -e Nightly Bootstrapped' | tee jmh_bootstrapped_output.txt"
+
+    - name: Save bootstrapped benchmarks results
+      run: "$SAVE_RESULTS_COMMAND ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_bootstrapped_output.txt $DATA_PATH/data.csv"
+
+    - name: Generate vizualizer data
+      run: "$MAKE_VIZUALIZER_DATA_COMMAND"
+
+    - name: Upload vizualizer data
+      run: "echo 'Uploading visualizer data...'"
+
+  benchmarks_manual:
+    name: Benchmarks (manual)
+    if: github.event_name == 'repository_dispatch'
+    runs-on: ['self-hosted', 'benchmarks']
+
+    steps:
+    - name: Check out the repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'true'
+        ref: ${{ github.event.client_payload.commit }}
+        repository: ${{ github.event.client_payload.repo }}
+
+    - name: Set path (temporary)
+      run: "echo "/home/scalabenchs/.local/share/coursier/bin" >> $GITHUB_PATH"
+
+    - name: Run Benchmarks
+      run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped'"
+
+    - name: Run Bootstrapped Benchmarks
+      run: "sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true Bootstrapped'"
+
+    - name: Upload Results
+      run: "echo 'Uploading results...'"
+
+    # - name: Post Comment
+    #   if: github.event_name == 'issue_comment'
+    #   uses: actions/github-script@v6
+    #   with:
+    #     script: |
+    #       const issue_number = context.payload.issue.number;
+    #       const comment = `Benchmarks have been triggered. The results will be posted soon.`;
+    #       await github.issues.createComment({
+    #         issue_number: issue_number,
+    #         owner: context.repo.owner,
+    #         repo: context.repo.repo,
+    #         body: comment,
+    #       });
+
+  benchmarks_nightly:
+    name: Benchmarks (nightly)
+    if: github.event_name == 'schedule'
+    runs-on: ['self-hosted', 'benchmarks']
+
+    steps:
+    - name: Check out the repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'true'
+
+    - name: Set Path
+      run: |
+        echo "/home/scalabenchs/.local/share/coursier/bin" >> $GITHUB_PATH
+
+    - name: Run Benchmarks
+      run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped Nightly'"
+
+    - name: Upload Results
+      run: "echo 'Uploading results...'"
