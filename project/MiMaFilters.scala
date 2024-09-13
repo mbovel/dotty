@@ -79,6 +79,8 @@ object MiMaFilters {
         ProblemFilters.exclude[MissingClassProblem]("scala.runtime.stdLibPatches.language$experimental$quotedPatternsWithPolymorphicFunctions$"),
         ProblemFilters.exclude[MissingFieldProblem]("scala.runtime.stdLibPatches.language#experimental.packageObjectValues"),
         ProblemFilters.exclude[MissingClassProblem]("scala.runtime.stdLibPatches.language$experimental$packageObjectValues$"),
+        ProblemFilters.exclude[MissingFieldProblem]("scala.runtime.stdLibPatches.language#experimental.qualifiedTypes"),
+        ProblemFilters.exclude[MissingClassProblem]("scala.runtime.stdLibPatches.language$experimental$qualifiedTypes$"),
         ProblemFilters.exclude[MissingFieldProblem]("scala.runtime.stdLibPatches.language.3.7-migration"),
         ProblemFilters.exclude[MissingFieldProblem]("scala.runtime.stdLibPatches.language.3.7"),
         ProblemFilters.exclude[MissingClassProblem]("scala.runtime.stdLibPatches.language$3$u002E7$"),
