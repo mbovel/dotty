@@ -28,7 +28,7 @@ jobs:
         submodules: 'true'
 
     - name: Set path (temporary)
-      run: "echo "/home/scalabenchs/.local/share/coursier/bin" >> $GITHUB_PATH"
+      run: "echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH"
 
     - name: Run benchmarks
       # Select benchmarks that do not contain `Nightly` or `Bootstrapped` in their name.
@@ -66,7 +66,7 @@ jobs:
         repository: ${{ github.event.client_payload.repo }}
 
     - name: Set path (temporary)
-      run: "echo "/home/scalabenchs/.local/share/coursier/bin" >> $GITHUB_PATH"
+      run: "echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH"
 
     - name: Run Benchmarks
       run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped'"
@@ -103,8 +103,7 @@ jobs:
         submodules: 'true'
 
     - name: Set Path
-      run: |
-        echo "/home/scalabenchs/.local/share/coursier/bin" >> $GITHUB_PATH
+      run: "echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH"
 
     - name: Run Benchmarks
       run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped Nightly'"
