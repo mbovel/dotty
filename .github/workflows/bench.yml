@@ -18,7 +18,8 @@ jobs:
     runs-on: ['self-hosted', 'benchmarks']
 
     - name: echo event json
-      run: echo "${{ toJson(github.event) }}"
+      run: |
+        echo "${{ toJson(github.event) }}"
 
     - name: Check out the repository
       uses: actions/checkout@v4
