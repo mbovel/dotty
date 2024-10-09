@@ -17,9 +17,8 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ['self-hosted', 'benchmarks']
 
-    steps:
-    - name: Test file access
-      run: cat /home/scalabenchs/hello.txt
+    - name: echo event json
+      run: echo "${{ toJson(github.event) }}"
 
     - name: Check out the repository
       uses: actions/checkout@v4
