@@ -132,7 +132,7 @@ jobs:
           if (prs.data.length !== 1) {
             core.setOutput('pr', 0);
           } else {
-            console.log("pr", prs.data[0].number)
+            core.info(`PR: ${prs.data[0].number}`);
             core.setOutput('pr', prs.data[0].number);
           }
 
