@@ -26,7 +26,7 @@ jobs:
     - name: Set path (temporary)
       run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
     - name: Save benchmarks results
-      run: scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
+      run: scala $DATA_PATH/scripts --main-class importResults -- 2 true 2024-10-09T16:55:37Z $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
 
   benchmarks_merge:
     name: Benchmarks (merge)
