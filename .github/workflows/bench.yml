@@ -17,6 +17,8 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ['self-hosted', 'benchmarks']
 
+    steps:
+
     - name: echo event json
       run: |
         echo "${{ toJson(github.event) }}"
