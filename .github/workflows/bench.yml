@@ -19,7 +19,7 @@ jobs:
 
     steps:
     - name: Test file access
-      run: echo /home/scalabenchs/hello.txt
+      run: cat /home/scalabenchs/hello.txt
 
     - name: Check out the repository
       uses: actions/checkout@v4
