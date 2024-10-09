@@ -124,7 +124,7 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const prs = await github.repos.listPullRequestsAssociatedWithCommit({
+          const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
             owner: context.repo.owner,
             repo: context.repo.repo,
             commit_sha: context.sha
