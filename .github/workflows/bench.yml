@@ -18,12 +18,12 @@ jobs:
 
     steps:
 
-    - name: data test
+    - name: Show Info
       env:
         DATA_PATH: /home/scalabenchs/bench-data-v3
       run: |
-        echo ${{github.event.pull_request.number}}
-        echo $GITHUB_SHA
+        echo "PR Number: ${{github.event.pull_request.number}}"
+        echo "SHA: $GITHUB_SHA"
         echo $DATA_PATH/data.csv
         echo ${{github.event.pull_request.merged_at}}
         echo $(date -u +"%Y-%m-%dT%H:%M:%SZ")
