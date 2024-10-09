@@ -23,6 +23,8 @@ jobs:
     name: Test
     runs-on: ['self-hosted', 'benchmarks']
     steps:
+    - name: Set path (temporary)
+      run: "echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH"
     - name: Save benchmarks results
       run: "$SAVE_RESULTS_COMMAND ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv"
 
