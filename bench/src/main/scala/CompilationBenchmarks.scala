@@ -173,6 +173,13 @@ class CompilationBenchmarks:
   @Benchmark
   def dottyNightly() = compile(dottyArgs)
 
+  val dottySbtArgs = Array("-Yforce-sbt-phases") ++ dottyArgs
+
+  @Warmup(iterations = 6)
+  @Measurement(iterations = 6)
+  @Benchmark
+  def dottySbtNightly() = compile(dottySbtArgs)
+
   val stdlibArgs =
     val sources = find(
       "../community-build/community-projects/stdLib213/src/library/scala",
@@ -216,3 +223,6 @@ class CompilationBenchmarks:
   // @Benchmark
   val inductiveImplicitsArgs = Array("../tests/bench/inductive-implicits.scala")
   def inductiveImplicits() = compile(inductiveImplicitsArgs)
+
+  val findRefArgs = Array("../tests/bench/FindRef.scala")
+  @Benchmark def findRef() = compile(findRefArgs)

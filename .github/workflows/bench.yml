@@ -51,7 +51,14 @@ jobs:
       run: "sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true -e Nightly Bootstrapped' | tee jmh_bootstrapped_output.txt"
 
     - name: Upload Results
-      run: "echo 'Uploading results...'"
+      env:
+        DATA_PATH: /home/scalabenchs/bench-data-v3
+      run: |
+        scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.pull_request.number} true $GITHUB_SHA $DATA_PATH/data.csv $DATA_PATH/vizualizer/data
+        scala /home/scalabenchs/bench-data-v3/scripts --main-class makeVizualizerData -- /home/scalabenchs/bench-data-v3/data.csv /home/scalabenchs/bench-data-v3/vizualizer/data
+
+
+
 
     # - name: Post Comment
     #   if: github.event_name == 'issue_comment'
