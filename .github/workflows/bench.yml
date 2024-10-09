@@ -15,8 +15,6 @@ on:
 
 env:
   DATA_PATH: /home/scalabenchs/bench-data-v3
-  SAVE_RESULTS_COMMAND: scala $DATA_PATH/scripts --main-class importResults --
-  MAKE_VIZUALIZER_DATA_COMMAND: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH/data.csv $DATA_PATH/data
 
 jobs:
   benchmarks_info:
@@ -49,17 +47,17 @@ jobs:
       run: sbt 'scala3-bench / Jmh / run -foe true -gc true -e Nightly -e Bootstrapped' | tee jmh_output.txt
 
     - name: Save benchmarks results
-      run: $SAVE_RESULTS_COMMAND ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
+      run: scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
 
     - name: Run bootstrapped benchmarks
       # Select benchmarks that contain `Bootstrapped` in their name, but not `Nightly`.
       run: sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true -e Nightly Bootstrapped' | tee jmh_bootstrapped_output.txt
 
     - name: Save bootstrapped benchmarks results
-      run: $SAVE_RESULTS_COMMAND ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_bootstrapped_output.txt $DATA_PATH/data.csv
+      run: scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_bootstrapped_output.txt $DATA_PATH/data.csv
 
     - name: Generate vizualizer data
-      run: $MAKE_VIZUALIZER_DATA_COMMAND
+      run: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH/data.csv $DATA_PATH/data
 
     - name: Upload vizualizer data
       run: echo 'Uploading visualizer data...'
