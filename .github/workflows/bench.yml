@@ -54,7 +54,7 @@ jobs:
       env:
         DATA_PATH: /home/scalabenchs/bench-data-v3
       run: |
-        scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.pull_request.number} true $GITHUB_SHA $DATA_PATH/data.csv $DATA_PATH/vizualizer/data
+        scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.pull_request.number}} true $GITHUB_SHA $DATA_PATH/data.csv $DATA_PATH/vizualizer/data
         scala /home/scalabenchs/bench-data-v3/scripts --main-class makeVizualizerData -- /home/scalabenchs/bench-data-v3/data.csv /home/scalabenchs/bench-data-v3/vizualizer/data
 
 
