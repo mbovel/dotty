@@ -116,7 +116,7 @@ jobs:
       run: sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped Nightly' | tee jmh_output.txt
 
     - name: Save benchmarks results
-      run: scala $DATA_PATH/scripts --main-class importResults -- 0 true $(TZ=UTC0 git --no-pager show --quiet --date='format-local:%Y-%m-%dT%H:%MZ' --format="%cd") ${{github.event.client_payload.commit}} $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
+      run: scala $DATA_PATH/scripts --main-class importResults -- 0 true $(TZ=UTC0 git --no-pager show --quiet --date='format-local:%Y-%m-%dT%H:%MZ' --format="%cd") $(git rev-parse --short=16 HEAD) $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
 
     - name: Generate vizualizer data
       run: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH/data.csv $DATA_PATH/vizualizer
