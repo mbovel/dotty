@@ -37,12 +37,12 @@ jobs:
       # `-foe true` means "fail on error".
       # `-gc true` launches the garbage collector between each iterations, which
       # significantly reduces the noise.
-      run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Nightly -e Bootstrapped'"
+      run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Nightly -e Bootstrapped' | tee jmh_output.txt"
 
     - name: Run Bootstrapped Benchmarks
       # Select benchmarks that contain `Bootstrapped` in their name, but not
       # `Nightly`.
-      run: "sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true -e Nightly Bootstrapped'"
+      run: "sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true -e Nightly Bootstrapped' | tee jmh_bootstrapped_output.txt"
 
     - name: Upload Results
       run: "echo 'Uploading results...'"
