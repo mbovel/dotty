@@ -1,10 +1,9 @@
 name: Benchmarks
 
 on:
-  push:
-    branches:
-      - main
-      - mb/benchmarks
+  pull_request:
+    types:
+      - closed
   repository_dispatch:
     types: [run_benchmarks]
   schedule:
@@ -13,15 +12,15 @@ on:
 
 jobs:
   benchmarks_push:
-    name: On-Push Benchmarks
-    if: github.event_name == 'push'
+    name: Benchmarks (merge)
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
     runs-on: ['self-hosted', 'benchmarks']
 
     steps:
 
     - name: echo event json
       run: |
-        echo "${{ toJson(github.event) }}"
+        echo '${{ toJson(github.event) }}'
 
     - name: Check out the repository
       uses: actions/checkout@v4
@@ -64,7 +63,7 @@ jobs:
 
 
   benchmarks_manual:
-    name: Manually Triggered Benchmarks
+    name: Benchmarks (manual)
     if: github.event_name == 'repository_dispatch'
     runs-on: ['self-hosted', 'benchmarks']
 
@@ -104,7 +103,7 @@ jobs:
     #       });
 
   benchmarks_nightly:
-    name: Nightly Benchmarks
+    name: Benchmarks (nightly)
     if: github.event_name == 'schedule'
     runs-on: ['self-hosted', 'benchmarks']
 
