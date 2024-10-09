@@ -18,9 +18,15 @@ jobs:
 
     steps:
 
-    - name: echo event json
+    - name: data test
+      env:
+        DATA_PATH: /home/scalabenchs/bench-data-v3
       run: |
-        echo '${{ toJson(github.event) }}'
+        echo ${{github.event.pull_request.number}}
+        echo $GITHUB_SHA
+        echo $DATA_PATH/data.csv
+        echo ${{github.event.pull_request.merged_at}}
+        echo $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     - name: Check out the repository
       uses: actions/checkout@v4
