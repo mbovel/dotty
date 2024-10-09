@@ -1,6 +1,9 @@
 name: Benchmarks
 
 on:
+  push:
+    branches:
+      - mb/benchmarks
   pull_request:
     types:
       - closed
@@ -16,6 +19,13 @@ env:
   MAKE_VIZUALIZER_DATA_COMMAND: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH/data.csv $DATA_PATH/data
 
 jobs:
+  benchmarks_info:
+    name: Test
+    runs-on: ['self-hosted', 'benchmarks']
+    steps:
+    - name: Save benchmarks results
+      run: "$SAVE_RESULTS_COMMAND ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv"
+
   benchmarks_merge:
     name: Benchmarks (merge)
     if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
