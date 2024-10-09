@@ -76,7 +76,7 @@ jobs:
       run: sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true Bootstrapped' | tee -a jmh_output.txt
 
     - name: Save benchmarks results
-      run: scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.client_payload.pr}} false $(TZ=UTC0 git --no-pager show --quiet --date='format-local:%Y-%m-%dT%H:%MZ' --format="%cd") $(git rev-parse --short=16 HEAD) $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_bootstrapped_output.txt $DATA_PATH/data.csv
+      run: scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.client_payload.pr}} false $(TZ=UTC0 git --no-pager show --quiet --date='format-local:%Y-%m-%dT%H:%MZ' --format="%cd") $(git rev-parse --short=16 HEAD) $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
 
     - name: Generate vizualizer data
       run: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH/data.csv $DATA_PATH/vizualizer
