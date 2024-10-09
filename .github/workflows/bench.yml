@@ -1,9 +1,6 @@
 name: Benchmarks
 
 on:
-  push:
-    branches:
-      - mb/benchmarks
   pull_request:
     types:
       - closed
@@ -17,15 +14,6 @@ env:
   DATA_PATH: /home/scalabenchs/bench-data-v3
 
 jobs:
-  benchmarks_info:
-    name: Test
-    runs-on: ['self-hosted', 'benchmarks']
-    steps:
-    - name: Set path (temporary)
-      run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
-    - name: Save benchmarks results
-      run: scala $DATA_PATH/scripts --main-class importResults -- 2 true 2024-10-09T16:55:37Z $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
-
   benchmarks_merge:
     name: Benchmarks (merge)
     if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
@@ -46,21 +34,18 @@ jobs:
       # `-gc true` launches the garbage collector between each iterations, which significantly reduces noise.
       run: sbt 'scala3-bench / Jmh / run -foe true -gc true -e Nightly -e Bootstrapped' | tee jmh_output.txt
 
-    - name: Save benchmarks results
-      run: scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
-
     - name: Run bootstrapped benchmarks
       # Select benchmarks that contain `Bootstrapped` in their name, but not `Nightly`.
-      run: sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true -e Nightly Bootstrapped' | tee jmh_bootstrapped_output.txt
+      run: sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true -e Nightly Bootstrapped' | tee -a jmh_output.txt
 
-    - name: Save bootstrapped benchmarks results
-      run: scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_bootstrapped_output.txt $DATA_PATH/data.csv
+    - name: Save benchmarks results
+      run: scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.pull_request.number}} true $(TZ=UTC0 git --no-pager show --quiet --date='format-local:%Y-%m-%dT%H:%MZ' --format="%cd") $( git rev-parse --short=16 HEAD) $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
 
     - name: Generate vizualizer data
-      run: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH/data.csv $DATA_PATH/data
+      run: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH/data.csv $DATA_PATH/vizualizer
 
     - name: Upload vizualizer data
-      run: echo 'Uploading visualizer data...'
+      run: rsync -av "$DATA_PATH/vizualizer/" w3dtbenc@tresorvm02:htdocs/v3
 
   benchmarks_manual:
     name: Benchmarks (manual)
@@ -75,31 +60,42 @@ jobs:
         ref: ${{ github.event.client_payload.commit }}
         repository: ${{ github.event.client_payload.repo }}
 
+    - name: Show payload
+      run: |
+        echo "PR: ${{ github.event.client_payload.pr }}"
+        echo "Commit: ${{ github.event.client_payload.commit }}"
+        echo "Repo: ${{ github.event.client_payload.repo }}"
+
     - name: Set path (temporary)
-      run: "echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH"
+      run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
 
-    - name: Run Benchmarks
-      run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped'"
+    - name: Run benchmarks
+      run: sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped' | tee jmh_output.txt
 
-    - name: Run Bootstrapped Benchmarks
-      run: "sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true Bootstrapped'"
+    - name: Run bootstrapped benchmarks
+      run: sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true Bootstrapped' | tee -a jmh_output.txt
+
+    - name: Save benchmarks results
+      run: scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.client_payload.pr}} false $(TZ=UTC0 git --no-pager show --quiet --date='format-local:%Y-%m-%dT%H:%MZ' --format="%cd") $(git rev-parse --short=16 HEAD) $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_bootstrapped_output.txt $DATA_PATH/data.csv
+
+    - name: Generate vizualizer data
+      run: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH/data.csv $DATA_PATH/vizualizer
 
     - name: Upload Results
-      run: "echo 'Uploading results...'"
+      run: rsync -av "$DATA_PATH/vizualizer/" w3dtbenc@tresorvm02:htdocs/v3
 
-    # - name: Post Comment
-    #   if: github.event_name == 'issue_comment'
-    #   uses: actions/github-script@v6
-    #   with:
-    #     script: |
-    #       const issue_number = context.payload.issue.number;
-    #       const comment = `Benchmarks have been triggered. The results will be posted soon.`;
-    #       await github.issues.createComment({
-    #         issue_number: issue_number,
-    #         owner: context.repo.owner,
-    #         repo: context.repo.repo,
-    #         body: comment,
-    #       });
+    - name: Post Comment
+      if: github.event_name == 'issue_comment'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const comment = `Benchmarks results ready.`;
+          await github.issues.createComment({
+            issue_number: context.client_payload.pr,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment,
+          });
 
   benchmarks_nightly:
     name: Benchmarks (nightly)
@@ -113,10 +109,16 @@ jobs:
         submodules: 'true'
 
     - name: Set Path
-      run: "echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH"
+      run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
 
     - name: Run Benchmarks
-      run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped Nightly'"
+      run: sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped Nightly' | tee jmh_output.txt
+
+    - name: Save benchmarks results
+      run: scala $DATA_PATH/scripts --main-class importResults -- 0 true $(TZ=UTC0 git --no-pager show --quiet --date='format-local:%Y-%m-%dT%H:%MZ' --format="%cd") ${{github.event.client_payload.commit}} $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
+
+    - name: Generate vizualizer data
+      run: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH/data.csv $DATA_PATH/vizualizer
 
     - name: Upload Results
-      run: "echo 'Uploading results...'"
+      run: rsync -av "$DATA_PATH/vizualizer/" w3dtbenc@tresorvm02:htdocs/v3
