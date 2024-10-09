@@ -24,14 +24,15 @@ jobs:
     runs-on: ['self-hosted', 'benchmarks']
     steps:
     - name: Set path (temporary)
-      run: "echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH"
+      run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
     - name: Test
       run: |
         ls /home/scalabenchs/bench-data-v3
         ls /home/scalabenchs/bench-data-v3/scripts
         scala /home/scalabenchs/bench-data-v3/scripts --main-class importResults -- a b c d e f g
+        $SAVE_RESULTS_COMMAND a b c d e f g
     - name: Save benchmarks results
-      run: "$SAVE_RESULTS_COMMAND ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv"
+      run: $SAVE_RESULTS_COMMAND ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
 
   benchmarks_merge:
     name: Benchmarks (merge)
@@ -45,29 +46,29 @@ jobs:
         submodules: 'true'
 
     - name: Set path (temporary)
-      run: "echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH"
+      run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
 
     - name: Run benchmarks
       # Select benchmarks that do not contain `Nightly` or `Bootstrapped` in their name.
       # `-foe true` means "fail on error".
       # `-gc true` launches the garbage collector between each iterations, which significantly reduces noise.
-      run: "sbt 'scala3-bench / Jmh / run -foe true -gc true -e Nightly -e Bootstrapped' | tee jmh_output.txt"
+      run: sbt 'scala3-bench / Jmh / run -foe true -gc true -e Nightly -e Bootstrapped' | tee jmh_output.txt
 
     - name: Save benchmarks results
-      run: "$SAVE_RESULTS_COMMAND ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv"
+      run: $SAVE_RESULTS_COMMAND ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_output.txt $DATA_PATH/data.csv
 
     - name: Run bootstrapped benchmarks
       # Select benchmarks that contain `Bootstrapped` in their name, but not `Nightly`.
-      run: "sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true -e Nightly Bootstrapped' | tee jmh_bootstrapped_output.txt"
+      run: sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true -e Nightly Bootstrapped' | tee jmh_bootstrapped_output.txt
 
     - name: Save bootstrapped benchmarks results
-      run: "$SAVE_RESULTS_COMMAND ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_bootstrapped_output.txt $DATA_PATH/data.csv"
+      run: $SAVE_RESULTS_COMMAND ${{github.event.pull_request.number}} true ${{github.event.pull_request.merged_at}} $GITHUB_SHA $(date -u +'%Y-%m-%dT%H:%M:%SZ') jmh_bootstrapped_output.txt $DATA_PATH/data.csv
 
     - name: Generate vizualizer data
-      run: "$MAKE_VIZUALIZER_DATA_COMMAND"
+      run: $MAKE_VIZUALIZER_DATA_COMMAND
 
     - name: Upload vizualizer data
-      run: "echo 'Uploading visualizer data...'"
+      run: echo 'Uploading visualizer data...'
 
   benchmarks_manual:
     name: Benchmarks (manual)
