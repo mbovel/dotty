@@ -11,6 +11,7 @@ import dotty.tools.dotc.core.Contexts.{ContextBase, Context, ctx, withMode}
 @Warmup(iterations = 5, time = 1, timeUnit = SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = SECONDS)
 @State(Scope.Thread)
+@BenchmarkMode(Array(org.openjdk.jmh.annotations.Mode.AverageTime))
 class TypeOpsBenchmark:
   var tp: Type = null
   var context: Context = null
