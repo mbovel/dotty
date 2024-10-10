@@ -24,7 +24,7 @@ env:
 jobs:
   benchmarks_merge:
     name: Benchmarks (merge)
-    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true)  || github.event_name == 'push'
     runs-on: ['self-hosted', 'benchmarks']
 
     steps:
@@ -99,7 +99,7 @@ jobs:
         script: |
           const comment = `Benchmarks results ready.`;
           await github.rest.issues.createComment({
-            issue_number: context.client_payload.pr,
+            issue_number: context.payload.pr,
             owner: context.repo.owner,
             repo: context.repo.repo,
             body: comment,
@@ -129,11 +129,13 @@ jobs:
             repo: context.repo.repo,
             commit_sha: context.sha
           });
-          if (prs.data.length !== 1) {
-            core.setOutput('pr', 0);
-          } else {
+          if (prs.data.length === 1) {
             core.info(`PR: ${prs.data[0].number}`);
             core.setOutput('pr', prs.data[0].number);
+          } else {
+            core.info(`Cannot find PR associate with commit ${context.sha}`);
+            core.info(`PRs: ${prs.data.map(pr => pr.number).join(', ')}`);
+            core.setOutput('pr', 0);
           }
 
     - name: Run benchmarks
