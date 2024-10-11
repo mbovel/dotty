@@ -1,159 +1,142 @@
 name: Benchmarks
 
 on:
+  push:
+    branches:
+      - mb/benchmarks
   pull_request:
     types:
-      - closed
+      - closed # Triggered when a PR is merged
   repository_dispatch:
     types: [run_benchmarks]
   schedule:
-    # Every night at 01:11 UTC
-    - cron: '11 1 * * *'
+    - cron: "11 1 * * *" # Every night at 01:11 UTC
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: write # Needed to post comments on PRs
 
 env:
-  DATA_PATH: /home/scalabenchs/bench-data-v3
+  DATA_CSV_PATH: /home/scalabenchs/bench-data-v3/data.csv
+  WEBSITE_DEST: w3dtbenc@tresorvm02:htdocs/v3
 
 jobs:
+  benchmarks_test:
+    name: Benchmarks (test)
+    if: github.event_name == 'push'
+    runs-on: ["self-hosted", "benchmarks"]
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Set path
+        run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
+
+      - name: Run and process benchmarks
+        run: bench/scripts/ci.sh all 0 true
+
+  # Run benchmarks that are not flagged as nightly when a PR is merged
   benchmarks_merge:
     name: Benchmarks (merge)
     if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
-    runs-on: ['self-hosted', 'benchmarks']
+    runs-on: ["self-hosted", "benchmarks"]
 
     steps:
-    - name: Check out the repository
-      uses: actions/checkout@v4
-      with:
-        submodules: 'true'
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
 
-    - name: Set path (temporary)
-      run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
+      - name: Set path
+        run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
 
-    - name: Run benchmarks
-      # Select benchmarks that do not contain `Nightly` or `Bootstrapped` in their name.
-      # `-foe true` means "fail on error".
-      # `-gc true` launches the garbage collector between each iterations, which significantly reduces noise.
-      run: sbt 'scala3-bench / Jmh / run -foe true -gc true -e Nightly -e Bootstrapped' | tee jmh_output.txt
+      - name: Run and process benchmarks
+        run: bench/scripts/ci.sh notNightly ${{ github.event.pull_request.number }} true
 
-    - name: Run bootstrapped benchmarks
-      # Select benchmarks that contain `Bootstrapped` in their name, but not `Nightly`.
-      run: sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true -e Nightly Bootstrapped' | tee -a jmh_output.txt
-
-    - name: Save results
-      run: scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.pull_request.number}} true
-
-    - name: Generate vizualizer data
-      run: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH
-
-    - name: Upload vizualizer data
-      run: rsync -av "$DATA_PATH/vizualizer/" w3dtbenc@tresorvm02:htdocs/v3
-
-  benchmarks_manual:
-    name: Benchmarks (manual)
+  # Run all benchmarks when a comment containing "test performance please"
+  # comment is posted on a PR.
+  #
+  # This is implemented with a webhook listening for comments on make.com that
+  # in turn triggers this workflow via `repository_dispatch`
+  #
+  # Note: We don't use an `issue_comment` event because it would create a
+  # workflow for every comment.
+  #
+  # See:
+  # - https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#repository_dispatch
+  # - https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#issue_comment
+  # - https://docs.github.com/en/webhooks/webhook-events-and-payloads#issue_comment
+  benchmarks_comment:
+    name: Benchmarks (comment)
     if: github.event_name == 'repository_dispatch'
-    runs-on: ['self-hosted', 'benchmarks']
+    runs-on: ["self-hosted", "benchmarks"]
 
     steps:
-    - name: Post comment
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const comment = `Benchmarks results ready.`;
-          await github.rest.issues.createComment({
-            issue_number: context.payload.client_payload.pr,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: comment,
-          });
+      - name: Set path
+        run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
 
-    - name: Check out the repository
-      uses: actions/checkout@v4
-      with:
-        submodules: 'true'
-        ref: ${{ github.event.client_payload.commit }}
-        repository: ${{ github.event.client_payload.repo }}
+      - name: Show webhook payload
+        run: |
+          echo "PR: ${{ github.event.client_payload.pr }}"
+          echo "Commit: ${{ github.event.client_payload.commit }}"
+          echo "Repo: ${{ github.event.client_payload.repo }}"
 
-    - name: Show payload
-      # The payload should contain the following fields: `pr`, `commit`, `repo`:
-      run: |
-        echo "PR: ${{ github.event.client_payload.pr }}"
-        echo "Commit: ${{ github.event.client_payload.commit }}"
-        echo "Repo: ${{ github.event.client_payload.repo }}"
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+          ref: ${{ github.event.client_payload.commit }}
+          repository: ${{ github.event.client_payload.repo }}
 
-    - name: Set path (temporary)
-      run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
+      - name: Run and process benchmarks
+        run: bench/scripts/ci.sh all ${{ github.event.client_payload.pr }} false
 
-    - name: Run benchmarks
-      run: sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped' | tee jmh_output.txt
+      - name: Post comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `Benchmarks results ready.`;
+            await github.rest.issues.createComment({
+              issue_number: context.payload.client_payload.pr,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment,
+            });
 
-    - name: Run bootstrapped benchmarks
-      run: sbt 'scala3-bench-bootstrapped / Jmh / run -foe true -gc true Bootstrapped' | tee -a jmh_output.txt
-
-    - name: Save results
-      run: scala $DATA_PATH/scripts --main-class importResults -- ${{github.event.client_payload.pr}} false
-
-    - name: Generate vizualizer data
-      run: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH
-
-    - name: Upload results
-      run: rsync -av "$DATA_PATH/vizualizer/" w3dtbenc@tresorvm02:htdocs/v3
-
-    - name: Post comment
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const comment = `Benchmarks results ready.`;
-          await github.rest.issues.createComment({
-            issue_number: context.client_payload.pr,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: comment,
-          });
-
+  # Run nightly benchmarks every night
   benchmarks_nightly:
     name: Benchmarks (nightly)
     if: github.event_name == 'schedule'
-    runs-on: ['self-hosted', 'benchmarks']
+    runs-on: ["self-hosted", "benchmarks"]
 
     steps:
-    - name: Check out the repository
-      uses: actions/checkout@v4
-      with:
-        submodules: 'true'
+      - name: Set path
+        run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
 
-    - name: Set path
-      run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
+      - name: Find PR associated with commit
+        id: find_pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha
+            });
+            if (prs.data.length === 1) {
+              core.info(`PR: ${prs.data[0].number}`);
+              core.setOutput('pr', prs.data[0].number);
+            } else {
+              core.warning(`Cannot find one PR associated with commit ${context.sha}: [${prs.data.map(pr => pr.number).join(', ')}]`);
+              core.setOutput('pr', 0);
+            }
 
-    - name: Find PR associated with commit
-      id: find_pr
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            commit_sha: context.sha
-          });
-          if (prs.data.length === 1) {
-            core.info(`PR: ${prs.data[0].number}`);
-            core.setOutput('pr', prs.data[0].number);
-          } else {
-            core.info(`Cannot find PR associate with commit ${context.sha}`);
-            core.info(`PRs: ${prs.data.map(pr => pr.number).join(', ')}`);
-            core.setOutput('pr', 0);
-          }
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
 
-    - name: Run benchmarks
-      run: sbt 'scala3-bench / Jmh / run -foe true -gc true -e Bootstrapped Nightly' | tee jmh_output.txt
-
-    - name: Save results
-      run: scala $DATA_PATH/scripts --main-class importResults -- ${{ steps.find_pr.outputs.pr }} true
-
-    - name: Generate vizualizer data
-      run: scala $DATA_PATH/scripts --main-class makeVizualizerData -- $DATA_PATH
-
-    - name: Upload results
-      run: rsync -av "$DATA_PATH/vizualizer/" w3dtbenc@tresorvm02:htdocs/v3
+      - name: Run and process benchmarks
+        run: bench/scripts/ci.sh nightly ${{ steps.find_pr.outputs.pr }} true
