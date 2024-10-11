@@ -50,6 +50,7 @@ tests/locks/
 bench/tests-generated
 bench/tmp
 bench/out
+bench/vizualizer/data
 
 # Ignore output files but keep the directory
 out/
