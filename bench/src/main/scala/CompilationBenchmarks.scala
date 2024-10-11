@@ -80,7 +80,7 @@ import dotty.tools.dotc.core.Contexts.{ContextBase, Context, ctx, withMode}
   */
 @Fork(value = 1, jvmArgsAppend = Array("-Xms2G", "-Xmx2G"))
 @Warmup(iterations = 120) // default, overriden below for some benchmarks
-@Measurement(iterations = 20) // default, overriden below for some benchmarks
+@Measurement(iterations = 32) // default, overriden below for some benchmarks
 @BenchmarkMode(Array(org.openjdk.jmh.annotations.Mode.SingleShotTime))
 @State(Scope.Benchmark)
 @OutputTimeUnit(MILLISECONDS)
@@ -169,14 +169,14 @@ class CompilationBenchmarks:
     // format: on
 
   @Warmup(iterations = 8)
-  @Measurement(iterations = 6)
+  @Measurement(iterations = 8)
   @Benchmark
   def dottyNightly() = compile(dottyArgs)
 
   val dottySbtArgs = Array("-Yforce-sbt-phases") ++ dottyArgs
 
   @Warmup(iterations = 8)
-  @Measurement(iterations = 6)
+  @Measurement(iterations = 8)
   @Benchmark
   def dottySbtNightly() = compile(dottySbtArgs)
 
@@ -187,8 +187,8 @@ class CompilationBenchmarks:
     )
     Array("-language:implicitConversions", "-Wconf:any:s", "-source", "3.3") ++ sources
 
-  @Warmup(iterations = 20)
-  @Measurement(iterations = 10)
+  @Warmup(iterations = 24)
+  @Measurement(iterations = 16)
   @Benchmark
   def stdlibNightly() = compile(stdlibArgs)
 
