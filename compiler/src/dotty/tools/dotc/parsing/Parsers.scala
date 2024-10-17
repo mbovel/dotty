@@ -1092,25 +1092,6 @@ object Parsers {
       || in.lookahead.token == EOF     // important for REPL completions
       || ctx.mode.is(Mode.Interactive) // in interactive mode the next tokens might be missing
 
-    /** Under `qualifiedTypes` language import: is the token sequence following
-     *  the current `{` classified as a qualified type? This is the case if the
-     *  next token is an `IDENT`, followed by `:`.
-     */
-    def followingIsQualifiedType(): Boolean =
-      in.featureEnabled(Feature.qualifiedTypes) && {
-        val lookahead = in.LookaheadScanner(allowIndent = true)
-
-        if in.token == INDENT then
-          () // The LookaheadScanner doesn't see previous indents, so no need to skip it
-        else
-          lookahead.nextToken() // skips the opening brace
-
-        lookahead.token == IDENTIFIER && {
-          lookahead.nextToken()
-          lookahead.token == COLONfollow
-        }
-      }
-
   /* --------- OPERAND/OPERATOR STACK --------------------------------------- */
 
     var opStack: List[OpInfo] = Nil
@@ -2071,10 +2052,11 @@ object Parsers {
         atSpan(in.offset) {
           makeTupleOrParens(inParensWithCommas(argTypes(namedOK = false, wildOK = true, tupleOK = true)))
         }
-      else if in.token == LBRACE && followingIsQualifiedType() then
-        qualifiedType()
       else if in.token == LBRACE then
-        atSpan(in.offset) { RefinedTypeTree(EmptyTree, refinement(indentOK = false)) }
+        if in.featureEnabled(Feature.qualifiedTypes) && in.lookahead.token == IDENTIFIER then
+          qualifiedType()
+        else
+          atSpan(in.offset) { RefinedTypeTree(EmptyTree, refinement(indentOK = false)) }
       else if (isSplice)
         splice(isType = true)
       else
