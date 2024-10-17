@@ -155,7 +155,11 @@ object untpd extends Trees.Instance[Untyped] with UntypedTreeInfo {
    */
   case class CapturesAndResult(refs: List[Tree], parent: Tree)(implicit @constructorOnly src: SourceFile) extends TypTree
 
-  /** { x: T with p }   (only relevant under qualifiedTypes) */
+  /** `{ x: parent with qualifier }` if `paramName == Some(x)`,
+   *  `parent with qualifier` otherwise.
+   *
+   *  Only relevant under `qualifiedTypes`.
+   */
   case class QualifiedTypeTree(parent: Tree, paramName: Option[TermName], qualifier: Tree)(implicit @constructorOnly src: SourceFile) extends TypTree
 
   /** A type tree appearing somewhere in the untyped DefDef of a lambda, it will be typed using `tpFun`.
