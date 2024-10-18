@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 if [ "$#" -ne 3 ]; then
   echo "Expected 3 arguments: MODE PR MERGED"
@@ -61,7 +62,7 @@ set +x
 echo "::endgroup::"
 
 echo "::group::Import results"
-scala bench/scripts --main-class importsResults -- $PR $MERGED $COMMIT_DATE $COMMIT $BENCH_DATE $JMH_OUTPUT_PATH $DATA_CSV_PATH
+scala bench/scripts --main-class importResults -- $PR $MERGED $COMMIT_DATE $COMMIT $BENCH_DATE $JMH_OUTPUT_PATH $DATA_CSV_PATH
 echo "::endgroup::"
 
 echo "::group::Generate vizualizer data"
