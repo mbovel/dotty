@@ -6,7 +6,7 @@ import com.github.tototoshi.csv.{CSVReader, CSVWriter}
   val outputPath = os.Path(output, os.pwd)
 
   assert(os.exists(dataCsvPath), s"`$dataCsvPath` not found.")
-  assert(os.exists(outputPath), s"`$outFilePath` not found.")
+  assert(os.exists(outputPath), s"`$outputPath` not found.")
 
   os.remove.all(outputPath)
   os.makeDir.all(outputPath / "detailed")
