@@ -1,0 +1,142 @@
+name: Benchmarks
+
+on:
+  push:
+    branches:
+      - mb/benchmarks
+  pull_request:
+    types:
+      - closed # Triggered when a PR is merged
+  repository_dispatch:
+    types: [run_benchmarks]
+  schedule:
+    - cron: "11 1 * * *" # Every night at 01:11 UTC
+
+permissions:
+  contents: read
+  pull-requests: write # Needed to post comments on PRs
+
+env:
+  DATA_CSV_PATH: /home/scalabenchs/bench-data-v3/data.csv
+  WEBSITE_DEST: w3dtbenc@tresorvm02:htdocs/v3
+
+jobs:
+  benchmarks_test:
+    name: Benchmarks (test)
+    if: github.event_name == 'push'
+    runs-on: ["self-hosted", "benchmarks"]
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Set path
+        run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
+
+      - name: Run and process benchmarks
+        run: bench/scripts/ci.sh all 0 true
+
+  # Run benchmarks that are not flagged as nightly when a PR is merged
+  benchmarks_merge:
+    name: Benchmarks (merge)
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    runs-on: ["self-hosted", "benchmarks"]
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Set path
+        run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
+
+      - name: Run and process benchmarks
+        run: bench/scripts/ci.sh notNightly ${{ github.event.pull_request.number }} true
+
+  # Run all benchmarks when a comment containing "test performance please"
+  # comment is posted on a PR.
+  #
+  # This is implemented with a webhook listening for comments on make.com that
+  # in turn triggers this workflow via `repository_dispatch`
+  #
+  # Note: We don't use an `issue_comment` event because it would create a
+  # workflow for every comment.
+  #
+  # See:
+  # - https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#repository_dispatch
+  # - https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#issue_comment
+  # - https://docs.github.com/en/webhooks/webhook-events-and-payloads#issue_comment
+  benchmarks_comment:
+    name: Benchmarks (comment)
+    if: github.event_name == 'repository_dispatch'
+    runs-on: ["self-hosted", "benchmarks"]
+
+    steps:
+      - name: Set path
+        run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
+
+      - name: Show webhook payload
+        run: |
+          echo "PR: ${{ github.event.client_payload.pr }}"
+          echo "Commit: ${{ github.event.client_payload.commit }}"
+          echo "Repo: ${{ github.event.client_payload.repo }}"
+
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+          ref: ${{ github.event.client_payload.commit }}
+          repository: ${{ github.event.client_payload.repo }}
+
+      - name: Run and process benchmarks
+        run: bench/scripts/ci.sh all ${{ github.event.client_payload.pr }} false
+
+      - name: Post comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `Benchmarks results ready.`;
+            await github.rest.issues.createComment({
+              issue_number: context.payload.client_payload.pr,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment,
+            });
+
+  # Run nightly benchmarks every night
+  benchmarks_nightly:
+    name: Benchmarks (nightly)
+    if: github.event_name == 'schedule'
+    runs-on: ["self-hosted", "benchmarks"]
+
+    steps:
+      - name: Set path
+        run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
+
+      - name: Find PR associated with commit
+        id: find_pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha
+            });
+            if (prs.data.length === 1) {
+              core.info(`PR: ${prs.data[0].number}`);
+              core.setOutput('pr', prs.data[0].number);
+            } else {
+              core.warning(`Cannot find one PR associated with commit ${context.sha}: [${prs.data.map(pr => pr.number).join(', ')}]`);
+              core.setOutput('pr', 0);
+            }
+
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Run and process benchmarks
+        run: bench/scripts/ci.sh nightly ${{ steps.find_pr.outputs.pr }} true
