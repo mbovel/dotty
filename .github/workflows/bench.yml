@@ -1,6 +1,9 @@
 name: Benchmarks
 
 on:
+  push:
+    branches:
+      - mb/benchmarks
   pull_request:
     types:
       - closed # Triggered when a PR is merged
@@ -18,6 +21,22 @@ env:
   WEBSITE_DEST: w3dtbenc@tresorvm02:htdocs/v3
 
 jobs:
+  benchmarks_test:
+    name: Benchmarks (test)
+    if: github.event_name == 'push'
+    runs-on: ["self-hosted", "benchmarks"]
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Set path
+        run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
+
+      - name: Run and process benchmarks
+        run: bench/scripts/ci.sh all 0 true
+
   # Run benchmarks that are not flagged as nightly when a PR is merged
   benchmarks_merge:
     name: Benchmarks (merge)

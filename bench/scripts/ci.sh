@@ -57,7 +57,7 @@ VIZUALIZER_DATA_PATH="$VIZUALIZER_PATH/data"
 
 echo "::group::Run benchmarks"
 set -x
-sbt "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS; scala3-bench-bootstrapped / Jmh / run $JMH_ARGS $JMH_BOOTSTRAP_FILTERS" | tee $JMH_OUTPUT_PATH
+#sbt "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS; scala3-bench-bootstrapped / Jmh / run $JMH_ARGS $JMH_BOOTSTRAP_FILTERS" | tee $JMH_OUTPUT_PATH
 set +x
 echo "::endgroup::"
 
@@ -66,7 +66,7 @@ scala bench/scripts --main-class importResults -- $PR $MERGED $COMMIT_DATE $COMM
 echo "::endgroup::"
 
 echo "::group::Generate vizualizer data"
-scala bench/scripts --main-class makeVizualizerData -- $DATA_CSV_PATH $VIZUALIZER_PATH
+scala bench/scripts --main-class makeVizualizerData -- $DATA_CSV_PATH $VIZUALIZER_DATA_PATH
 echo "::endgroup::"
 
 echo "::group::Deploy vizualizer"
