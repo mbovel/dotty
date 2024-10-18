@@ -49,7 +49,7 @@ fi
 
 # `-foe true` means "fail on error".
 # `-gc true` launches the garbage collector between each iterations, which significantly reduces noise.
-JMH_ARGS="-foe true -gc true"
+JMH_ARGS="-foe true -gc true -wi 0 -i 1"
 
 JMH_OUTPUT_PATH="jmh-output.txt"
 VIZUALIZER_PATH="bench/vizualizer"
@@ -57,7 +57,7 @@ VIZUALIZER_DATA_PATH="$VIZUALIZER_PATH/data"
 
 echo "::group::Run benchmarks"
 set -x
-#sbt "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS; scala3-bench-bootstrapped / Jmh / run $JMH_ARGS $JMH_BOOTSTRAP_FILTERS" | tee $JMH_OUTPUT_PATH
+sbt "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS; scala3-bench-bootstrapped / Jmh / run $JMH_ARGS $JMH_BOOTSTRAP_FILTERS" | tee $JMH_OUTPUT_PATH
 set +x
 echo "::endgroup::"
 
