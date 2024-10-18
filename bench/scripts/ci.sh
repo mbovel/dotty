@@ -13,7 +13,7 @@ MODE=$1
 PR=$2
 MERGED=$3
 COMMIT_DATE=$(git --no-pager show --quiet --format='%cI')
-COMMIT=$(git rev-parse --size=16 HEAD)
+COMMIT=$(git rev-parse --short=16 HEAD)
 BENCH_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 
 case "$MODE" in
