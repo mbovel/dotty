@@ -1777,23 +1777,27 @@ object Build {
       },
     )
 
-  lazy val `scala3-bench` =
-    project.in(file("bench"))
-      .asDottyBench(NonBootstrapped)
-      .settings(
-        libraryDependencies ++= Seq(
-          "com.github.tototoshi" %% "scala-csv" % "2.0.0",
-          "com.lihaoyi" %% "os-lib" % "0.11.3",
-          "com.lihaoyi" %% "upickle" % "4.0.2"
-        )
-      )
-
+  lazy val `scala3-bench` = project.in(file("bench")) .asDottyBench(NonBootstrapped)
   lazy val `scala3-bench-bootstrapped` = project.in(file("bench")).asDottyBench(Bootstrapped)
   lazy val `scala3-bench-run` = project.in(file("bench-run")).asDottyBench(Bootstrapped)
 
   lazy val `scala3-bench-micro` = project.in(file("bench-micro"))
     .asDottyBench(Bootstrapped)
     .settings(Jmh / run / mainClass := Some("org.openjdk.jmh.Main"))
+
+  lazy val `scala3-bench-scripts` = project.in(file("bench-scripts"))
+    .withCommonSettings(NonBootstrapped)
+    .settings(
+      libraryDependencies ++= Seq(
+        "com.github.tototoshi" %% "scala-csv" % "2.0.0",
+        "com.lihaoyi" %% "os-lib" % "0.11.3",
+        "com.lihaoyi" %% "upickle" % "4.0.2",
+      ),
+      // Remove the `-v` flag to not output lines for passing tests.
+      // See https://github.com/sbt/junit-interface?tab=readme-ov-file#usage.
+      testOptions += Tests.Argument(TestFrameworks.JUnit, "-a", "-s"),
+      scalacOptions += "-Wunused:all",
+    )
 
   val testcasesOutputDir = taskKey[Seq[String]]("Root directory where tests classes are generated")
   val testcasesSourceRoot = taskKey[String]("Root directory where tests sources are generated")

@@ -1,99 +1,195 @@
 name: Benchmarks
 
 on:
-  push:
-    branches:
-      - mb/benchmarks
   pull_request:
     types:
       - closed # Triggered when a PR is merged
-  repository_dispatch:
-    types: [run_benchmarks]
   schedule:
     - cron: "11 1 * * *" # Every night at 01:11 UTC
+  workflow_call:
+    inputs:
+      commit:
+        required: true
+        type: string
+      repo:
+        required: true
+        type: string
+      run:
+        required: true
+        type: number
+      is_last_run:
+        required: true
+        type: boolean
 
 permissions:
   contents: read
   pull-requests: write # Needed to post comments on PRs
 
 env:
-  DATA_CSV_PATH: /home/scalabenchs/bench-data-v3/data.csv
-  WEBSITE_DEST: w3dtbenc@tresorvm02:htdocs/v3
+  # Path where to store the standard output of JMH.
+  JMH_OUTPUT_PATH: jmh-output.txt
+
+  # Fully qualified path of the `@main def importResults` method.
+  IMPORT_RESULTS_MAIN: dotty.tools.benchmarks.scripts.importResults
+
+  # Fully qualified path of the `@main def aggregateData` method.
+  AGGREGATE_DATA_MAIN: dotty.tools.benchmarks.scripts.aggregateData
+
+  # Path to the directory where the benchmark data is stored on the runner's VM.
+  DATA_DIR: /home/scalabenchs/bench-data-v3
+
+  # Destination of the benchmarks data.
+  DATA_DEST: w3dtbenc@tresorvm02:htdocs/v3/data
+
+  # Path to the directory that contains the bench visualizer app.
+  VISUALIZER_DIR: bench-visualizer
+
+  # Destination of the visualizer app.
+  VISUALIZER_DEST: w3dtbenc@tresorvm02:htdocs/v3
+
+  # Options to pass to JMH.
+  # `-foe true` means "fail on error".
+  # `-gc true` launches the garbage collector between each iterations, which significantly reduces noise.
+  JMH_ARGS: -foe true -gc true -wi 0 -i 1
 
 jobs:
-  benchmarks_test:
-    name: Benchmarks (test)
-    if: github.event_name == 'push'
+  run_benchmarks:
+    name: Run Benchmarks
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
     runs-on: ["self-hosted", "benchmarks"]
+
     steps:
+      - name: Print webhook payload
+        if: ${{ github.event_name == 'repository_dispatch' }}
+        run: echo ${{ toJson(github.event.client_payload) }}
+
+      - name: Set environment variables
+        uses: actions/github-script@v7
+        with:
+          script: |
+            function get_pr_for_commit(commit) {
+              const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: context.sha
+              });
+              if (prs.data.length === 1) {
+                return prs.data[0].number);
+              } else {
+                core.warning(`Cannot find one PR associated with commit ${context.sha}: [${prs.data.map(pr => pr.number).join(', ')}]`);
+                return 0;
+              }
+            }
+            switch (context.eventName) {
+              case 'pull_request':
+                // Commit to benchmark.
+                // Note: in this case, as the event is `pull_request` and it the
+                // pull request has been merged, this is the merge commit.
+                core.exportVariable('COMMIT', context.sha);
+
+                // PR number associated with the benchmarked commit.
+                core.exportVariable('PR', context.payload.pull_request.number);
+
+                // GitHub repository name.
+                // This is always  `scala/scala3` for `pull_request` and
+                // `repository_dispatch` events, but can be different for
+                // `schedule` events as they allow to run the workflow on pull
+                // requests from other repositories.
+                core.exportVariable('REPO', context.repo.repo);
+
+                // Index of the run.
+                // Always 0 for `pull_request` and `repository_dispatch` events.
+                // For `schedule` events, index of the run in a series of runs.
+                core.exportVariable('RUN', 0);
+
+                // True if this is the last run of a series of runs.
+                // Always true for `pull_request` and `repository_dispatch`
+                // events. For `schedule` events, it is true if the run is the
+                // final one in a series of runs. If this the case the
+                // results of the run will be uploaded and a comment posted.
+                core.exportVariable('IS_LAST_RUN', 'true');
+
+                // `-e` means "exclude".
+                // Select benchmarks that do not contain `Nightly` or `Bootstrapped` in their name.
+                core.exportVariable('JMH_FILTERS', "-e Bootstrapped -e Nightly");
+
+                // Select benchmarks that contain `Bootstrapped` in their name, but not `Nightly`.
+                core.exportVariable('JMH_BOOTSTRAPPED_FILTERS', "Bootstrapped -e Nightly");
+
+                // Results of "on-merge" and nightly runs are stored in the same file: `main.csv`.
+                core.exportVariable('DATA_CSV_PATH', `${process.env.DATA_DIR}/main.csv`);
+                break;
+              case 'schedule':
+                core.exportVariable('COMMIT', context.sha);
+                core.exportVariable('PR', get_pr_for_commit(context.sha));
+                core.exportVariable('REPO', context.repo.repo);
+                core.exportVariable('RUN', 0);
+                core.exportVariable('IS_LAST_RUN', 'true');
+                core.exportVariable('JMH_FILTERS', "-e Bootstrapped Nightly");
+                core.exportVariable('JMH_BOOTSTRAPPED_FILTERS', "BootstrappedNightly");
+                core.exportVariable('DATA_CSV_PATH', `${process.env.DATA_CSV_PATH}/main.csv`);
+                break;
+              case 'workflow_call':
+                const commit = context.payload.inputs.commit;
+                core.exportVariable('COMMIT', context.payload.inputs.commit);
+                core.exportVariable('PR', get_pr_for_commit(commit));
+                core.exportVariable('REPO', context.payload.inputs.repo);
+                core.exportVariable('RUN', context.payload.inputs.run);
+                core.exportVariable('IS_LAST_RUN', context.payload.inputs.is_last_run);
+                core.exportVariable('JMH_FILTERS', "-e Bootstrapped");
+                core.exportVariable('JMH_BOOTSTRAPPED_FILTERS', "Bootstrapped");
+                core.exportVariable('DATA_CSV_PATH', `${process.env.DATA_CSV_PATH}/manual/${commit.slice(0, 16)}.csv`);
+                break;
+              default:
+                core.setFailed(`Unsupported event: ${github.eventName}`);
+                break;
+
       - name: Check out the repository
         uses: actions/checkout@v4
         with:
           submodules: "true"
+          ref: ${{ env.COMMIT }}
+          repository: ${{ env.REPO }}
 
+      # This is a workaround to make the binaries installed by `coursier` on the
+      # runner's VM available in the PATH.
       - name: Set path
         run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
 
-      - name: Run and process benchmarks
-        run: bench/scripts/ci.sh all 0 true
+      # Compilation is done as a separate step from running the benchmarks
+      # simply to make the logs easier to read and to time it separately.
+      - name: Compile Dotty (non-bootstrapped)
+        run: echo "scala3-bench / Jmh / compile"
 
-  # Run benchmarks that are not flagged as nightly when a PR is merged
-  benchmarks_merge:
-    name: Benchmarks (merge)
-    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
-    runs-on: ["self-hosted", "benchmarks"]
+      - name: Run benchmarks (non-bootstrapped)
+        run: echo "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS"
 
-    steps:
-      - name: Check out the repository
-        uses: actions/checkout@v4
-        with:
-          submodules: "true"
+      - name: Compile Dotty (bootstrapped)
+        run: echo "scala3-bench-bootstrapped / Jmh / compile"
 
-      - name: Set path
-        run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
+      - name: Run benchmarks (bootstrapped)
+        run: echo "scala3-bench-bootstrapped / Jmh / run $JMH_ARGS $JMH_BOOTSTRAPPED_FILTERS"
 
-      - name: Run and process benchmarks
-        run: bench/scripts/ci.sh notNightly ${{ github.event.pull_request.number }} true
+      - name: Import results
+        run: echo "scala3-bench-scripts / runMain $IMPORT_RESULTS_MAIN -- $PR $COMMIT $RUN $JMH_OUTPUT_PATH $DATA_CSV_PATH"
 
-  # Run all benchmarks when a comment containing "test performance please"
-  # comment is posted on a PR.
-  #
-  # This is implemented with a webhook listening for comments on make.com that
-  # in turn triggers this workflow via `repository_dispatch`
-  #
-  # Note: We don't use an `issue_comment` event because it would create a
-  # workflow for every comment.
-  #
-  # See:
-  # - https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#repository_dispatch
-  # - https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#issue_comment
-  # - https://docs.github.com/en/webhooks/webhook-events-and-payloads#issue_comment
-  benchmarks_comment:
-    name: Benchmarks (comment)
-    if: github.event_name == 'repository_dispatch'
-    runs-on: ["self-hosted", "benchmarks"]
+      # For the `pull_request` and `schedule` events, compute the aggregated
+      # data used by the visualizer.
+      - name: Aggregate data
+        if: github.event_name != 'repository_dispatch'
+        run: echo "scala3-bench-scripts / runMain $AGGREGATE_DATA_MAIN -- $DATA_CSV_PATH $DATA_DIR/aggregated"
 
-    steps:
-      - name: Set path
-        run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
+      - name: Sync data
+        if: env.IS_LAST_RUN == 'true'
+        run: echo "rsync -av $DATA_DIR $DATA_DEST"
 
-      - name: Show webhook payload
-        run: |
-          echo "PR: ${{ github.event.client_payload.pr }}"
-          echo "Commit: ${{ github.event.client_payload.commit }}"
-          echo "Repo: ${{ github.event.client_payload.repo }}"
-
-      - name: Check out the repository
-        uses: actions/checkout@v4
-        with:
-          submodules: "true"
-          ref: ${{ github.event.client_payload.commit }}
-          repository: ${{ github.event.client_payload.repo }}
-
-      - name: Run and process benchmarks
-        run: bench/scripts/ci.sh all ${{ github.event.client_payload.pr }} false
+      # When a pull request is merged, also update the visualizer itself.
+      - name: Sync visualizer
+        if: github.event_name != 'pull_request'
+        run: echo "rsync -av $VISUALIZER_DIR $VISUALIZER_DEST"
 
       - name: Post comment
+        if: github.event_name == 'repository_dispatch' && env.IS_LAST_RUN == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -105,38 +201,4 @@ jobs:
               body: comment,
             });
 
-  # Run nightly benchmarks every night
-  benchmarks_nightly:
-    name: Benchmarks (nightly)
-    if: github.event_name == 'schedule'
-    runs-on: ["self-hosted", "benchmarks"]
 
-    steps:
-      - name: Set path
-        run: echo '/home/scalabenchs/.local/share/coursier/bin' >> $GITHUB_PATH
-
-      - name: Find PR associated with commit
-        id: find_pr
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: context.sha
-            });
-            if (prs.data.length === 1) {
-              core.info(`PR: ${prs.data[0].number}`);
-              core.setOutput('pr', prs.data[0].number);
-            } else {
-              core.warning(`Cannot find one PR associated with commit ${context.sha}: [${prs.data.map(pr => pr.number).join(', ')}]`);
-              core.setOutput('pr', 0);
-            }
-
-      - name: Check out the repository
-        uses: actions/checkout@v4
-        with:
-          submodules: "true"
-
-      - name: Run and process benchmarks
-        run: bench/scripts/ci.sh nightly ${{ steps.find_pr.outputs.pr }} true
