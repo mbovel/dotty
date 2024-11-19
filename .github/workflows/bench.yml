@@ -74,7 +74,7 @@ jobs:
                 commit_sha: context.sha
               });
               if (prs.data.length === 1) {
-                return prs.data[0].number);
+                return prs.data[0].number;
               } else {
                 core.warning(`Cannot find one PR associated with commit ${context.sha}: [${prs.data.map(pr => pr.number).join(', ')}]`);
                 return 0;
