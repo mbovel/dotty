@@ -67,7 +67,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            function get_pr_for_commit(commit) {
+            async function get_pr_for_commit(commit) {
               const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -121,7 +121,7 @@ jobs:
                 break;
               case 'schedule':
                 core.exportVariable('COMMIT', context.sha);
-                core.exportVariable('PR', get_pr_for_commit(context.sha));
+                core.exportVariable('PR', await get_pr_for_commit(context.sha));
                 core.exportVariable('REPO', context.repo.repo);
                 core.exportVariable('RUN', 0);
                 core.exportVariable('IS_LAST_RUN', 'true');
@@ -132,7 +132,7 @@ jobs:
               case 'workflow_call':
                 const commit = context.payload.inputs.commit;
                 core.exportVariable('COMMIT', context.payload.inputs.commit);
-                core.exportVariable('PR', get_pr_for_commit(commit));
+                core.exportVariable('PR', await get_pr_for_commit(commit));
                 core.exportVariable('REPO', context.payload.inputs.repo);
                 core.exportVariable('RUN', context.payload.inputs.run);
                 core.exportVariable('IS_LAST_RUN', context.payload.inputs.is_last_run);
@@ -180,7 +180,6 @@ jobs:
         run: echo "scala3-bench-scripts / runMain $AGGREGATE_DATA_MAIN -- $DATA_CSV_PATH $DATA_DIR/aggregated"
 
       - name: Sync data
-        if: env.IS_LAST_RUN == 'true'
         run: echo "rsync -av $DATA_DIR $DATA_DEST"
 
       # When a pull request is merged, also update the visualizer itself.

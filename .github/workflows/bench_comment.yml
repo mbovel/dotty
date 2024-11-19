@@ -23,9 +23,15 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number
             });
-            core.setOutput('BASE_SHA', data.base.sha);
-            core.setOutput('HEAD_SHA', data.head.sha);
-            core.setOutput('HEAD_REPO', data.head.repo.full_name);
+            console.log(JSON.stringify(data, null, 2));
+            core.exportVariable('BASE_SHA', data.base.sha);
+            core.exportVariable('HEAD_SHA', data.head.sha);
+            core.exportVariable('HEAD_REPO', data.head.repo.full_name);
+
+    outputs:
+      BASE_SHA: ${{ env.BASE_SHA }}
+      HEAD_SHA: ${{ env.HEAD_SHA }}
+      HEAD_REPO: ${{ env.HEAD_REPO }}
 
   benchmark_base_commit:
     name: Benchmark base commit
