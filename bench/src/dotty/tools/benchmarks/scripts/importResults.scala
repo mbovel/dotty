@@ -1,4 +1,7 @@
+package dotty.tools.benchmarks.scripts
+
 import java.time.{ZonedDateTime, ZoneOffset}
+import collection.mutable.ArrayBuffer
 import com.github.tototoshi.csv.CSVWriter
 
 case class JMHResults(benchmark: String, warmup: Seq[Double], measures: Seq[Double])
@@ -12,6 +15,8 @@ case class JMHResults(benchmark: String, warmup: Seq[Double], measures: Seq[Doub
     jmhOutputPathString: String,
     dataCsvPathString: String
 ): Unit =
+  println("Importing benchmark results...")
+
   val pr = prString.toInt
   val merged = mergedString.toBoolean
   def parseDate(s: String) = ZonedDateTime.parse(s).withZoneSameInstant(ZoneOffset.UTC).withNano(0)
@@ -50,15 +55,15 @@ case class JMHResults(benchmark: String, warmup: Seq[Double], measures: Seq[Doub
   writer.close()
 
 /** Reads results from a JMH text output file. */
-def readJMHResults(jmhOutputPath: os.Path): Seq[JMHResults] =
+def readJMHResults(jmhOutputPath: os.ReadablePath): Seq[JMHResults] =
   val benchmarkPrefix = "# Benchmark: "
   val warmupPrefix = "# Warmup Iteration"
   val measurePrefix = "Iteration "
   val lines = os.read.lines(jmhOutputPath)
-  val results = collection.mutable.ArrayBuffer.empty[JMHResults]
+  val results = ArrayBuffer.empty[JMHResults]
   var benchmark = ""
-  var warmup = collection.mutable.ArrayBuffer.empty[Double]
-  var measures = collection.mutable.ArrayBuffer.empty[Double]
+  var warmup = ArrayBuffer.empty[Double]
+  var measures = ArrayBuffer.empty[Double]
   for line <- lines do
     if line.startsWith(benchmarkPrefix) then
       if benchmark.nonEmpty then

@@ -1777,7 +1777,17 @@ object Build {
       },
     )
 
-  lazy val `scala3-bench` = project.in(file("bench")).asDottyBench(NonBootstrapped)
+  lazy val `scala3-bench` =
+    project.in(file("bench"))
+      .asDottyBench(NonBootstrapped)
+      .settings(
+        libraryDependencies ++= Seq(
+          "com.github.tototoshi" %% "scala-csv" % "2.0.0",
+          "com.lihaoyi" %% "os-lib" % "0.11.3",
+          "com.lihaoyi" %% "upickle" % "4.0.2"
+        )
+      )
+
   lazy val `scala3-bench-bootstrapped` = project.in(file("bench")).asDottyBench(Bootstrapped)
   lazy val `scala3-bench-run` = project.in(file("bench-run")).asDottyBench(Bootstrapped)
 

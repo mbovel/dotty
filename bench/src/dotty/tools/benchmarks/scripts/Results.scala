@@ -1,3 +1,5 @@
+package dotty.tools.benchmarks.scripts
+
 import java.time.{ZonedDateTime, ZoneOffset}
 import java.time.format.DateTimeFormatter
 

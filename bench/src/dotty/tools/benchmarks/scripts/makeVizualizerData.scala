@@ -1,3 +1,5 @@
+package dotty.tools.benchmarks.scripts
+
 import java.time.ZonedDateTime
 import com.github.tototoshi.csv.{CSVReader, CSVWriter}
 
