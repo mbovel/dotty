@@ -106,7 +106,8 @@ jobs:
     outputs:
       runs: ${{ steps.generate_runs.outputs.runs }}
 
-  benchmark_base_commit:
+  run:
+    name: Run
     needs: ['generate_runs']
     strategy:
       matrix:
