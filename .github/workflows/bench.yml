@@ -39,7 +39,7 @@ jobs:
       # Commit to benchmark.
       # Note: in this case, in the case of a `pull_request` even `github.sha` is
       # the merge commit.
-      COMMIT: ${{github.event.inputs.commit || github.sha}}
+      COMMIT: ${{inputs.commit || github.sha}}
 
       # PR number associated with the benchmarked commit.
       # If this is 0 the step "Find PR" will try to find the PR associated with
@@ -51,15 +51,15 @@ jobs:
       # `repository_dispatch` events, but can be different for `schedule` events
       # as they allow to run the workflow on pull requests from other
       # repositories.
-      REPO: ${{ github.event.inputs.repo || github.repository}}
+      REPO: ${{inputs.repo || github.repository}}
 
       # Index of the run.
       # Always 0 for `pull_request` and `repository_dispatch` events.
       # For `schedule` events, index of the run in a series of runs.
-      RUN: ${{github.event.inputs.run || 0}}
+      RUN: ${{inputs.run || 0}}
 
       # Whether to run the "merge" benchmarks or the "nightly" benchmarks.
-      IS_NIGHTLY: ${{github.event_name == 'schedule' || github.event.inputs.is_nightly}}
+      IS_NIGHTLY: ${{github.event_name == 'schedule' || inputs.is_nightly}}
 
       # Path where to store the standard output of JMH.
       JMH_OUTPUT_PATH: jmh-output.txt
@@ -92,8 +92,8 @@ jobs:
     steps:
       - name: Show info
         run: |
-          echo "Inputs: ${{github.event.inputs}}"
-          echo "Has inputs: ${{github.event.inputs == true}}"
+          echo "Inputs: ${{inputs}}"
+          echo "Input run: ${{inputs.run}}"
 
       - name: Find PR
         if: ${{env.PR == '0'}}
@@ -153,7 +153,7 @@ jobs:
         run: sbt -no-colors "scala3-bench-scripts / runMain $IMPORT_RESULTS_MAIN $PR $COMMIT $RUN $JMH_OUTPUT_PATH $DATA_CSV_PATH"
 
       - name: Aggregate data
-        if: ${{github.event.inputs}}
+        if: ${{inputs}}
         run: sbt -no-colors "scala3-bench-scripts / runMain $AGGREGATE_DATA_MAIN $DATA_DIR"
 
       - name: Sync data
