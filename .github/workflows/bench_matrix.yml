@@ -45,7 +45,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `Thanks for your request. Your benchmarks will be run shortly. You can follow the progress at https://github.com/mbovel/dotty/actions/runs/${context.runId}.`
+              body: `Thanks for your request. Your benchmarks will be run shortly.\nYou can follow the progress at https://github.com/mbovel/dotty/actions/runs/${context.runId}.`
             })
 
   generate_runs:
@@ -120,11 +120,11 @@ jobs:
             for (const run_index of run_indices) {
               for (const commit of commits) {
                 for (const is_nightly of is_nightlys) {
-                  const dataCsv = `${process.env.DATA_DIR}/raw/${commit.commit}/${is_nightly ? 'nightly' : 'merge'}-${run}.csv`;
+                  const dataCsv = `${process.env.DATA_DIR}/raw/${commit.commit}/${is_nightly ? 'nightly' : 'merge'}-${run_index}.csv`;
                   if (fs.existsSync(dataCsv)) {
-                    console.log(`Run ${run} for commit ${commit.commit} with profile ${profile} has already been performed.`);
+                    console.log(`Run ${run_index} for commit ${commit.commit} with profile ${profile} has already been performed.`);
                   } else {
-                    console.log(`Scheduling run ${run} for commit ${commit.commit} with profile ${profile}.`);
+                    console.log(`Scheduling run ${run_index} for commit ${commit.commit} with profile ${profile}.`);
                     runs.push({
                       commit: commit.commit,
                       repo: commit.repo,
