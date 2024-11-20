@@ -138,8 +138,8 @@ jobs:
             core.setOutput('runs', JSON.stringify(runs));
             core.setOutput('visualizer_url', `https://dotty-bench.epfl.ch/v3/compare.html#${commits.map(c => c.commit).join(',')}`);
     outputs:
-      runs: ${{ steps.generate_runs.outputs.runs }}
-      visualizer_url: ${{ steps.generate_runs.outputs.visualizer_url }}
+      runs: ${{steps.generate_runs.outputs.runs}}
+      visualizer_url: ${{steps.generate_runs.outputs.visualizer_url}}
 
   run:
     name: Run
@@ -150,24 +150,29 @@ jobs:
       max-parallel: 1
     uses: ./.github/workflows/bench.yml
     with:
-      commit: ${{ matrix.run.commit }}
-      repo: ${{ matrix.run.repo }}
-      run: ${{ matrix.run.index }}
-      is_nightly: ${{ matrix.run.is_nightly }}
+      commit: ${{matrix.run.commit}}
+      repo: ${{matrix.run.repo}}
+      run: ${{matrix.run.index}}
+      is_nightly: ${{matrix.run.is_nightly}}
 
   finish_comment:
     name: Finish comment
     needs: ['run']
-    if: github.event_name == 'issue_comment'
+    if: (failure() || success()) && github.event_name == 'issue_comment'
     runs-on: ubuntu-latest
     steps:
       - name: Comment
         uses: actions/github-script@v7
         with:
           script: |
+            console.log(context.payload)
+            const body =
+              context.payload.workflow_run.conclusion === 'success'
+                ? `Your benchmarks have been run. You can see the results at ${{needs.generate_runs.outputs.visualizer_url}}.`
+                : 'An error unfortunately occurred while running your benchmarks.\n@mbovel please take a look.';
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: 'Your benchmarks have been run. You can see the results at ${{ needs.generate_runs.outputs.visualizer_url }}.'
-            })
+              body: body
+            });

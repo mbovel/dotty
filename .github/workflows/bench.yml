@@ -39,27 +39,27 @@ jobs:
       # Commit to benchmark.
       # Note: in this case, in the case of a `pull_request` even `github.sha` is
       # the merge commit.
-      COMMIT: ${{ github.event_name == 'workflow_call' && github.event.inputs.commit || github.sha }}
+      COMMIT: ${{github.event_name == 'workflow_call' && github.event.inputs.commit || github.sha}}
 
       # PR number associated with the benchmarked commit.
       # If this is 0 the step "Find PR" will try to find the PR associated with
       # the commit.
-      PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || 0 }}
+      PR: ${{github.event_name == 'pull_request' && github.event.pull_request.number || 0}}
 
       # GitHub repository name.
       # This is always  `scala/scala3` for `pull_request` and
       # `repository_dispatch` events, but can be different for `schedule` events
       # as they allow to run the workflow on pull requests from other
       # repositories.
-      REPO: ${{ github.event_name == 'workflow_call' && github.event.inputs.repo || github.repository }}
+      REPO: ${{github.event_name == 'workflow_call' && github.event.inputs.repo || github.repository}}
 
       # Index of the run.
       # Always 0 for `pull_request` and `repository_dispatch` events.
       # For `schedule` events, index of the run in a series of runs.
-      RUN: ${{ github.event_name == 'workflow_call' && github.event.inputs.run || 0 }}
+      RUN: ${{github.event_name == 'workflow_call' && github.event.inputs.run || 0}}
 
       # Whether to run the "merge" benchmarks or the "nightly" benchmarks.
-      IS_NIGHTLY: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_call' && github.event.inputs.profile == 'nightly') }}
+      IS_NIGHTLY: ${{(github.event_name == 'schedule' || github.event_name == 'workflow_call' && github.event.inputs.profile == 'nightly')}}
 
       # Path where to store the standard output of JMH.
       JMH_OUTPUT_PATH: jmh-output.txt
@@ -91,7 +91,7 @@ jobs:
 
     steps:
       - name: Find PR
-        if: ${{ env.PR == '0' }}
+        if: ${{env.PR == '0'}}
         uses: actions/github-script@v7
         with:
           script: | #js
@@ -114,8 +114,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: "true"
-          ref: ${{ env.COMMIT }}
-          repository: ${{ env.REPO }}
+          ref: ${{env.COMMIT}}
+          repository: ${{env.REPO}}
 
       # This is a workaround to make the binaries installed by `coursier` on the
       # runner's VM available in the PATH.
@@ -131,23 +131,23 @@ jobs:
         env:
           # JMH filters selecting non-bootstrapped benchmarks to run.
           # `-e` means "exclude".
-          JMH_FILTERS: ${{ env.IS_NIGHTLY && '-e Bootstrapped -e Nightly' || '-e Bootstrapped Nightly' }}
+          JMH_FILTERS: ${{env.IS_NIGHTLY && '-e Bootstrapped -e Nightly' || '-e Bootstrapped Nightly'}}
         run: sbtn "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS" | tee $JMH_OUTPUT_PATH
 
       - name: Run benchmarks (bootstrapped)
         env:
           # JMH filters selecting bootstrapped benchmarks to run.
-          JMH_BOOTSTRAPPED_FILTERS: ${{ env.IS_NIGHTLY && 'Bootstrapped -e Nightly' || 'BootstrappedNightly' }}
+          JMH_BOOTSTRAPPED_FILTERS: ${{env.IS_NIGHTLY && 'Bootstrapped -e Nightly' || 'BootstrappedNightly'}}
         run: sbtn "scala3-bench-bootstrapped / Jmh / run $JMH_ARGS $JMH_BOOTSTRAPPED_FILTERS" | tee -a $JMH_OUTPUT_PATH
 
       - name: Import results
         env:
           # Path to the CSV file in which to import the benchmark results.
-          DATA_CSV_PATH: $DATA_DIR/raw/$COMMIT/${{ env.IS_NIGHTLY && 'nightly' || 'merge' }}-$RUN.csv
+          DATA_CSV_PATH: ${{env.DATA_DIR}}/raw/${{env.COMMIT}}/${{env.IS_NIGHTLY && 'nightly' || 'merge'}}-${{env.RUN}}.csv
         run: sbtn "scala3-bench-scripts / runMain $IMPORT_RESULTS_MAIN $PR $COMMIT $RUN $JMH_OUTPUT_PATH $DATA_CSV_PATH"
 
       - name: Aggregate data
-        if: ${{ github.event_name != 'workflow_call' }}
+        if: ${{github.event_name != 'workflow_call'}}
         run: sbtn "scala3-bench-scripts / runMain $AGGREGATE_DATA_MAIN $DATA_DIR"
 
       - name: Shutdown SBT
