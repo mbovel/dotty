@@ -51,7 +51,7 @@ jobs:
                 console.log(data);
                 const base = {
                   commit: data.base.sha,
-                  repo: context.base.repo.full_name
+                  repo: data.base.repo.full_name
                 };
                 const head = {
                   commit: data.head.sha,
