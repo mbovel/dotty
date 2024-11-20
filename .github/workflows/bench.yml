@@ -125,33 +125,30 @@ jobs:
       # Compilation is done as a separate step from running the benchmarks
       # simply to make the logs easier to read and to time it separately.
       - name: Compile
-        run: sbtn "scala3-bench-bootstrapped / Jmh / compile"
+        run: sbt -no-colors "scala3-bench-bootstrapped / Jmh / compile"
 
       - name: Run benchmarks (non-bootstrapped)
         env:
           # JMH filters selecting non-bootstrapped benchmarks to run.
           # `-e` means "exclude".
           JMH_FILTERS: ${{env.IS_NIGHTLY && '-e Bootstrapped -e Nightly' || '-e Bootstrapped Nightly'}}
-        run: sbtn "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS" | tee $JMH_OUTPUT_PATH
+        run: sbt -no-colors "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS" | tee $JMH_OUTPUT_PATH
 
       - name: Run benchmarks (bootstrapped)
         env:
           # JMH filters selecting bootstrapped benchmarks to run.
           JMH_BOOTSTRAPPED_FILTERS: ${{env.IS_NIGHTLY && 'Bootstrapped -e Nightly' || 'BootstrappedNightly'}}
-        run: sbtn "scala3-bench-bootstrapped / Jmh / run $JMH_ARGS $JMH_BOOTSTRAPPED_FILTERS" | tee -a $JMH_OUTPUT_PATH
+        run: sbt -no-colors "scala3-bench-bootstrapped / Jmh / run $JMH_ARGS $JMH_BOOTSTRAPPED_FILTERS" | tee -a $JMH_OUTPUT_PATH
 
       - name: Import results
         env:
           # Path to the CSV file in which to import the benchmark results.
           DATA_CSV_PATH: ${{env.DATA_DIR}}/raw/${{env.COMMIT}}/${{env.IS_NIGHTLY && 'nightly' || 'merge'}}-${{env.RUN}}.csv
-        run: sbtn "scala3-bench-scripts / runMain $IMPORT_RESULTS_MAIN $PR $COMMIT $RUN $JMH_OUTPUT_PATH $DATA_CSV_PATH"
+        run: sbt -no-colors "scala3-bench-scripts / runMain $IMPORT_RESULTS_MAIN $PR $COMMIT $RUN $JMH_OUTPUT_PATH $DATA_CSV_PATH"
 
       - name: Aggregate data
         if: ${{github.event_name != 'workflow_call'}}
-        run: sbtn "scala3-bench-scripts / runMain $AGGREGATE_DATA_MAIN $DATA_DIR"
-
-      - name: Shutdown SBT
-        run: sbtn shutdown
+        run: sbt -no-colors "scala3-bench-scripts / runMain $AGGREGATE_DATA_MAIN $DATA_DIR"
 
       - name: Sync data
         run: echo "rsync -av $DATA_DIR $DATA_DEST"
