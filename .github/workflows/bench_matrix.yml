@@ -68,7 +68,6 @@ jobs:
                   repo: context.repo.repo,
                   pull_number: context.payload.issue.number
                 });
-                console.log(data);
                 const base = {
                   commit: data.base.sha,
                   repo: data.base.repo.full_name

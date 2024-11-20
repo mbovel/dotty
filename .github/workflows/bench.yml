@@ -124,24 +124,21 @@ jobs:
 
       # Compilation is done as a separate step from running the benchmarks
       # simply to make the logs easier to read and to time it separately.
-      - name: Compile (non-bootstrapped)
-        run: sbtn "scala3-bench / Jmh / compile"
+      - name: Compile
+        run: sbtn "scala3-bench-bootstrapped / Jmh / compile"
 
       - name: Run benchmarks (non-bootstrapped)
         env:
           # JMH filters selecting non-bootstrapped benchmarks to run.
           # `-e` means "exclude".
           JMH_FILTERS: ${{ env.IS_NIGHTLY && '-e Bootstrapped -e Nightly' || '-e Bootstrapped Nightly' }}
-        run: sbtn "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS"
-
-      - name: Compile (bootstrapped)
-        run: echo "scala3-bench-bootstrapped / Jmh / compile"
+        run: sbtn "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS" | tee $JMH_OUTPUT_PATH
 
       - name: Run benchmarks (bootstrapped)
         env:
           # JMH filters selecting bootstrapped benchmarks to run.
           JMH_BOOTSTRAPPED_FILTERS: ${{ env.IS_NIGHTLY && 'Bootstrapped -e Nightly' || 'BootstrappedNightly' }}
-        run: echo "scala3-bench-bootstrapped / Jmh / run $JMH_ARGS $JMH_BOOTSTRAPPED_FILTERS"
+        run: sbtn "scala3-bench-bootstrapped / Jmh / run $JMH_ARGS $JMH_BOOTSTRAPPED_FILTERS" | tee -a $JMH_OUTPUT_PATH
 
       - name: Import results
         env:
