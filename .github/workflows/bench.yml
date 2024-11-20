@@ -90,12 +90,6 @@ jobs:
       VISUALIZER_DEST: w3dtbenc@tresorvm02:htdocs/v3
 
     steps:
-      - name: Show info
-        run: |
-          echo "Event name: ${{github.event_name}}"
-          echo "Inputs: ${{github.event.inputs}}
-          echo "Commit: $COMMIT"
-
       - name: Find PR
         if: ${{env.PR == '0'}}
         uses: actions/github-script@v7
