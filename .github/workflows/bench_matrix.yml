@@ -16,10 +16,12 @@ on:
         description: "GitHub repository containing the commit to benchmark."
         required: true
         type: string
+        default: "mbovel/scala3" # TODO(mbovel): Change to scala/scala3
       runs:
         description: "Number of runs to perform."
         required: true
         type: number
+        default: 1
       profile:
         description: "Profile to run: 'merge' to run the benchmarks that are run on every PR merge (shorter), 'nightly' to run nightly benchmarks (longer), or 'all' to run both."
         required: true
