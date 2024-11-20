@@ -45,7 +45,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: 'Thanks for your request. Your benchmarks will be run shortly. You can follow the progress at https://github.com/mbovel/dotty/actions/runs/${context.runId}.'
+              body: `Thanks for your request. Your benchmarks will be run shortly. You can follow the progress at https://github.com/mbovel/dotty/actions/runs/${context.runId}.`
             })
 
   generate_runs:
@@ -118,7 +118,7 @@ jobs:
 
             const runs = [];
             for (const run_index of run_indices) {
-              for (const commit of commit) {
+              for (const commit of commits) {
                 for (const is_nightly of is_nightlys) {
                   const dataCsv = `${process.env.DATA_DIR}/raw/${commit.commit}/${is_nightly ? 'nightly' : 'merge'}-${run}.csv`;
                   if (fs.existsSync(dataCsv)) {
@@ -133,7 +133,7 @@ jobs:
                     });
                   }
                 }
-              }commits.map(c => c.commit).join(',')
+              }
             }
 
             core.setOutput('runs', JSON.stringify(runs));
