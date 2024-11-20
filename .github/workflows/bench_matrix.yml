@@ -41,9 +41,9 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            function get_commits() {
+            async function get_commits() {
               if (context.eventName === 'issue_comment') {
-                const data = github.rest.pulls.get({
+                const data = await github.rest.pulls.get({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   pull_number: context.payload.issue.number
@@ -90,7 +90,7 @@ jobs:
 
             const runs = [];
             for (const run of get_runs()) {
-              for (const commit of get_commits()) {
+              for (const commit of await get_commits()) {
                 const profile = get_profile();
                 const is_nightlys = profile === 'all' ? [false, true] : [profile === 'nightly'];
                 for (const is_nightly of is_nightlys) {
