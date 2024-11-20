@@ -1,5 +1,7 @@
 package dotty.tools.benchmarks.scripts
 
+import java.time.{ZonedDateTime, ZoneOffset}
+
 extension (self: Seq[Double])
   /** Returns the `p`-th percentile of the sequence.
     *
@@ -20,3 +22,15 @@ extension (self: Seq[Double])
       val i = index.toInt
       val j = i + 1
       self(i) * (j - index) + self(j) * (index - i)
+
+/** Parses a date string in ISO format to a [[ZonedDateTime]] in UTC. */
+def parseDate(s: String): ZonedDateTime =
+  ZonedDateTime.parse(s).withZoneSameInstant(ZoneOffset.UTC).withNano(0)
+
+/** Parses a path string to an [[os.Path]].
+  *
+  * If the path is relative, it is resolved against the current working
+  * directory.
+  */
+def parsePath(s: String): os.Path =
+  os.Path(s, os.pwd)

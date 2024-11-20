@@ -124,14 +124,14 @@ jobs:
       # Compilation is done as a separate step from running the benchmarks
       # simply to make the logs easier to read and to time it separately.
       - name: Compile (non-bootstrapped)
-        run: echo "scala3-bench / Jmh / compile"
+        run: sbtn "scala3-bench / Jmh / compile"
 
       - name: Run benchmarks (non-bootstrapped)
         env:
           # JMH filters selecting non-bootstrapped benchmarks to run.
           # `-e` means "exclude".
           JMH_FILTERS: ${{ env.IS_NIGHTLY && '-e Bootstrapped -e Nightly' || '-e Bootstrapped Nightly' }}
-        run: echo "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS"
+        run: sbtn "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS"
 
       - name: Compile (bootstrapped)
         run: echo "scala3-bench-bootstrapped / Jmh / compile"
@@ -142,13 +142,18 @@ jobs:
           JMH_BOOTSTRAPPED_FILTERS: ${{ env.IS_NIGHTLY && 'Bootstrapped -e Nightly' || 'BootstrappedNightly' }}
         run: echo "scala3-bench-bootstrapped / Jmh / run $JMH_ARGS $JMH_BOOTSTRAPPED_FILTERS"
 
-      - name: Process results
+      - name: Import results
         env:
           # Path to the CSV file in which to import the benchmark results.
-          DATA_CSV_PATH: $DATA_DIR/$COMMIT/${{ env.IS_NIGHTLY && 'nightly' || 'merge' }}-$RUN.csv
-        run: |
-          echo "scala3-bench-scripts / runMain $IMPORT_RESULTS_MAIN -- $PR $COMMIT $RUN $JMH_OUTPUT_PATH $DATA_CSV_PATH"
-          echo "scala3-bench-scripts / runMain $AGGREGATE_DATA_MAIN -- $DATA_CSV_PATH $DATA_DIR/aggregated"
+          DATA_CSV_PATH: $DATA_DIR/raw/$COMMIT/${{ env.IS_NIGHTLY && 'nightly' || 'merge' }}-$RUN.csv
+        run: sbtn "scala3-bench-scripts / runMain $IMPORT_RESULTS_MAIN -- $PR $COMMIT $RUN $JMH_OUTPUT_PATH $DATA_CSV_PATH"
+
+      - name: Aggregate data
+        if: ${{ github.event_name != 'workflow_call' }}
+        run: sbtn "scala3-bench-scripts / runMain $AGGREGATE_DATA_MAIN -- $DATA_DIR/raw $DATA_DIR/aggregated"
+
+      - name: Shutdown SBT
+        run: sbtn shutdown
 
       - name: Sync data
         run: echo "rsync -av $DATA_DIR $DATA_DEST"

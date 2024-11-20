@@ -1,5 +1,6 @@
 package dotty.tools.benchmarks.scripts
 
+import scala.sys.process.stringToProcess
 import java.time.{ZonedDateTime, ZoneOffset}
 import collection.mutable.ArrayBuffer
 import com.github.tototoshi.csv.{CSVWriter, CSVFormat, DefaultCSVFormat}
@@ -10,9 +11,8 @@ case class JMHResults(benchmark: String, warmup: Seq[Double], measures: Seq[Doub
 /** Imports benchmark results from a JMH output file into a CSV file. */
 @main def importResults(
     prString: String,
-    commitTimeString: String,
     commit: String,
-    benchTimeString: String,
+    run: Int,
     jmhOutput: String,
     dataCsv: String
 ): Unit =
@@ -22,8 +22,9 @@ case class JMHResults(benchmark: String, warmup: Seq[Double], measures: Seq[Doub
   println("Importing benchmark results...")
 
   val pr = prString.toInt
-  val commitTime = parseDate(commitTimeString)
-  val benchTime = parseDate(benchTimeString)
+  assert(commit == "git rev-parse HEAD".!!.trim, "commit does not match HEAD")
+  val commitTime = parseDate("git show -s --format=%cI".!!.trim)
+  val benchTime = ZonedDateTime.now().withZoneSameInstant(ZoneOffset.UTC).withNano(0)
   val jmhOutputPath = parsePath(jmhOutput)
   val dataCsvPath = parsePath(dataCsv)
 
@@ -95,15 +96,3 @@ def parseTime(time: String): Double =
   val timeUnit = " ms/op"
   assert(time.endsWith(timeUnit), s"expected $time to end with time unit '$timeUnit'")
   time.dropRight(timeUnit.length).toDouble
-
-/** Parses a date string in ISO format to a [[ZonedDateTime]] in UTC. */
-def parseDate(s: String): ZonedDateTime =
-  ZonedDateTime.parse(s).withZoneSameInstant(ZoneOffset.UTC).withNano(0)
-
-/** Parses a path string to an [[os.Path]].
-  *
-  * If the path is relative, it is resolved against the current working
-  * directory.
-  */
-def parsePath(s: String): os.Path =
-  os.Path(s, os.pwd)

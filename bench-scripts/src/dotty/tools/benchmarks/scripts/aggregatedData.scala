@@ -3,27 +3,7 @@ package dotty.tools.benchmarks.scripts
 import java.time.ZonedDateTime
 import com.github.tototoshi.csv.{CSVReader, CSVWriter, CSVFormat, DefaultCSVFormat}
 
-/** Aggregated results for one run of a benchmark at a specific commit.
-  *
-  * @param benchmark
-  *   Name of the benchmark
-  * @param commitTime
-  *   Time of the benchmarked commit
-  * @param commit
-  *   Hash of the benchmarked commit
-  * @param pr
-  *   Pull request corresponding to the benchmarked commit
-  * @param min
-  *   Minimum value (0th percentile)
-  * @param q1
-  *   First quartile (25th percentile)
-  * @param median
-  *   Median (50th percentile)
-  * @param q2
-  *   Third quartile (75th percentile)
-  * @param max
-  *   Maximum value (100th percentile)
-  */
+/** Aggregated results for one run of a benchmark at a specific commit. */
 case class AggregatedRow(
     benchmark: String,
     commitTime: ZonedDateTime,
@@ -42,9 +22,9 @@ case class AggregatedRow(
   * The input CSV file is expected to contain [[Results]] rows: one row per
   * benchmark result.
   *
-  * **The output directory will be cleared before writing the aggregated data.**
+  * **The output directory is cleared before writing the aggregated data.**
   *
-  * Afterwards, two CSV files will be written for each benchmark:
+  * Afterwards, two CSV files are written for each benchmark:
   *   - `all/[benchmark].csv`: all aggregated rows,
   *   - `last100/[benchmark].csv`: the last 100 aggregated rows.
   */
@@ -52,10 +32,8 @@ case class AggregatedRow(
   given CSVFormat = new DefaultCSVFormat:
     override val lineTerminator = "\n"
 
-  aggregatedData("", "")
-
-  val dataCsvPath = os.Path(dataCsv, os.pwd)
-  val outputPath = os.Path(output, os.pwd)
+  val dataCsvPath = parsePath(dataCsv)
+  val outputPath = parsePath(output)
 
   assert(os.exists(dataCsvPath), s"`$dataCsvPath` not found.")
   assert(os.exists(outputPath), s"`$outputPath` not found.")
