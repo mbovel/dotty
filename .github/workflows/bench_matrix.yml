@@ -34,7 +34,7 @@ on:
 jobs:
   start_comment:
     name: Start comment
-    if: github.event_name == 'issue_comment'
+    if: github.event_name == 'workflow_dispatch' || (github.event.issue.pull_request && contains(github.event.comment.body, 'test performance please'))
     runs-on: ubuntu-latest
     steps:
       - name: Comment
@@ -50,7 +50,7 @@ jobs:
 
   generate_runs:
     name: Generate run definitions
-    if: github.event_name == 'workflow_dispatch' || (github.event.issue.pull_request && contains(github.event.comment.body, 'test performance please'))
+    needs: ['start_comment']
     runs-on: ['self-hosted', 'benchmarks']
     env:
       # Path to the directory where the benchmark data is stored on the runner.
