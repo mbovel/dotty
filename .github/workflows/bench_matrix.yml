@@ -57,11 +57,11 @@ jobs:
                 return [base, head];
               } else if (context.eventName === 'workflow_dispatch') {
                 return [{
-                  commit: github.event.inputs.commit,
-                  repo: github.event.inputs.repo
+                  commit: context.payload.inputs.commit,
+                  repo: context.payload.inputs.repo
                 }];
               } else {
-                throw new Error(`Unsupported event: ${context.eventName}`);
+                throw new Error(`Unsupported event: ${context .eventName}`);
               }
             }
 
@@ -69,7 +69,7 @@ jobs:
               if (context.eventName === 'issue_comment') {
                 return [0];
               } else if (context.eventName === 'workflow_dispatch') {
-                return Array.from({ length: github.event.inputs.runs }, (_, i) => i);
+                return Array.from({ length: context.payload.inputs.runs }, (_, i) => i);
               } else {
                 throw new Error(`Unsupported event: ${context.eventName}`);
               }
@@ -77,9 +77,9 @@ jobs:
 
             function get_profile() {
               if (context.eventName === 'issue_comment') {
-                return github.event.comment.body.includes('all') ? 'all' : 'merge';
+                return context.payload.comment.body.includes('all') ? 'all' : 'merge';
               } else if (context.eventName === 'workflow_dispatch') {
-                return github.event.inputs.profile;
+                return context.payload.inputs.profile;
               } else {
                 throw new Error(`Unsupported event: ${context.eventName}`);
               }
