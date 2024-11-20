@@ -90,6 +90,12 @@ jobs:
       VISUALIZER_DEST: w3dtbenc@tresorvm02:htdocs/v3
 
     steps:
+      - name: Show info
+        run: |
+          echo "Event name: ${{github.event_name}}"
+          echo "Is workflow call: ${{github.event_name == 'workflow_call'}}"
+          echo "Commit: $COMMIT"
+
       - name: Find PR
         if: ${{env.PR == '0'}}
         uses: actions/github-script@v7
