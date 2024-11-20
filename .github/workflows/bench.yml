@@ -157,7 +157,7 @@ jobs:
         run: sbt -no-colors "scala3-bench-scripts / runMain $AGGREGATE_DATA_MAIN $DATA_DIR"
 
       - name: Sync data
-        run: rsync -av $DATA_DIR/ $DATA_DEST/
+        run: rsync -av --delete $DATA_DIR/ $DATA_DEST/
 
       # When a pull request is merged, also update the visualizer itself.
       - name: Sync visualizer
