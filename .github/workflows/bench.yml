@@ -59,7 +59,7 @@ jobs:
       RUN: ${{github.event_name == 'workflow_call' && github.event.inputs.run || 0}}
 
       # Whether to run the "merge" benchmarks or the "nightly" benchmarks.
-      IS_NIGHTLY: ${{(github.event_name == 'schedule' || github.event_name == 'workflow_call' && github.event.inputs.profile == 'nightly')}}
+      IS_NIGHTLY: ${{github.event_name == 'schedule' || (github.event_name == 'workflow_call' && github.event.inputs.is_nightly)}}
 
       # Path where to store the standard output of JMH.
       JMH_OUTPUT_PATH: jmh-output.txt
@@ -131,19 +131,19 @@ jobs:
         env:
           # JMH filters selecting non-bootstrapped benchmarks to run.
           # `-e` means "exclude".
-          JMH_FILTERS: ${{env.IS_NIGHTLY && '-e Bootstrapped -e Nightly' || '-e Bootstrapped Nightly'}}
+          JMH_FILTERS: ${{(env.IS_NIGHTLY == 'true' && '-e Bootstrapped Nightly') || '-e Bootstrapped -e Nightly'}}
         run: sbt -no-colors "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS" | tee $JMH_OUTPUT_PATH
 
       - name: Run benchmarks (bootstrapped)
         env:
           # JMH filters selecting bootstrapped benchmarks to run.
-          JMH_BOOTSTRAPPED_FILTERS: ${{env.IS_NIGHTLY && 'Bootstrapped -e Nightly' || 'BootstrappedNightly'}}
+          JMH_BOOTSTRAPPED_FILTERS: ${{(env.IS_NIGHTLY == 'true' && 'BootstrappedNightly') || 'Bootstrapped -e Nightly'}}
         run: sbt -no-colors "scala3-bench-bootstrapped / Jmh / run $JMH_ARGS $JMH_BOOTSTRAPPED_FILTERS" | tee -a $JMH_OUTPUT_PATH
 
       - name: Import results
         env:
           # Path to the CSV file in which to import the benchmark results.
-          DATA_CSV_PATH: ${{env.DATA_DIR}}/raw/${{env.COMMIT}}/${{env.IS_NIGHTLY && 'nightly' || 'merge'}}-${{env.RUN}}.csv
+          DATA_CSV_PATH: ${{env.DATA_DIR}}/raw/${{env.COMMIT}}/${{env.IS_NIGHTLY == 'true' && 'nightly' || 'merge'}}-${{env.RUN}}.csv
         run: sbt -no-colors "scala3-bench-scripts / runMain $IMPORT_RESULTS_MAIN $PR $COMMIT $RUN $JMH_OUTPUT_PATH $DATA_CSV_PATH"
 
       - name: Aggregate data
