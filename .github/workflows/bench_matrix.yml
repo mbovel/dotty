@@ -167,7 +167,7 @@ jobs:
           script: |
             console.log(context.payload)
             const body =
-              context.payload.workflow_run.conclusion === 'success'
+              ${{steps.run.outcome == 'success'}}
                 ? `Your benchmarks have been run. You can see the results at ${{needs.generate_runs.outputs.visualizer_url}}.`
                 : 'An error unfortunately occurred while running your benchmarks.\n@mbovel please take a look.';
             await github.rest.issues.createComment({
