@@ -8,7 +8,7 @@ import java.util.Random
  *  Called automatically by the benchmarks runner ([[Bench.main]]).
  */
 def generateBenchmarks(genDirName: String) =
-  val thisFile = Paths.get("src/main/scala/generateBenchmarks.scala")
+  val thisFile = Paths.get("bench/src/dotty/tools/benchmarks/generateBenchmarks.scala")
   val genDir = Paths.get(genDirName)
 
   def generateBenchmark(subDirName: String, fileName: String, make: () => String) =

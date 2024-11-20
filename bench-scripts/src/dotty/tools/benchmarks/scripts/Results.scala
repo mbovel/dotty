@@ -15,6 +15,8 @@ import java.time.format.DateTimeFormatter
   *   Pull request corresponding to the benchmarked commit
   * @param benchTime
   *   Time at which the benchmark was run
+  * @param run
+  *   Run number
   * @param warmup
   *   Warmup times
   * @param measures
@@ -26,6 +28,7 @@ case class Results(
     commit: String,
     pr: Int,
     benchTime: ZonedDateTime,
+    run: Int,
     warmup: Seq[Double],
     measures: Seq[Double]
 ):
@@ -40,6 +43,7 @@ case class Results(
     commit,
     pr.toString,
     benchTime.format(DateTimeFormatter.ISO_DATE_TIME),
+    run.toString,
     warmup.mkString(" "),
     measures.mkString(" ")
   )
@@ -47,13 +51,14 @@ case class Results(
 object Results:
   /** Reads a [[Result]] from a CSV row. */
   def fromCSVRow(row: Seq[String]): Results =
-    val Seq(benchmark, pr, merged, commitTime, commit, benchTime, warmupRaw, measuresRaw) = row
+    val Seq(benchmark, commitTime, commit, pr, benchTime, run, warmupRaw, measuresRaw) = row
     Results(
       benchmark,
       ZonedDateTime.parse(commitTime),
       commit,
       pr.toInt,
       ZonedDateTime.parse(benchTime),
+      run.toInt,
       warmupRaw.trim().split(" ").filter(_.nonEmpty).toSeq.map(_.toDouble),
       measuresRaw.trim().split(" ").filter(_.nonEmpty).toSeq.map(_.toDouble)
     )

@@ -29,8 +29,9 @@ def parseDate(s: String): ZonedDateTime =
 
 /** Parses a path string to an [[os.Path]].
   *
-  * If the path is relative, it is resolved against the current working
-  * directory.
+  * If the path is relative, it is resolved against the project root. It is
+  * assumed that the script is run from SBT and therefore that the current
+  * working directory `<project-root>/bench-scripts`.
   */
 def parsePath(s: String): os.Path =
-  os.Path(s, os.pwd)
+  os.Path(s, os.pwd / os.up)

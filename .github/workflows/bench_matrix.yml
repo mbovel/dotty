@@ -32,10 +32,30 @@ on:
           - all
 
 jobs:
+  start_comment:
+    name: Start comment
+    if: github.event_name == 'issue_comment'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: 'Thanks for your request. Your benchmarks will be run shortly. You can follow the progress at https://github.com/mbovel/dotty/actions/runs/${context.runId}.'
+            })
+
   generate_runs:
     name: Generate run definitions
     if: github.event_name == 'workflow_dispatch' || (github.event.issue.pull_request && contains(github.event.comment.body, 'test performance please'))
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'benchmarks']
+    env:
+      # Path to the directory where the benchmark data is stored on the runner.
+      # Keep in sync with the value in .github/workflows/bench.yml.
+      DATA_DIR: /home/scalabenchs/bench-data-v3
     steps:
       - id: generate_runs
         uses: actions/github-script@v7
@@ -53,10 +73,12 @@ jobs:
                   commit: data.base.sha,
                   repo: data.base.repo.full_name
                 };
+                core.setOutput('base', base.commit);
                 const head = {
                   commit: data.head.sha,
                   repo: data.head.repo.full_name
                 };
+                core.setOutput('head', head.commit);
                 return [base, head];
               } else if (context.eventName === 'workflow_dispatch') {
                 return [{
@@ -64,11 +86,11 @@ jobs:
                   repo: context.payload.inputs.repo
                 }];
               } else {
-                throw new Error(`Unsupported event: ${context .eventName}`);
+                throw new Error(`Unsupported event: ${context.eventName}`);
               }
             }
 
-            function get_runs() {
+            function get_run_indices() {
               if (context.eventName === 'issue_comment') {
                 return [0];
               } else if (context.eventName === 'workflow_dispatch') {
@@ -88,24 +110,37 @@ jobs:
               }
             }
 
+            const commits = await get_commits();
+            const run_indices = get_run_indices();
+            const profile = get_profile();
+            const is_nightlys = profile === 'all' ? [false, true] : [profile === 'nightly'];
+            const fs = require('fs');
+
             const runs = [];
-            for (const run of get_runs()) {
-              for (const commit of await get_commits()) {
-                const profile = get_profile();
-                const is_nightlys = profile === 'all' ? [false, true] : [profile === 'nightly'];
+            for (const run_index of run_indices) {
+              for (const commit of commit) {
                 for (const is_nightly of is_nightlys) {
-                  runs.push({
-                    commit: commit.commit,
-                    repo: commit.repo,
-                    run: run,
-                    is_nightly: is_nightly
-                  });
+                  const dataCsv = `${process.env.DATA_DIR}/raw/${commit.commit}/${is_nightly ? 'nightly' : 'merge'}-${run}.csv`;
+                  if (fs.existsSync(dataCsv)) {
+                    console.log(`Run ${run} for commit ${commit.commit} with profile ${profile} has already been performed.`);
+                  } else {
+                    console.log(`Scheduling run ${run} for commit ${commit.commit} with profile ${profile}.`);
+                    runs.push({
+                      commit: commit.commit,
+                      repo: commit.repo,
+                      index: run_index,
+                      is_nightly: is_nightly
+                    });
+                  }
                 }
-              }
+              }commits.map(c => c.commit).join(',')
             }
+
             core.setOutput('runs', JSON.stringify(runs));
+            core.setOutput('visualizer_url', `https://dotty-bench.epfl.ch/v3/compare.html#${commits.map(c => c.commit).join(',')}`);
     outputs:
       runs: ${{ steps.generate_runs.outputs.runs }}
+      visualizer_url: ${{ steps.generate_runs.outputs.visualizer_url }}
 
   run:
     name: Run
@@ -113,9 +148,27 @@ jobs:
     strategy:
       matrix:
         run: ${{fromJson(needs.generate_runs.outputs.runs)}}
+      max-parallel: 1
     uses: ./.github/workflows/bench.yml
     with:
       commit: ${{ matrix.run.commit }}
       repo: ${{ matrix.run.repo }}
-      run: ${{ matrix.run.run }}
+      run: ${{ matrix.run.index }}
       is_nightly: ${{ matrix.run.is_nightly }}
+
+  finish_comment:
+    name: Finish comment
+    needs: ['run']
+    if: github.event_name == 'issue_comment'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: 'Your benchmarks have been run. You can see the results at ${{ needs.generate_runs.outputs.visualizer_url }}.'
+            })

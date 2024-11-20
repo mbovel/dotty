@@ -33,7 +33,7 @@ jobs:
   run_benchmarks:
     name: Run Benchmarks
     if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
-    runs-on: ["self-hosted", "benchmarks"]
+    runs-on: ['self-hosted', 'benchmarks']
 
     env:
       # Commit to benchmark.
@@ -77,6 +77,7 @@ jobs:
       AGGREGATE_DATA_MAIN: dotty.tools.benchmarks.scripts.aggregateData
 
       # Path to the directory where the benchmark data is stored on the runner.
+      # Keep in sync with the value in .github/workflows/bench_matrix.yml.
       DATA_DIR: /home/scalabenchs/bench-data-v3
 
       # Destination of the benchmarks data.
@@ -146,11 +147,11 @@ jobs:
         env:
           # Path to the CSV file in which to import the benchmark results.
           DATA_CSV_PATH: $DATA_DIR/raw/$COMMIT/${{ env.IS_NIGHTLY && 'nightly' || 'merge' }}-$RUN.csv
-        run: sbtn "scala3-bench-scripts / runMain $IMPORT_RESULTS_MAIN -- $PR $COMMIT $RUN $JMH_OUTPUT_PATH $DATA_CSV_PATH"
+        run: sbtn "scala3-bench-scripts / runMain $IMPORT_RESULTS_MAIN $PR $COMMIT $RUN $JMH_OUTPUT_PATH $DATA_CSV_PATH"
 
       - name: Aggregate data
         if: ${{ github.event_name != 'workflow_call' }}
-        run: sbtn "scala3-bench-scripts / runMain $AGGREGATE_DATA_MAIN -- $DATA_DIR/raw $DATA_DIR/aggregated"
+        run: sbtn "scala3-bench-scripts / runMain $AGGREGATE_DATA_MAIN $DATA_DIR"
 
       - name: Shutdown SBT
         run: sbtn shutdown
