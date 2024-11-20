@@ -3,10 +3,7 @@ package dotty.tools.benchmarks.scripts
 import scala.sys.process.stringToProcess
 import java.time.{ZonedDateTime, ZoneOffset}
 import collection.mutable.ArrayBuffer
-import com.github.tototoshi.csv.{CSVWriter, CSVFormat, DefaultCSVFormat}
-
-/** Results for one run of a benchmark, as imported from a JMH output file. */
-case class JMHResults(benchmark: String, warmup: Seq[Double], measures: Seq[Double])
+import upickle.default.write
 
 /** Imports benchmark results from a JMH output file into a CSV file. */
 @main def importResults(
@@ -15,17 +12,17 @@ case class JMHResults(benchmark: String, warmup: Seq[Double], measures: Seq[Doub
     merged: Boolean,
     run: Int,
     jmhOutputString: String,
-    dataCsvString: String
+    dataJsonString: String
 ): Unit =
   val jmhOutput = parsePath(jmhOutputString)
   assert(os.exists(jmhOutput), s"`$jmhOutput` not found.")
-  val dataCsv = parsePath(dataCsvString)
-  assert(!os.exists(dataCsv), s"`$dataCsv` already exists.")
+  val dataJson = parsePath(dataJsonString)
+  assert(!os.exists(dataJson), s"`$dataJson` already exists.")
   val actualCommit = "git rev-parse HEAD".!!.trim
   assert(commit == actualCommit, "commit does not match HEAD")
   val commitTime = parseDate("git show -s --format=%cI".!!.trim)
   val benchTime = ZonedDateTime.now().withZoneSameInstant(ZoneOffset.UTC).withNano(0)
-  importResults(pr, commit, merged, run, jmhOutput, dataCsv, commitTime, benchTime)
+  importResults(pr, commit, merged, run, jmhOutput, dataJson, commitTime, benchTime)
 
 def importResults(
     pr: Int,
@@ -33,7 +30,7 @@ def importResults(
     merged: Boolean,
     run: Int,
     jmhOutput: os.ReadablePath,
-    dataCsv: os.Path,
+    dataJson: os.Path,
     commitTime: ZonedDateTime,
     benchTime: ZonedDateTime
 ): Unit =
@@ -44,44 +41,27 @@ def importResults(
   println(s"commit: $commit")
   println(s"benchTime: $benchTime")
   println(s"jmhOutput: $jmhOutput")
-  println(s"dataCsv: $dataCsv")
-  os.makeDir.all(dataCsv / os.up)
+  println(s"dataJson: $dataJson")
 
-  given CSVFormat = new DefaultCSVFormat:
-    override val lineTerminator = "\n"
-
-  val writer = CSVWriter.open(dataCsv.toString(), append = true)
-  for jmhResults <- readJMHResults(jmhOutput) do
-    println(s"Write results for benchmark `${jmhResults.benchmark}`")
-    val resultsRow = Results(
-      jmhResults.benchmark,
-      commitTime,
-      commit,
-      merged,
-      pr,
-      benchTime,
-      run,
-      jmhResults.warmup,
-      jmhResults.measures
-    ).toCSVRow()
-    writer.writeRow(resultsRow)
-  writer.close()
-  println(s"Wrote results to $dataCsv.")
+  os.makeDir.all(dataJson / os.up)
+  val results = Results(commitTime, commit, merged, pr, benchTime, run, readJMHResults(jmhOutput))
+  os.write(dataJson, write(results, 2))
+  println(s"Wrote results to $dataJson.")
 
 /** Reads results from a JMH text output file. */
-def readJMHResults(jmhOutput: os.ReadablePath): Seq[JMHResults] =
+def readJMHResults(jmhOutput: os.ReadablePath): Seq[BenchResults] =
   val benchmarkPrefix = "# Benchmark: "
   val warmupPrefix = "# Warmup Iteration"
   val measurePrefix = "Iteration "
   val lines = os.read.lines(jmhOutput)
-  val results = ArrayBuffer.empty[JMHResults]
+  val results = ArrayBuffer.empty[BenchResults]
   var benchmark = ""
   val warmup = ArrayBuffer.empty[Double]
   val measures = ArrayBuffer.empty[Double]
   for line <- lines do
     if line.startsWith(benchmarkPrefix) then
       if benchmark.nonEmpty then
-        results += JMHResults(benchmark, warmup.toSeq, measures.toSeq)
+        results += BenchResults(benchmark, warmup.toSeq, measures.toSeq)
         warmup.clear()
         measures.clear()
       benchmark = parseBenchmarkName(readValue(line))
@@ -89,7 +69,7 @@ def readJMHResults(jmhOutput: os.ReadablePath): Seq[JMHResults] =
       warmup += parseTime(readValue(line))
     if line.startsWith(measurePrefix) then
       measures += parseTime(readValue(line))
-  results += JMHResults(benchmark, warmup.toSeq, measures.toSeq)
+  results += BenchResults(benchmark, warmup.toSeq, measures.toSeq)
   results.toSeq
 
 /** Reads the value of a line that has the format `key: value`. */

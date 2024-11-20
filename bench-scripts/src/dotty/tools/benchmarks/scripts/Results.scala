@@ -3,6 +3,22 @@ package dotty.tools.benchmarks.scripts
 import java.time.{ZonedDateTime, ZoneOffset}
 import java.time.format.DateTimeFormatter
 
+import upickle.default.{readwriter, ReadWriter}
+
+/** Results for one run of a benchmark */
+case class BenchResults(
+  benchmark: String,
+  warmup: Seq[Double],
+  measures: Seq[Double]
+) derives ReadWriter
+
+/** ReadWriter for ZonedDateTime in ISO format */
+given dateReaderWriter: ReadWriter[ZonedDateTime] =
+  readwriter[String].bimap[ZonedDateTime](
+    _.format(DateTimeFormatter.ISO_INSTANT),
+    ZonedDateTime.parse
+  )
+
 /** Raw results for one run of a benchmark at a specific commit.
   *
   * @param benchmark
@@ -25,45 +41,14 @@ import java.time.format.DateTimeFormatter
   *   Measurement times
   */
 case class Results(
-    benchmark: String,
     commitTime: ZonedDateTime,
     commit: String,
     merged: Boolean,
     pr: Int,
     benchTime: ZonedDateTime,
     run: Int,
-    warmup: Seq[Double],
-    measures: Seq[Double]
-):
+    benchResults: Seq[BenchResults]
+) derives ReadWriter:
   assert(commitTime.getZone() == ZoneOffset.UTC, s"expected commit time '$commitTime' to be in UTC")
   assert(benchTime.getZone() == ZoneOffset.UTC, s"expected benchmark time '$benchTime' to be in UTC")
   assert(benchTime.isAfter(commitTime), s"expected benchmark time '$benchTime' to be after commit time '$commitTime'")
-
-  /** Converts this result to a CSV row. */
-  def toCSVRow(): Seq[String] = Seq(
-    benchmark,
-    commitTime.format(DateTimeFormatter.ISO_DATE_TIME),
-    commit,
-    merged.toString,
-    pr.toString,
-    benchTime.format(DateTimeFormatter.ISO_DATE_TIME),
-    run.toString,
-    warmup.mkString(" "),
-    measures.mkString(" ")
-  )
-
-object Results:
-  /** Reads a [[Result]] from a CSV row. */
-  def fromCSVRow(row: Seq[String]): Results =
-    val Seq(benchmark, commitTime, commit, merged, pr, benchTime, run, warmupRaw, measuresRaw) = row
-    Results(
-      benchmark,
-      parseDate(commitTime),
-      commit,
-      merged.toBoolean,
-      pr.toInt,
-      parseDate(benchTime),
-      run.toInt,
-      warmupRaw.trim().split(" ").filter(_.nonEmpty).toSeq.map(_.toDouble),
-      measuresRaw.trim().split(" ").filter(_.nonEmpty).toSeq.map(_.toDouble)
-    )
