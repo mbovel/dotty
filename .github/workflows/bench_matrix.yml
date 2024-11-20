@@ -40,7 +40,7 @@ jobs:
         with:
           script: |
             function get_commits() {
-              if (github.eventName === 'issue_comment') {
+              if (context.eventName === 'issue_comment') {
                 const { data } = github.rest.issues.listComments({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -55,33 +55,33 @@ jobs:
                   repo: data.head.repo.full_name
                 };
                 return [base, head];
-              } else if (github.eventName === 'workflow_dispatch') {
+              } else if (context.eventName === 'workflow_dispatch') {
                 return [{
                   commit: github.event.inputs.commit,
                   repo: github.event.inputs.repo
                 }];
               } else {
-                throw new Error(`Unsupported event: ${github.eventName}`);
+                throw new Error(`Unsupported event: ${context.eventName}`);
               }
             }
 
             function get_runs() {
-              if (github.eventName === 'issue_comment') {
+              if (context.eventName === 'issue_comment') {
                 return [0];
-              } else if (github.eventName === 'workflow_dispatch') {
+              } else if (context.eventName === 'workflow_dispatch') {
                 return Array.from({ length: github.event.inputs.runs }, (_, i) => i);
               } else {
-                throw new Error(`Unsupported event: ${github.eventName}`);
+                throw new Error(`Unsupported event: ${context.eventName}`);
               }
             }
 
             function get_profile() {
-              if (github.eventName === 'issue_comment') {
+              if (context.eventName === 'issue_comment') {
                 return github.event.comment.body.includes('all') ? 'all' : 'merge';
-              } else if (github.eventName === 'workflow_dispatch') {
+              } else if (context.eventName === 'workflow_dispatch') {
                 return github.event.inputs.profile;
               } else {
-                throw new Error(`Unsupported event: ${github.eventName}`);
+                throw new Error(`Unsupported event: ${context.eventName}`);
               }
             }
 
