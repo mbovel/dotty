@@ -95,7 +95,6 @@ jobs:
           echo "Inputs: ${{github.event.inputs}}"
           echo "Has inputs: ${{github.event.inputs == true}}"
 
-
       - name: Find PR
         if: ${{env.PR == '0'}}
         uses: actions/github-script@v7

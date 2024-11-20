@@ -34,7 +34,7 @@ on:
 jobs:
   start_comment:
     name: Start comment
-    if: github.event_name == 'workflow_dispatch' || (github.event.issue.pull_request && contains(github.event.comment.body, 'test performance please'))
+    if: github.event.issue.pull_request && contains(github.event.comment.body, 'test performance please')
     runs-on: ubuntu-latest
     steps:
       - name: Comment
