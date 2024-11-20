@@ -16,7 +16,7 @@ on:
         description: "GitHub repository containing the commit to benchmark."
         required: true
         type: string
-        default: "mbovel/scala3" # TODO(mbovel): Change to scala/scala3
+        default: "mbovel/dotty" # TODO(mbovel): Change to scala/scala3
       runs:
         description: "Number of runs to perform."
         required: true
@@ -60,64 +60,47 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: | #js
-            async function get_commits() {
-              if (context.eventName === 'issue_comment') {
-                const {data} = await github.rest.pulls.get({
+            const fs = require('fs');
+
+            let commits, run_indices, profile;
+            switch (context.eventName) {
+              case 'issue_comment':
+                const { data } = await github.rest.pulls.get({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   pull_number: context.payload.issue.number
                 });
-                const base = {
-                  commit: data.base.sha,
-                  repo: data.base.repo.full_name
-                };
-                core.setOutput('base', base.commit);
-                const head = {
-                  commit: data.head.sha,
-                  repo: data.head.repo.full_name
-                };
-                core.setOutput('head', head.commit);
-                return [base, head];
-              } else if (context.eventName === 'workflow_dispatch') {
-                return [{
-                  commit: context.payload.inputs.commit,
-                  repo: context.payload.inputs.repo
-                }];
-              } else {
+
+                // Base is the last commit on the base branch, head is the last
+                // commit on the PR branch. Run benchmarks on both.
+                commits = [
+                  { commit: data.base.sha, repo: data.base.repo.full_name },
+                  { commit: data.head.sha, repo: data.head.repo.full_name }
+                ];
+
+                const runs_match = context.payload.comment.body.match(/(\d+) runs/);
+                const n_runs = runs_match ? parseInt(runs_match[1]) : 1;
+                run_indices = Array.from({ length: n_runs }, (_, i) => i);
+
+                profile = context.payload.comment.body.includes('all') ? 'all' : 'merge';
+                break;
+
+              case 'workflow_dispatch':
+                commits = [{ commit: context.payload.inputs.commit, repo: context.payload.inputs.repo }];
+                run_indices = Array.from({ length: context.payload.inputs.runs }, (_, i) => i);
+                profile = context.payload.inputs.profile;
+                break;
+
+              default:
                 throw new Error(`Unsupported event: ${context.eventName}`);
-              }
             }
 
-            function get_run_indices() {
-              if (context.eventName === 'issue_comment') {
-                return [0];
-              } else if (context.eventName === 'workflow_dispatch') {
-                return Array.from({ length: context.payload.inputs.runs }, (_, i) => i);
-              } else {
-                throw new Error(`Unsupported event: ${context.eventName}`);
-              }
-            }
-
-            function get_profile() {
-              if (context.eventName === 'issue_comment') {
-                return context.payload.comment.body.includes('all') ? 'all' : 'merge';
-              } else if (context.eventName === 'workflow_dispatch') {
-                return context.payload.inputs.profile;
-              } else {
-                throw new Error(`Unsupported event: ${context.eventName}`);
-              }
-            }
-
-            const commits = await get_commits();
-            const run_indices = get_run_indices();
-            const profile = get_profile();
-            const is_nightlys = profile === 'all' ? [false, true] : [profile === 'nightly'];
-            const fs = require('fs');
+            const are_nightlies = profile === 'all' ? [false, true] : [profile === 'nightly'];
 
             const runs = [];
             for (const run_index of run_indices) {
               for (const commit of commits) {
-                for (const is_nightly of is_nightlys) {
+                for (const is_nightly of are_nightlies) {
                   const dataCsv = `${process.env.DATA_DIR}/raw/${commit.commit}/${is_nightly ? 'nightly' : 'merge'}-${run_index}.csv`;
                   if (fs.existsSync(dataCsv)) {
                     console.log(`Run ${run_index} for commit ${commit.commit} with profile ${profile} has already been performed.`);
