@@ -31,6 +31,10 @@ on:
           - nightly
           - all
 
+permissions:
+  contents: read
+  pull-requests: write # Needed to post comments on PRs
+
 jobs:
   start_comment:
     name: Start comment
@@ -50,7 +54,7 @@ jobs:
 
   generate_runs:
     name: Generate run definitions
-    runs-on: ['self-hosted', 'benchmarks']
+    runs-on: ["self-hosted", "benchmarks"]
     env:
       # Path to the directory where the benchmark data is stored on the runner.
       # Keep in sync with the value in .github/workflows/bench.yml.
@@ -125,7 +129,7 @@ jobs:
 
   run:
     name: Run
-    needs: ['generate_runs']
+    needs: ["generate_runs"]
     strategy:
       matrix:
         run: ${{fromJson(needs.generate_runs.outputs.runs)}}
@@ -139,7 +143,7 @@ jobs:
 
   finish_comment:
     name: Finish comment
-    needs: ['run']
+    needs: ["run"]
     if: (failure() || success()) && github.event_name == 'issue_comment'
     runs-on: ubuntu-latest
     steps:

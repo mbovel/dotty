@@ -1,9 +1,13 @@
 name: Benchmarks
 
 on:
-  pull_request:
-    types:
-      - closed # Triggered when a PR is merged
+  push:
+    branches:
+      - main
+      - mb/benchmarks # TODO(mbovel): remove this line
+  #pull_request:
+  #  types:
+  #    - closed # Triggered when a PR is merged
   schedule:
     - cron: "11 1 * * *" # Every night at 01:11 UTC
   workflow_call:
@@ -25,35 +29,25 @@ on:
         required: true
         type: boolean
 
-permissions:
-  contents: read
-  pull-requests: write # Needed to post comments on PRs
-
 jobs:
   run_benchmarks:
     name: Run Benchmarks
-    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
-    runs-on: ['self-hosted', 'benchmarks']
+    runs-on: ["self-hosted", "benchmarks"]
 
     env:
       # Commit to benchmark.
-      # Note: in this case, in the case of a `pull_request` even `github.sha` is
-      # the merge commit.
       COMMIT: ${{inputs.commit || github.sha}}
 
       # Whether the commit was merged.
-      MERGED: ${{github.event_name == 'pull_request' || github.event_name == 'schedule'}}
+      MERGED: ${{github.event_name == 'push' || github.event_name == 'schedule'}}
 
       # PR number associated with the benchmarked commit.
       # If this is 0 the step "Find PR" will try to find the PR associated with
       # the commit.
-      PR: ${{github.event.pull_request.number || github.event.issue.number || 0}}
+      PR: ${{github.event.issue.number || 0}}
 
-      # GitHub repository name.
-      # This is always  `scala/scala3` for `pull_request` and
-      # `repository_dispatch` events, but can be different for `schedule` events
-      # as they allow to run the workflow on pull requests from other
-      # repositories.
+      # Repository name. This is always  `scala/scala3` for `push` and
+      # `schedule` events, but can be different for `workflow_call` events.
       REPO: ${{inputs.repo || github.repository}}
 
       # Index of the run.
@@ -157,5 +151,5 @@ jobs:
 
       # When a pull request is merged, also update the visualizer itself.
       - name: Sync visualizer
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'push'
         run: rsync -av $VISUALIZER_DIR/ $VISUALIZER_DEST/
