@@ -49,6 +49,7 @@ case class AggregatedRow(
         for row <- reader.all() if row.nonEmpty yield
           val res = Results.fromCSVRow(row)
           val sorted = res.measures.sorted
+          assert(sorted.nonEmpty, s"Empty measures for benchmark `${res.benchmark}`.")
           AggregatedRow(
             res.benchmark,
             res.commitTime,

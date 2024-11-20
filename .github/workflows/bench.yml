@@ -110,7 +110,7 @@ jobs:
               core.warning(`Found multiple PRs associated with commit ${context.sha}: ${prs.data.map(pr => pr.number).join(', ')}.`);
             }
 
-      - name: Check out the repository
+      - name: Check out repository
         uses: actions/checkout@v4
         with:
           submodules: "true"
