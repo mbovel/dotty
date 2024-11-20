@@ -97,21 +97,21 @@ jobs:
                     commit: commit.commit,
                     repo: commit.repo,
                     run: run,
-                    is_nightly: profile
+                    is_nightly: is_nightly
                   });
                 }
               }
             }
             core.setOutput('runs', JSON.stringify(runs));
     outputs:
-      matrix_data: ${{ steps.generate_runs.outputs.runs }}
+      runs: ${{ steps.generate_runs.outputs.runs }}
 
   benchmark_base_commit:
     name: Benchmark base commit
     needs: ['generate_runs']
     strategy:
       matrix:
-        run: ${{fromJson(needs.generate_runs.outputs.matrix_data)}}
+        run: ${{fromJson(needs.generate_runs.outputs.runs)}}
     uses: ./.github/workflows/bench.yml
     with:
       commit: ${{ matrix.run.commit }}
