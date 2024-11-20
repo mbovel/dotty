@@ -1,0 +1,118 @@
+# Run all benchmarks when a comment containing "test performance please"
+# comment is posted on a PR.
+
+name: Benchmarks comments handler
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Commit to benchmark."
+        required: true
+        type: string
+      repo:
+        description: "GitHub repository containing the commit to benchmark."
+        required: true
+        type: string
+      runs:
+        description: "Number of runs to perform."
+        required: true
+        type: number
+      profile:
+        description: "Profile to run: `merge` to run the benchmarks that are run on every PR merge (shorter) or `nightly` to run nightly benchmarks (longer)."
+        required: true
+        type: choice
+        options:
+          - merge
+          - nightly
+          - all
+
+jobs:
+  generate_runs:
+    name: Generate run definitions
+    if: github.event.issue.pull_request && contains(github.event.comment.body, 'test performance please')
+    runs-on: ubuntu-latest
+    steps:
+      - id: generate_runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            function get_commits() {
+              if (github.eventName === 'issue_comment') {
+                const { data } = github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number
+                });
+                const base = {
+                  commit: data.base.sha,
+                  repo: context.base.repo.full_name
+                };
+                const head = {
+                  commit: data.head.sha,
+                  repo: data.head.repo.full_name
+                };
+                return [base, head];
+              } else if (github.eventName === 'workflow_dispatch') {
+                return [{
+                  commit: github.event.inputs.commit,
+                  repo: github.event.inputs.repo
+                }];
+              } else {
+                throw new Error(`Unsupported event: ${github.eventName}`);
+              }
+            }
+
+            function get_runs() {
+              if (github.eventName === 'issue_comment') {
+                return [0];
+              } else if (github.eventName === 'workflow_dispatch') {
+                return Array.from({ length: github.event.inputs.runs }, (_, i) => i);
+              } else {
+                throw new Error(`Unsupported event: ${github.eventName}`);
+              }
+            }
+
+            function get_profile() {
+              if (github.eventName === 'issue_comment') {
+                return github.event.comment.body.includes('all') ? 'all' : 'merge';
+              } else if (github.eventName === 'workflow_dispatch') {
+                return github.event.inputs.profile;
+              } else {
+                throw new Error(`Unsupported event: ${github.eventName}`);
+              }
+            }
+
+            const runs = [];
+            for (const run of get_runs()) {
+              for (const commit of get_commits()) {
+                const profile = get_profile();
+                const is_nightlys = profile === 'all' ? [false, true] : [profile === 'nightly'];
+                for (const is_nightly of is_nightlys) {
+                  runs.push({
+                    commit: commit.commit,
+                    repo: commit.repo,
+                    run: run,
+                    is_nightly: profile
+                  });
+                }
+              }
+            }
+            core.setOutput('runs', JSON.stringify(runs));
+    outputs:
+      matrix_data: ${{ steps.generate_runs.outputs.runs }}
+
+  benchmark_base_commit:
+    name: Benchmark base commit
+    needs: ['generate_runs']
+    strategy:
+      matrix:
+        run: ${{fromJson(needs.generate_runs.outputs.matrix_data)}}
+    uses: ./.github/workflows/bench.yml
+    with:
+      commit: ${{ matrix.run.commit }}
+      repo: ${{ matrix.run.repo }}
+      run: ${{ matrix.run.run }}
+      is_nightly: ${{ matrix.run.is_nightly }}
