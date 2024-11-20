@@ -131,6 +131,7 @@ jobs:
         env:
           # JMH filters selecting non-bootstrapped benchmarks to run.
           # `-e` means "exclude".
+          # Beware: `env.IS_NIGHTLY` is a string, not a boolean.
           JMH_FILTERS: ${{(env.IS_NIGHTLY == 'true' && '-e Bootstrapped Nightly') || '-e Bootstrapped -e Nightly'}}
         run: sbt -no-colors "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS" | tee $JMH_OUTPUT_PATH
 
@@ -151,9 +152,9 @@ jobs:
         run: sbt -no-colors "scala3-bench-scripts / runMain $AGGREGATE_DATA_MAIN $DATA_DIR"
 
       - name: Sync data
-        run: echo "rsync -av $DATA_DIR $DATA_DEST"
+        run: rsync -av $DATA_DIR/ $DATA_DEST/
 
       # When a pull request is merged, also update the visualizer itself.
       - name: Sync visualizer
         if: github.event_name == 'pull_request'
-        run: echo "rsync -av $VISUALIZER_DIR $VISUALIZER_DEST"
+        run: rsync -av $VISUALIZER_DIR/ $VISUALIZER_DEST/

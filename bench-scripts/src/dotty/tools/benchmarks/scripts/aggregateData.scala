@@ -68,7 +68,7 @@ case class AggregatedRow(
     writeAggregatedRows(benchmarkRows, aggregatedData / "all" / s"$benchmark.csv")
     writeAggregatedRows(benchmarkRows.takeRight(100), aggregatedData / "last100" / s"$benchmark.csv")
 
-  println(s"Wrote ${rows.length} aggregated rows to `aggregatedData`.")
+  println(s"Wrote ${rows.length} aggregated rows to `$aggregatedData`.")
 
 /** Writes a sequence of [[AggregatedRow]]s in CSV at the given `path`. */
 def writeAggregatedRows(rows: collection.Seq[AggregatedRow], path: os.Path) =

@@ -60,7 +60,7 @@ jobs:
       - id: generate_runs
         uses: actions/github-script@v7
         with:
-          script: |
+          script: | #js
             async function get_commits() {
               if (context.eventName === 'issue_comment') {
                 const {data} = await github.rest.pulls.get({
