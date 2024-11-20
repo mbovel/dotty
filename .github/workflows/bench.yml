@@ -123,7 +123,7 @@ jobs:
 
       # Compilation is done as a separate step from running the benchmarks
       # simply to make the logs easier to read and to time it separately.
-      - name: Compile Dotty (non-bootstrapped)
+      - name: Compile (non-bootstrapped)
         run: echo "scala3-bench / Jmh / compile"
 
       - name: Run benchmarks (non-bootstrapped)
@@ -133,7 +133,7 @@ jobs:
           JMH_FILTERS: ${{ env.IS_NIGHTLY && '-e Bootstrapped -e Nightly' || '-e Bootstrapped Nightly' }}
         run: echo "scala3-bench / Jmh / run $JMH_ARGS $JMH_FILTERS"
 
-      - name: Compile Dotty (bootstrapped)
+      - name: Compile (bootstrapped)
         run: echo "scala3-bench-bootstrapped / Jmh / compile"
 
       - name: Run benchmarks (bootstrapped)

@@ -43,11 +43,12 @@ jobs:
           script: |
             function get_commits() {
               if (context.eventName === 'issue_comment') {
-                const { data } = github.rest.issues.listComments({
+                const { data } = github.rest.pulls.get({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  issue_number: context.issue.number
+                  pull_number: context.payload.issue.number
                 });
+                console.log(data);
                 const base = {
                   commit: data.base.sha,
                   repo: context.base.repo.full_name
