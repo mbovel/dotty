@@ -50,7 +50,6 @@ jobs:
 
   generate_runs:
     name: Generate run definitions
-    needs: ['start_comment']
     runs-on: ['self-hosted', 'benchmarks']
     env:
       # Path to the directory where the benchmark data is stored on the runner.
