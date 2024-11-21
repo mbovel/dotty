@@ -105,8 +105,8 @@ jobs:
             for (const run_index of run_indices) {
               for (const commit of commits) {
                 for (const profile of profiles) {
-                  const dataCsv = `${process.env.DATA_DIR}/raw/${commit.commit}/${profile}-${run_index}.csv`;
-                  if (fs.existsSync(dataCsv)) {
+                  const dataJson = `${process.env.DATA_DIR}/raw/${commit.commit}/${profile}-${run_index}.json`;
+                  if (fs.existsSync(dataJson)) {
                     console.log(`Run ${run_index} for commit ${commit.commit} with profile ${profile} has already been performed.`);
                   } else {
                     console.log(`Scheduling run ${run_index} for commit ${commit.commit} with profile ${profile}.`);

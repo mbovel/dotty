@@ -5,7 +5,7 @@ import java.time.{ZonedDateTime, ZoneOffset}
 import collection.mutable.ArrayBuffer
 import upickle.default.write
 
-/** Imports benchmark results from a JMH output file into a CSV file. */
+/** Imports benchmark results from a JMH output file into a JSON file. */
 @main def importResults(
     pr: Int,
     commit: String,

@@ -138,9 +138,9 @@ jobs:
 
       - name: Import results
         env:
-          # Path to the CSV file in which to import the benchmark results.
-          DATA_CSV_PATH: ${{env.DATA_DIR}}/raw/${{env.COMMIT}}/${{env.IS_NIGHTLY == 'true' && 'nightly' || 'merge'}}-${{env.RUN}}.csv
-        run: sbt -no-colors "scala3-bench-scripts / runMain $IMPORT_RESULTS_MAIN $PR $COMMIT $MERGED $RUN $JMH_OUTPUT_PATH $DATA_CSV_PATH"
+          # Path to the JSON file in which to import the benchmark results.
+          DATA_JSON_PATH: ${{env.DATA_DIR}}/raw/${{env.COMMIT}}/${{env.IS_NIGHTLY == 'true' && 'nightly' || 'merge'}}-${{env.RUN}}.json
+        run: sbt -no-colors "scala3-bench-scripts / runMain $IMPORT_RESULTS_MAIN $PR $COMMIT $MERGED $RUN $JMH_OUTPUT_PATH $DATA_JSON_PATH"
 
       - name: Aggregate data
         if: ${{inputs}}
