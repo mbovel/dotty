@@ -49,7 +49,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `Thanks for your request. Your benchmarks will be run shortly.\nYou can follow the progress at https://github.com/mbovel/dotty/actions/runs/${context.runId}.`
+              body: `Your benchmarks will be run shortly.\nYou can follow the progress at https://github.com/mbovel/dotty/actions/runs/${context.runId}.`
             })
 
   generate_runs:
@@ -133,7 +133,7 @@ jobs:
 
   end_comment:
     name: End comment
-    needs: ["run"]
+    needs: ["run", "generate_runs"]
     if: (failure() || success()) && github.event_name == 'issue_comment'
     runs-on: ubuntu-latest
     steps:
@@ -142,7 +142,7 @@ jobs:
         with:
           script: | #js
             const body =
-              '${{steps.run.outcome}}' === 'success'
+              '${{needs.run.outcome}}' === 'success'
                 ? `Your benchmarks have been run. You can see the results at ${{needs.generate_runs.outputs.visualizer_url}}.`
                 : 'An error unfortunately occurred while running your benchmarks.\n@mbovel please take a look.';
             await github.rest.issues.createComment({
