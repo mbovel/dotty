@@ -142,7 +142,7 @@ jobs:
         with:
           script: | #js
             const body =
-              '${{needs.run.outcome}}' === 'success'
+              '${{needs.run.result}}' === 'success'
                 ? `Your benchmarks have been run. You can see the results at ${{needs.generate_runs.outputs.visualizer_url}}.`
                 : 'An error unfortunately occurred while running your benchmarks.\n@mbovel please take a look.';
             await github.rest.issues.createComment({
