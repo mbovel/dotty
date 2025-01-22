@@ -46,7 +46,7 @@ env:
   RUN: ${{inputs.run || 0}}
 
   # Whether to run the "merge" benchmarks or the "nightly" benchmarks.
-  PROFILE: ${{inputs.profile || ((github.event_name == 'schedule' && 'nightly') || 'merge')}}
+  PROFILE: ${{inputs.profile || ((github.event_name == 'schedule' && 'nightly') || 'nightly')}}
 
   # Path where to store the standard output of JMH.
   JMH_OUTPUT_PATH: jmh-output.txt
