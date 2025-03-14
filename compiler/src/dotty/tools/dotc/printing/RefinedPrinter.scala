@@ -32,6 +32,7 @@ import dotty.tools.dotc.util.SourcePosition
 import dotty.tools.dotc.ast.untpd.{MemberDef, Modifiers, PackageDef, RefTree, Template, TypeDef, ValOrDefDef}
 import cc.*
 import dotty.tools.dotc.parsing.JavaParsers
+import dotty.tools.dotc.transform.TreeExtractors.BinaryOp
 
 class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
 
@@ -463,8 +464,12 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
         }
       case id @ Ident(name) =>
         val txt = tree.typeOpt match {
-          case tp: NamedType if name != nme.WILDCARD =>
+          case tp: TermRef if name != nme.WILDCARD =>
             toTextPrefixOf(tp) ~ withPos(selectionString(tp), tree.sourcePos)
+          case ConstantType(c) =>
+            toText(c)
+          case tp: SkolemType =>
+            toText(tp)
           case _ =>
             toText(name)
         }
@@ -478,6 +483,9 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
         optDotPrefix(tree) ~ keywordStr("this") ~ idText(tree)
       case Super(qual: This, mix) =>
         optDotPrefix(qual) ~ keywordStr("super") ~ optText(mix)("[" ~ _ ~ "]")
+      case BinaryOp(l, op, r) if op.isDeclaredInfix || op.name.isOperatorName =>
+        changePrec(parsing.precedence(op.name)):
+          toText(l) ~ " " ~ toText(op.name) ~ " " ~ toText(r)
       case app @ Apply(fun, args) =>
         if (fun.hasType && fun.symbol == defn.throwMethod)
           changePrec (GlobalPrec) {

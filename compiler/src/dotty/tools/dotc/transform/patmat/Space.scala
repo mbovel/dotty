@@ -390,7 +390,7 @@ object SpaceEngine {
       Typ(pat.tpe.narrow, decomposed = false)
   })
 
-  private def project(tp: Type)(using Context): Space = tp match {
+  def project(tp: Type)(using Context): Space = tp match {
     case OrType(tp1, tp2) => Or(project(tp1) :: project(tp2) :: Nil)
     case tp => Typ(tp, decomposed = true)
   }

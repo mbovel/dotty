@@ -51,13 +51,14 @@ object Printers {
   val overload = noPrinter
   val patmatch = noPrinter
   val pickling = noPrinter
+  val qualifiedTypes = new Printer
   val quotePickling = noPrinter
   val plugins = noPrinter
   val recheckr = noPrinter
   val refcheck = noPrinter
   val simplify = noPrinter
   val staging = noPrinter
-  val subtyping = noPrinter
+  val subtyping = new Printer
   val tailrec = noPrinter
   val transforms = noPrinter
   val typr = noPrinter
