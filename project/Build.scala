@@ -241,7 +241,8 @@ object Build {
     organizationName := "LAMP/EPFL",
     organizationHomepage := Some(url("http://lamp.epfl.ch")),
 
-    // Note: bench/profiles/projects.yml should be updated accordingly.
+    // The `dotty` method in `bench/src/main/scala/CompilationBenchmarks.scala`
+    // should be updated accordingly.
     scalacOptions ++= Seq(
       "-feature",
       "-deprecation",
@@ -572,8 +573,6 @@ object Build {
   )
 
   lazy val commonBenchmarkSettings = Seq(
-    Jmh / bspEnabled := false,
-    Jmh / run / mainClass := Some("dotty.tools.benchmarks.Bench"), // custom main for jmh:run
     javaOptions += "-DBENCH_COMPILER_CLASS_PATH=" + Attributed.data((`scala3-bootstrapped` / Compile / fullClasspath).value).mkString("", File.pathSeparator, ""),
     javaOptions += "-DBENCH_CLASS_PATH=" + Attributed.data((`scala3-library-bootstrapped` / Compile / fullClasspath).value).mkString("", File.pathSeparator, "")
   )
@@ -699,7 +698,8 @@ object Build {
 
   // Settings shared between scala3-compiler and scala3-compiler-bootstrapped
   lazy val commonDottyCompilerSettings = Seq(
-      // Note: bench/profiles/projects.yml should be updated accordingly.
+      // The `dotty` method in `bench/src/main/scala/CompilationBenchmarks.scala`
+      // should be updated accordingly.
       Compile / scalacOptions ++= Seq("-Yexplicit-nulls", "-Wsafe-init"),
 
       // Use source 3.3 to avoid fatal migration warnings on scalajs-ir
@@ -2912,13 +2912,24 @@ object Build {
       },
     )
 
-  lazy val `scala3-bench` = project.in(file("bench")).asDottyBench(NonBootstrapped)
+  lazy val `scala3-bench` = project.in(file("bench")) .asDottyBench(NonBootstrapped)
   lazy val `scala3-bench-bootstrapped` = project.in(file("bench")).asDottyBench(Bootstrapped)
   lazy val `scala3-bench-run` = project.in(file("bench-run")).asDottyBench(Bootstrapped)
 
   lazy val `scala3-bench-micro` = project.in(file("bench-micro"))
     .asDottyBench(Bootstrapped)
     .settings(Jmh / run / mainClass := Some("org.openjdk.jmh.Main"))
+
+  lazy val `scala3-bench-scripts` = project.in(file("bench-scripts"))
+    .withCommonSettings(NonBootstrapped)
+    .settings(
+      libraryDependencies ++= Seq(
+        "com.github.tototoshi" %% "scala-csv" % "2.0.0",
+        "com.lihaoyi" %% "os-lib" % "0.11.4",
+        "com.lihaoyi" %% "upickle" % "4.1.0",
+      ),
+      scalacOptions += "-Wunused:all",
+    )
 
   val testcasesOutputDir = taskKey[Seq[String]]("Root directory where tests classes are generated")
   val testcasesSourceRoot = taskKey[String]("Root directory where tests sources are generated")
