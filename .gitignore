@@ -48,6 +48,8 @@ tests/locks/
 
 # Benchmarks
 bench/tests-generated
+bench/tmp
+bench/out
 
 # Ignore output files but keep the directory
 out/
