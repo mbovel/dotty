@@ -21,7 +21,7 @@ import config.MigrationVersion
 import config.Printers.refcheck
 import reporting.*
 import Constants.Constant
-import cc.stripCapturing
+import cc.{stripCapturing, isUpdateMethod, CCState}
 
 object RefChecks {
   import tpd.*
@@ -107,7 +107,9 @@ object RefChecks {
       def checkSelfConforms(other: ClassSymbol) =
         var otherSelf = other.declaredSelfTypeAsSeenFrom(cls.thisType)
         if otherSelf.exists then
-          if !(cinfo.selfType <:< otherSelf) then
+          if !CCState.withCapAsRoot: // OK? We need this here since self types use `cap` instead of `fresh`
+            cinfo.selfType <:< otherSelf
+        then
             report.error(DoesNotConformToSelfType("illegal inheritance", cinfo.selfType, cls, otherSelf, "parent", other),
               cls.srcPos)
 
@@ -306,6 +308,7 @@ object RefChecks {
    *           that passes its value on to O.
    *    1.13.  If O is non-experimental, M must be non-experimental.
    *    1.14.  If O has @publicInBinary, M must have @publicInBinary.
+   *    1.15.  If O is non-preview, M must be non-preview
    *  2. Check that only abstract classes have deferred members
    *  3. Check that concrete classes do not have deferred definitions
    *     that are not implemented in a subclass.
@@ -594,7 +597,7 @@ object RefChecks {
           overrideError("needs `override` modifier")
       else if (other.is(AbsOverride) && other.isIncompleteIn(clazz) && !member.is(AbsOverride))
         overrideError("needs `abstract override` modifiers")
-      else if member.is(Override) && other.is(Mutable) then
+      else if member.is(Override) && other.isMutableVarOrAccessor then
         overrideError("cannot override a mutable variable")
       else if (member.isAnyOverride &&
         !(member.owner.thisType.baseClasses exists (_ isSubClass other.owner)) &&
@@ -615,6 +618,8 @@ object RefChecks {
         overrideError("is erased, cannot override non-erased member")
       else if (other.is(Erased) && !member.isOneOf(Erased | Inline)) // (1.9)
         overrideError("is not erased, cannot override erased member")
+      else if member.isUpdateMethod && !other.is(Mutable) then
+        overrideError(i"is an update method, cannot override a read-only method")
       else if other.is(Inline) && !member.is(Inline) then // (1.10)
         overrideError("is not inline, cannot implement an inline method")
       else if (other.isScala2Macro && !member.isScala2Macro) // (1.11)
@@ -645,6 +650,8 @@ object RefChecks {
         overrideError("may not override non-experimental member")
       else if !member.hasAnnotation(defn.PublicInBinaryAnnot) && other.hasAnnotation(defn.PublicInBinaryAnnot) then // (1.14)
         overrideError("also needs to be declared with @publicInBinary")
+      else if !other.isPreview && member.hasAnnotation(defn.PreviewAnnot) then // (1.15)
+        overrideError("may not override non-preview member")
       else if other.hasAnnotation(defn.DeprecatedOverridingAnnot) then
         overrideDeprecation("", member, other, "removed or renamed")
     end checkOverride
@@ -772,7 +779,7 @@ object RefChecks {
 
           // Give a specific error message for abstract vars based on why it fails:
           // It could be unimplemented, have only one accessor, or be uninitialized.
-          if (underlying.is(Mutable)) {
+          if underlying.isMutableVarOrAccessor then
             val isMultiple = grouped.getOrElse(underlying.name, Nil).size > 1
 
             // If both getter and setter are missing, squelch the setter error.
@@ -781,7 +788,6 @@ object RefChecks {
               if (member.isSetter) "\n(Note that an abstract var requires a setter in addition to the getter)"
               else if (member.isGetter && !isMultiple) "\n(Note that an abstract var requires a getter in addition to the setter)"
               else err.abstractVarMessage(member))
-          }
           else if (underlying.is(Method)) {
             // If there is a concrete method whose name matches the unimplemented
             // abstract method, and a cursory examination of the difference reveals
@@ -1135,13 +1141,23 @@ object RefChecks {
 
   /** Check that an extension method is not hidden, i.e., that it is callable as an extension method.
    *
+   *  For example, it is not possible to define a type-safe extension `contains` for `Set`,
+   *  since for any parameter type, the existing `contains` method will compile and would be used.
+   *
    *  An extension method is hidden if it does not offer a parameter that is not subsumed
    *  by the corresponding parameter of the member with the same name (or of all alternatives of an overload).
    *
-   *  This check is suppressed if this method is an override.
+   *  This check is suppressed if the method is an override. (Because the type of the receiver
+   *  may be narrower in the override.)
    *
-   *  For example, it is not possible to define a type-safe extension `contains` for `Set`,
-   *  since for any parameter type, the existing `contains` method will compile and would be used.
+   *  If the extension method is nullary, it is always hidden by a member of the same name.
+   *  (Either the member is nullary, or the reference is taken as the eta-expansion of the member.)
+   *
+   *  This check is in lieu of a more expensive use-site check that an application failed to use an extension.
+   *  That check would account for accessibility and opacity. As a limitation, this check considers
+   *  only public members for which corresponding method parameters are either both opaque types or both not.
+   *  It is intended to warn if the receiver type from a third-party library has been augmented with a member
+   *  that nullifies an existing extension.
    *
    *  If the member has a leading implicit parameter list, then the extension method must also have
    *  a leading implicit parameter list. The reason is that if the implicit arguments are inferred,
@@ -1152,45 +1168,41 @@ object RefChecks {
    *  If the member does not have a leading implicit parameter list, then the argument cannot be explicitly
    *  supplied with `using`, as typechecking would fail. But the extension method may have leading implicit
    *  parameters, which are necessarily supplied implicitly in the application. The first non-implicit
-   *  parameters of the extension method must be distinguishable from the member parameters, as described.
-   *
-   *  If the extension method is nullary, it is always hidden by a member of the same name.
-   *  (Either the member is nullary, or the reference is taken as the eta-expansion of the member.)
-   *
-   *  This check is in lieu of a more expensive use-site check that an application failed to use an extension.
-   *  That check would account for accessibility and opacity. As a limitation, this check considers
-   *  only public members, a target receiver that is not an alias, and corresponding method parameters
-   *  that are either both opaque types or both not.
+   *  parameters of the extension method must be distinguishable from the member parameters, as described above.
    */
   def checkExtensionMethods(sym: Symbol)(using Context): Unit =
-    if sym.is(Extension) && !sym.nextOverriddenSymbol.exists then
+    if sym.is(Extension) then
       extension (tp: Type)
-        def strippedResultType = Applications.stripImplicit(tp.stripPoly, wildcardOnly = true).resultType
-        def firstExplicitParamTypes = Applications.stripImplicit(tp.stripPoly, wildcardOnly = true).firstParamTypes
+        def explicit = Applications.stripImplicit(tp.stripPoly, wildcardOnly = true)
         def hasImplicitParams = tp.stripPoly match { case mt: MethodType => mt.isImplicitMethod case _ => false }
-      val target = sym.info.firstExplicitParamTypes.head // required for extension method, the putative receiver
-      val methTp = sym.info.strippedResultType // skip leading implicits and the "receiver" parameter
+      val explicitInfo = sym.info.explicit // consider explicit value params
+      val target0 = explicitInfo.firstParamTypes.head // required for extension method, the putative receiver
+      val target = target0.dealiasKeepOpaques.typeSymbol.info
+      val methTp = explicitInfo.resultType // skip leading implicits and the "receiver" parameter
+      def memberMatchesMethod(member: Denotation) =
+        val memberIsImplicit = member.info.hasImplicitParams
+        val paramTps =
+          if memberIsImplicit then methTp.stripPoly.firstParamTypes
+          else methTp.explicit.firstParamTypes
+        inline def paramsCorrespond =
+          val memberParamTps = member.info.stripPoly.firstParamTypes
+          memberParamTps.corresponds(paramTps): (m, x) =>
+            m.typeSymbol.denot.isOpaqueAlias == x.typeSymbol.denot.isOpaqueAlias && (x frozen_<:< m)
+        paramTps.isEmpty || memberIsImplicit && !methTp.hasImplicitParams || paramsCorrespond
       def hidden =
         target.nonPrivateMember(sym.name)
-        .filterWithPredicate:
-          member =>
-          member.symbol.isPublic && {
-            val memberIsImplicit = member.info.hasImplicitParams
-            val paramTps =
-              if memberIsImplicit then methTp.stripPoly.firstParamTypes
-              else methTp.firstExplicitParamTypes
-
-            paramTps.isEmpty || memberIsImplicit && !methTp.hasImplicitParams || {
-              val memberParamTps = member.info.stripPoly.firstParamTypes
-              !memberParamTps.isEmpty
-              && memberParamTps.lengthCompare(paramTps) == 0
-              && memberParamTps.lazyZip(paramTps).forall: (m, x) =>
-                m.typeSymbol.denot.isOpaqueAlias == x.typeSymbol.denot.isOpaqueAlias
-                && (x frozen_<:< m)
-            }
-          }
+        .filterWithPredicate: member =>
+          member.symbol.isPublic && memberMatchesMethod(member)
         .exists
-      if !target.typeSymbol.isOpaqueAlias && hidden
+      if sym.is(HasDefaultParams) then
+        val getterDenot =
+          val receiverName = explicitInfo.firstParamNames.head
+          val num = sym.info.paramNamess.flatten.indexWhere(_ == receiverName)
+          val getterName = DefaultGetterName(sym.name.toTermName, num = num)
+          sym.owner.info.member(getterName)
+        if getterDenot.exists
+        then report.warning(ExtensionHasDefault(sym), getterDenot.symbol.srcPos)
+      if !sym.nextOverriddenSymbol.exists && hidden
       then report.warning(ExtensionNullifiedByMember(sym, target.typeSymbol), sym.srcPos)
   end checkExtensionMethods
 

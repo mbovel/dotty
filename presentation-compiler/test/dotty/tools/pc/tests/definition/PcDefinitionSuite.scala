@@ -478,6 +478,33 @@ class PcDefinitionSuite extends BasePcDefinitionSuite:
          |""".stripMargin
     )
 
+  @Test def `enum-class-type-param` =
+    check(
+      """|
+         |enum Options[<<AA>>]:
+         |  case Some(x: A@@A)
+         |  case None extends Options[Nothing]
+         |""".stripMargin
+    )
+
+  @Test def `enum-class-type-param-covariant` =
+    check(
+      """|
+         |enum Options[+<<AA>>]:
+         |  case Some(x: A@@A)
+         |  case None extends Options[Nothing]
+         |""".stripMargin
+    )
+
+  @Test def `enum-class-type-param-duplicate` =
+    check(
+      """|
+         |enum Testing[AA]:
+         |  case Some[<<AA>>](x: A@@A) extends Testing[AA]
+         |  case None extends Testing[Nothing]
+         |""".stripMargin
+    )
+
   @Test def `derives-def` =
     check(
       """|
@@ -507,9 +534,80 @@ class PcDefinitionSuite extends BasePcDefinitionSuite:
 
   @Test def `named-tuples` =
     check(
-      """|import scala.language.experimental.namedTuples
-         |
+      """|
          |val <<foo>> = (name = "Bob", age = 42, height = 1.9d)
          |val foo_name = foo.na@@me
          |""".stripMargin
     )
+
+  @Test def `object` =
+    check(
+      """|package a
+         |object <<Bar>> {
+         |  def foo = 42
+         |}
+         |val m = B@@ar.foo
+         |""".stripMargin
+    )
+
+  @Test def i7267 =
+    check(
+      """|package a
+        |trait Foo {
+        |  def someNum: Int
+        |  def <<apply>>(i: Int): Unit = println(someNum)
+        |}
+        |object <<Bar>> extends Foo {
+        |  def someNum = 42
+        |}
+        |
+        |object Test {
+        |  B@@ar(2)
+        |}
+        |""".stripMargin
+    )
+
+  @Test def `i7267-2` =
+    check(
+      """|package b
+        |trait Foo {
+        |  def someNum: Int
+        |  def <<unapply>>(i: Int): Option[Int] = Some(i)
+        |}
+        |object <<Bar>> extends Foo {
+        |  def someNum = 42
+        |}
+        |
+        |object Test {
+        |  Bar.someNum match {
+        |    case B@@ar(1) => ???
+        |    case _ =>
+        |  }
+        |}
+        |""".stripMargin
+    )
+
+  @Test def `i7267-3` =
+    check(
+      """|package c
+        |case class <<Bar>>()
+        |object <<Bar>>
+        |object O {
+        |  val a = B@@ar()
+        |}
+        |""".stripMargin
+    )
+
+  @Test def `i7267-4` =
+    check(
+      """|package d
+        |class <<Bar>>()
+        |object <<Bar>> {
+        |  def <<apply>>(): Bar = new Bar()
+        |}
+        |object O {
+        |  val a = B@@ar()
+        |}
+        |""".stripMargin
+    )
+

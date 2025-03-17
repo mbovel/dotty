@@ -116,6 +116,7 @@ trait CommonScalaSettings:
   val unchecked: Setting[Boolean] = BooleanSetting(RootSetting, "unchecked", "Enable additional warnings where generated code depends on assumptions.", initialValue = true, aliases = List("--unchecked"))
   val language: Setting[List[ChoiceWithHelp[String]]] = MultiChoiceHelpSetting(RootSetting, "language", "feature", "Enable one or more language features.", choices = ScalaSettingsProperties.supportedLanguageFeatures, legacyChoices = ScalaSettingsProperties.legacyLanguageFeatures, default = Nil, aliases = List("--language"))
   val experimental: Setting[Boolean] = BooleanSetting(RootSetting, "experimental", "Annotate all top-level definitions with @experimental. This enables the use of experimental features anywhere in the project.")
+  val preview: Setting[Boolean] = BooleanSetting(RootSetting, "preview", "Enable the use of preview features anywhere in the project.")
 
   /* Coverage settings */
   val coverageOutputDir = PathSetting(RootSetting, "coverage-out", "Destination for coverage classfiles and instrumentation data.", "", aliases = List("--coverage-out"))
@@ -127,6 +128,7 @@ trait CommonScalaSettings:
   val usejavacp: Setting[Boolean] = BooleanSetting(RootSetting, "usejavacp", "Utilize the java.class.path in classpath resolution.", aliases = List("--use-java-class-path"))
   val scalajs: Setting[Boolean] = BooleanSetting(RootSetting, "scalajs", "Compile in Scala.js mode (requires scalajs-library.jar on the classpath).", aliases = List("--scalajs"))
   val replInitScript: Setting[String] = StringSetting(RootSetting, "repl-init-script", "code", "The code will be run on REPL startup.", "", aliases = List("--repl-init-script"))
+  val replQuitAfterInit: Setting[Boolean] = BooleanSetting(RootSetting, "repl-quit-after-init", "Quit REPL after evaluating the init script.", aliases = List("--repl-quit-after-init"))
 end CommonScalaSettings
 
 /** -P "plugin" settings. Various tools might support plugins. */
@@ -184,9 +186,10 @@ private sealed trait WarningSettings:
       ChoiceWithHelp("linted", "Enable -Wunused:imports,privates,locals,implicits"),
       ChoiceWithHelp(
         name = "strict-no-implicit-warn",
-        description = "Same as -Wunused:import, only for imports of explicit named members.\n" +
-        "NOTE : This overrides -Wunused:imports and NOT set by -Wunused:all"
+        description = """Same as -Wunused:imports, only for imports of explicit named members.
+                        |NOTE : This overrides -Wunused:imports and NOT set by -Wunused:all""".stripMargin
       ),
+      ChoiceWithHelp("unsafe-warn-patvars", "Deprecated alias for `patvars`"),
     ),
     default = Nil
   )
@@ -211,7 +214,7 @@ private sealed trait WarningSettings:
     def params(using Context) = allOr("params")
     def privates(using Context) =
       allOr("privates") || allOr("linted")
-    def patvars(using Context) = allOr("patvars")
+    def patvars(using Context) = allOr("patvars") || isChoiceSet("unsafe-warn-patvars")
     def inlined(using Context) = isChoiceSet("inlined")
     def linted(using Context) =
       allOr("linted")
@@ -449,6 +452,7 @@ private sealed trait YSettings:
   val YccDebug: Setting[Boolean] = BooleanSetting(ForkSetting, "Ycc-debug", "Used in conjunction with captureChecking language import, debug info for captured references.")
   val YccNew: Setting[Boolean] = BooleanSetting(ForkSetting, "Ycc-new", "Used in conjunction with captureChecking language import, try out new variants (debug option)")
   val YccLog: Setting[Boolean] = BooleanSetting(ForkSetting, "Ycc-log", "Used in conjunction with captureChecking language import, print tracing and debug info")
+  val YccVerbose: Setting[Boolean] = BooleanSetting(ForkSetting, "Ycc-verbose", "Print root capabilities with more details")
   val YccPrintSetup: Setting[Boolean] = BooleanSetting(ForkSetting, "Ycc-print-setup", "Used in conjunction with captureChecking language import, print trees after cc.Setup phase")
 
   /** Area-specific debug output */

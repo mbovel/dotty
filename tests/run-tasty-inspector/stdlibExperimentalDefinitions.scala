@@ -39,9 +39,6 @@ val experimentalDefinitionInLibrary = Set(
   "scala.annotation.into",
   "scala.annotation.internal.$into",
 
-  //// New feature: @publicInBinary
-  "scala.annotation.publicInBinary",
-
   //// New feature: Macro annotations
   "scala.annotation.MacroAnnotation",
 
@@ -80,12 +77,6 @@ val experimentalDefinitionInLibrary = Set(
 
   // New feature: fromNullable for explicit nulls
   "scala.Predef$.fromNullable",
-
-  // New feature: named tuples
-  "scala.NamedTuple",
-  "scala.NamedTuple$",
-  "scala.NamedTupleDecomposition",
-  "scala.NamedTupleDecomposition$",
 
   // New feature: modularity
   "scala.Precise",

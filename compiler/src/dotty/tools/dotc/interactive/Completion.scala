@@ -90,6 +90,8 @@ object Completion:
    * Otherwise, provide no completion suggestion.
    */
   def completionMode(path: List[untpd.Tree], pos: SourcePosition): Mode = path match
+    // Ignore `package foo@@` and `package foo.bar@@`
+    case ((_: tpd.Select) | (_: tpd.Ident)):: (_ : tpd.PackageDef) :: _  => Mode.None
     case GenericImportSelector(sel) =>
       if sel.imported.span.contains(pos.span) then Mode.ImportOrExport // import scala.@@
       else if sel.isGiven && sel.bound.span.contains(pos.span) then Mode.ImportOrExport
@@ -663,7 +665,7 @@ object Completion:
      */
     private def implicitConversionTargets(qual: tpd.Tree)(using Context): Set[SearchSuccess] = {
       val typer = ctx.typer
-      val conversions = new typer.ImplicitSearch(defn.AnyType, qual, pos.span).allImplicits
+      val conversions = new typer.ImplicitSearch(defn.AnyType, qual, pos.span, Set.empty).allImplicits
 
       interactiv.println(i"implicit conversion targets considered: ${conversions.toList}%, %")
       conversions

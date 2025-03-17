@@ -712,7 +712,13 @@ class Namer { typer: Typer =>
               enterSymbol(classConstructorCompanion(classSym.asClass))
             else
               for moduleSym <- companionVals do
-                if moduleSym.is(Module) && !moduleSym.isDefinedInCurrentRun then
+                // by not going through `.lastKnownDenotation` (instead using `.current`),
+                // we guarantee that the `moduleSym` will be brought forward to the current run,
+                // rendering `moduleSym.isDefinedInCurrentRun` as always true.
+                // We want to regenerate the companion instead of bringing it forward,
+                // as even if we are able to bring forward the object symbol,
+                // we might not be able to do the same with its stale module class symbol (see `tests/pos/i20449`)
+                if moduleSym.lastKnownDenotation.is(Module) && !moduleSym.isDefinedInCurrentRun then
                   val companion =
                     if needsConstructorProxies(classSym) then
                       classConstructorCompanion(classSym.asClass)
@@ -1957,9 +1963,7 @@ class Namer { typer: Typer =>
     if isConstructor then
       // set result type tree to unit, but take the current class as result type of the symbol
       typedAheadType(ddef.tpt, defn.UnitType)
-      val mt = wrapMethType(effectiveResultType(sym, paramSymss))
-      if sym.isPrimaryConstructor then checkCaseClassParamDependencies(mt, sym.owner)
-      mt
+      wrapMethType(effectiveResultType(sym, paramSymss))
     else
       val paramFn = if Feature.enabled(Feature.modularity) && sym.isAllOf(Given | Method) then wrapRefinedMethType else wrapMethType
       valOrDefDefSig(ddef, sym, paramSymss, paramFn)
@@ -2000,16 +2004,6 @@ class Namer { typer: Typer =>
 
     ddef.trailingParamss.foreach(completeParams)
   end completeTrailingParamss
-
-  /** Checks an implementation restriction on case classes. */
-  def checkCaseClassParamDependencies(mt: Type, cls: Symbol)(using Context): Unit =
-    mt.stripPoly match
-      case mt: MethodType if cls.is(Case) && mt.isParamDependent =>
-        // See issue #8073 for background
-        report.error(
-            em"""Implementation restriction: case classes cannot have dependencies between parameters""",
-            cls.srcPos)
-      case _ =>
 
   private def setParamTrackedWithAccessors(psym: Symbol, ownerTpe: Type)(using Context): Unit =
     for acc <- ownerTpe.decls.lookupAll(psym.name) if acc.is(ParamAccessor) do
