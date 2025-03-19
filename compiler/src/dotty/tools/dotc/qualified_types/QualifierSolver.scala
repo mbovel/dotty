@@ -23,11 +23,11 @@ class QualifierSolver(using Context):
 
   def isTrue(tree: Tree): Boolean =
     tree match
-      case closureDef(defDef) =>
+      case closureDef(defDef) if defDef.symbol.exists =>
         val argSym = defDef.symbol.paramSymss.head.head
         QualifierAlphaComparer().same(QualifierEvaluator.evaluate(defDef.rhs), litTrue)
       case _ =>
-        throw IllegalArgumentException("Qualifier must be a closure")
+        false
 
   private def impliesRec(tree1: Tree, tree2: Tree, tree1ArgSym: Symbol, tree2ArgSym: Symbol): Boolean =
     val d = defn // Need a stable path to match on `defn` members

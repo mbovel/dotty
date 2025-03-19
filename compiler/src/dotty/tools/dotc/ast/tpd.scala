@@ -481,7 +481,7 @@ object tpd extends Trees.Instance[Type] with TypedTreeInfo {
       else
         val res = Select(TypeTree(pre), tp)
         if needLoad && !res.symbol.isStatic then
-          throw TypeError(em"cannot establish a reference to $res")
+          throw Error("cannot establish a reference to $res")
         res
 
   def ref(sym: Symbol)(using Context): Tree =

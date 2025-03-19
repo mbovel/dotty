@@ -44,6 +44,8 @@ object QualifiedTypes:
         case OrType(tp11, tp12) =>
           typeImplies(tp11, qualifier2) && typeImplies(tp12, qualifier2)
         case _ =>
+          println(i"tp1: $tp1")
+          println(i"qualifier2: $qualifier2")
           QualifierSolver().isTrue(qualifier2)
 
   /** Try to adapt the tree to the given type `pt`

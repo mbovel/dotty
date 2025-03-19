@@ -309,7 +309,7 @@ trait TypeAssigner {
       case err: ErrorType =>
         err
       case t =>
-        if (ctx.settings.Ydebug.value) new FatalError("").printStackTrace()
+        if (ctx.settings.Ydebug.value) new FatalError(f"${fn.tpe.widen}").printStackTrace()
         errorType(err.takesNoParamsMsg(fn, ""), tree.srcPos)
     }
     ConstFold.Apply(tree.withType(ownType))

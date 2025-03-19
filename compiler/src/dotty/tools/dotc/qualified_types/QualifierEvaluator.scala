@@ -12,6 +12,7 @@ import dotty.tools.dotc.ast.tpd.{
   Bind,
   Block,
   CaseDef,
+  ConservativeTreeCopier,
   DefDef,
   EmptyTree,
   Ident,
@@ -35,9 +36,9 @@ import dotty.tools.dotc.core.Decorators.i
 import dotty.tools.dotc.core.Flags
 import dotty.tools.dotc.core.Mode.Type
 import dotty.tools.dotc.core.StdNames.nme
-import dotty.tools.dotc.core.Symbols.{defn, Symbol, NoSymbol}
+import dotty.tools.dotc.core.Symbols.{defn, NoSymbol, Symbol}
 import dotty.tools.dotc.core.SymDenotations.given
-import dotty.tools.dotc.core.Types.{NoPrefix, SingletonType}
+import dotty.tools.dotc.core.Types.{ConstantType, NoPrefix}
 import dotty.tools.dotc.transform.TreeExtractors.BinaryOp
 import dotty.tools.dotc.transform.patmat.{Empty as EmptySpace, SpaceEngine}
 
@@ -84,7 +85,7 @@ private[qualified_types] object QualifierEvaluator:
       case _                    => false
 
 private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var unfoldCalls: Boolean = true)
-    extends TreeMap:
+    extends TreeMap(cpy = ConservativeTreeCopier()):
   import QualifierEvaluator.*
 
   def recur(tree: Tree, args: Map[Symbol, Tree] = args, unfoldCalls: Boolean = unfoldCalls)(using Context): Tree =
@@ -122,8 +123,8 @@ private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var un
 
   private def constFold(tree: Tree)(using Context): Tree =
     tree.tpe match
-      case tp: SingletonType => singleton(tp)
-      case _                 => EmptyTree
+      case tp: ConstantType => singleton(tp)
+      case _                => EmptyTree
 
   private def reduceBinaryOp(tree: Tree)(using Context): Tree =
     val d = defn // Need a stable path to match on `defn` members
