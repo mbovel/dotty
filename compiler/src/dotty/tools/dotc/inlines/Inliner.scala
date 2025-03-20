@@ -598,7 +598,7 @@ class Inliner(val call: tpd.Tree)(using Context):
       case _ => EmptyTree
     }
 
-  val reducer = new InlineReducer(this)
+  val reducer = new InlineReducer(call.span)
 
   /** The Inlined node representing the inlined call */
   def inlined(rhsToInline: tpd.Tree): (List[MemberDef], Tree) =
@@ -758,7 +758,8 @@ class Inliner(val call: tpd.Tree)(using Context):
         case _ =>
       siz
 
-    trace(i"inlining $call", inlining, show = true) {
+    trace.force(i"inlining $call", inlining, show = true) {
+      throw new Error()
 
       // The normalized bindings collected in `bindingsBuf`
       bindingsBuf.mapInPlace { binding =>
@@ -987,6 +988,9 @@ class Inliner(val call: tpd.Tree)(using Context):
           case Block(stats, expr) =>
             cpy.Block(sel)(stats, reduceInlineMatchExpr(expr))
           case _ =>
+            println(i"reducing inline match $tree")
+            println(i"sel = $sel")
+            println(i"selType = $selType")
             reduceInlineMatch(sel, selType, cases.asInstanceOf[List[CaseDef]], this) match {
               case Some((caseBindings, rhs0)) =>
                 // drop type ascriptions/casts hiding pattern-bound types (which are now aliases after reducing the match)

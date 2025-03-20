@@ -2492,16 +2492,10 @@ object Types extends TypeUtils {
     }
 
     private def disambiguate(d: Denotation)(using Context): Denotation =
-      if currentSymbol.exists then
-        // this method might be triggered while the denotation is already being recomputed
-        // in NamedType, so it's better to use lastKnownDenotation instead, as targetName
-        // should not change between phases/runs
-        val res = disambiguate(d, currentSignature, currentSymbol.lastKnownDenotation.targetName)
-        println(f"disambiguate1 $this $res")
-        res
-      else
-        println(f"disambiguate2 $this $d")
-        d
+      // this method might be triggered while the denotation is already being recomputed
+      // in NamedType, so it's better to use lastKnownDenotation instead, as targetName
+      // should not change between phases/runs
+      disambiguate(d, currentSignature, currentSymbol.lastKnownDenotation.targetName)
 
     private def disambiguate(d: Denotation, sig: Signature | Null, target: Name)(using Context): Denotation =
       if (sig != null)
@@ -2525,7 +2519,6 @@ object Types extends TypeUtils {
         d = atPhase(ctx.phaseId - 1)(memberDenot(name, allowPrivate)).current
       if (d.isOverloaded)
         d = disambiguate(d)
-      println(f"memberDenot $this $d")
       d
     }
 
@@ -2869,7 +2862,6 @@ object Types extends TypeUtils {
                 if (sym.signature == Signature.NotAMethod) Signature.NotAMethod
                 else sym.asSeenFrom(prefix).signature,
                 sym.targetName)
-        println(f"reload $this with prefix $prefix, denot = $d, lastDenot = $lastDenotation")
         NamedType(prefix, name, d)
       }
       if (prefix eq this.prefix) this

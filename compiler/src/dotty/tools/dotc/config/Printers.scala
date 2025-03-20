@@ -58,7 +58,7 @@ object Printers {
   val refcheck = noPrinter
   val simplify = noPrinter
   val staging = noPrinter
-  val subtyping = new Printer
+  val subtyping = noPrinter
   val tailrec = noPrinter
   val transforms = noPrinter
   val typr = noPrinter

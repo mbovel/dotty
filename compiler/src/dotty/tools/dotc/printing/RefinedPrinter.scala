@@ -483,9 +483,9 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
         optDotPrefix(tree) ~ keywordStr("this") ~ idText(tree)
       case Super(qual: This, mix) =>
         optDotPrefix(qual) ~ keywordStr("super") ~ optText(mix)("[" ~ _ ~ "]")
-      case BinaryOp(l, op, r) if op.isDeclaredInfix || op.name.isOperatorName =>
-        changePrec(parsing.precedence(op.name)):
-          toText(l) ~ " " ~ toText(op.name) ~ "(denot: " ~ toText(op.denot) ~ ") " ~ toText(r)
+      //case BinaryOp(l, op, r) if op.isDeclaredInfix || op.name.isOperatorName =>
+      //  changePrec(parsing.precedence(op.name)):
+      //    toText(l) ~ " " ~ toText(op.name) ~ "(denot: " ~ toText(op.denot) ~ ") " ~ toText(r)
       case app @ Apply(fun, args) =>
         if (fun.hasType && fun.symbol == defn.throwMethod)
           changePrec (GlobalPrec) {

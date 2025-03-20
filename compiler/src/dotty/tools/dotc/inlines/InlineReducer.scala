@@ -9,15 +9,15 @@ import typer.*
 import Names.TermName
 import NameKinds.{InlineAccessorName, InlineBinderName, InlineScrutineeName}
 import config.Printers.inlining
-import util.SimpleIdentityMap
+import util.{SimpleIdentityMap, Spans}
+import Spans.Span
 
 import collection.mutable
 
 /** A utility class offering methods for rewriting inlined code */
-class InlineReducer(inliner: Inliner)(using Context):
+class InlineReducer(span: Span)(using Context):
   import tpd.*
-  import Inliner.{isElideableExpr, DefBuffer}
-  import inliner.{call, newSym, tryInlineArg, paramBindingDef}
+  import Inliner.{isElideableExpr, DefBuffer, newSym}
 
   extension (tp: Type)
     /** same as widenTermRefExpr, but preserves modules and singleton enum values */
@@ -144,7 +144,7 @@ class InlineReducer(inliner: Inliner)(using Context):
       case _ =>
         binding
     }
-    binding1.withSpan(call.span)
+    binding1.withSpan(span)
   }
 
   /** The result type of reducing a match. It consists optionally of a list of bindings
@@ -305,7 +305,7 @@ class InlineReducer(inliner: Inliner)(using Context):
               def reduceSubPatterns(pats: List[Tree], selectors: List[Tree]): Boolean = (pats, selectors) match {
                 case (Nil, Nil) => true
                 case (pat :: pats1, selector :: selectors1) =>
-                  val elem = newSym(InlineBinderName.fresh(), Synthetic, selector.tpe.widenInlineScrutinee).asTerm
+                  val elem = newSym(InlineBinderName.fresh(), Synthetic, selector.tpe.widenInlineScrutinee, span).asTerm
                   val rhs = constToLiteral(selector)
                   elem.defTree = rhs
                   caseBindingMap += ((NoSymbol, ValDef(elem, rhs).withSpan(elem.span)))
@@ -316,7 +316,9 @@ class InlineReducer(inliner: Inliner)(using Context):
 
               val paramType = mt.paramInfos.head
               val paramCls = paramType.classSymbol
+              println(i"unapp: $unapp, paramCls: $paramCls, scrut: $scrut, paramType: $paramType, scrutType: ${scrut.widen}")
               if (paramCls.is(Case) && unapp.symbol.is(Synthetic) && scrut <:< paramType) {
+                println(i"unapp2: $unapp, paramCls: $paramCls, scrut: $scrut, paramType: $paramType, scrutType: ${scrut.widen}")
                 val caseAccessors =
                   if paramCls.is(Scala2x) then paramCls.caseAccessors
                   else paramCls.asClass.paramAccessors
@@ -338,7 +340,7 @@ class InlineReducer(inliner: Inliner)(using Context):
     }
 
     /** The initial scrutinee binding: `val $scrutineeN = <scrutinee>` */
-    val scrutineeSym = newSym(InlineScrutineeName.fresh(), Synthetic, scrutType).asTerm
+    val scrutineeSym = newSym(InlineScrutineeName.fresh(), Synthetic, scrutType, span).asTerm
     val scrutineeBinding = normalizeBinding(ValDef(scrutineeSym, scrutinee))
 
     def reduceCase(cdef: CaseDef): MatchReduxWithGuard = {

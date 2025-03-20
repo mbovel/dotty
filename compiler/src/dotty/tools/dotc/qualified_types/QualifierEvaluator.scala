@@ -12,7 +12,6 @@ import dotty.tools.dotc.ast.tpd.{
   Bind,
   Block,
   CaseDef,
-  ConservativeTreeCopier,
   DefDef,
   EmptyTree,
   Ident,
@@ -41,6 +40,8 @@ import dotty.tools.dotc.core.SymDenotations.given
 import dotty.tools.dotc.core.Types.{ConstantType, NoPrefix}
 import dotty.tools.dotc.transform.TreeExtractors.BinaryOp
 import dotty.tools.dotc.transform.patmat.{Empty as EmptySpace, SpaceEngine}
+import dotty.tools.dotc.inlines.InlineReducer
+import dotty.tools.dotc.typer.Typer
 
 import QualifierTracing.trace
 
@@ -84,8 +85,7 @@ private[qualified_types] object QualifierEvaluator:
       case Block(Nil, expr)     => isSimple(expr)
       case _                    => false
 
-private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var unfoldCalls: Boolean = true)
-    extends TreeMap(cpy = ConservativeTreeCopier()):
+private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var unfoldCalls: Boolean = true) extends TreeMap:
   import QualifierEvaluator.*
 
   def recur(tree: Tree, args: Map[Symbol, Tree] = args, unfoldCalls: Boolean = unfoldCalls)(using Context): Tree =
@@ -114,8 +114,11 @@ private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var un
           .orElse(treeTransformed)
       case Match(selector, cases) =>
         val selectorTransformed = transform(selector)
-        reduceCases(selectorTransformed, cases)
-          .orElse(cpy.Match(tree)(selectorTransformed, cases.map(recur(_, args, false).asInstanceOf[CaseDef])))
+        val res = InlineReducer(tree.span).reduceInlineMatch(selectorTransformed, selectorTransformed.tpe, cases, new Typer(0))
+        val res2 = reduceCases(selectorTransformed, cases)
+        println(i"res = $res,\n res2 = $res2")
+
+        res2.orElse(cpy.Match(tree)(selectorTransformed, cases.map(recur(_, args, false).asInstanceOf[CaseDef])))
       case Block(Nil, expr) =>
         transform(expr)
       case tree =>
