@@ -1,18 +1,13 @@
+type Pos = {v: Int with v >= 0}
 
-import language.experimental.modularity
+abstract class Vec:
+  val size: Pos
 
-//type Pos = {v: Int with v >= 0}
-class Vec(tracked val size: Int)
-
-def le(a: Int, b: Int with a <= b): Unit = ???
-
-def zip[T <: Int, S <: Int](v1: Vec, v2: Vec, w: {x: Unit with v1.size == v2.size}): Vec = ???
+def concat(v1: Vec, v2: Vec): Vec {val size: {v: Int with v == v1.size + v2.size}} = ???
 
 def main =
-  val v2 = Vec(1)
-  val v3 = Vec(1)
-  summon[Unit <:< {u: Unit with v2.size == v3.size}]
-  val unitxxx = ()
-  zip(v2, v3, unitxxx)
+  val v1: Vec = ???
+  val v2: Vec {val size: 3} = ???
+  val v3: Vec {val size: {v: Int with v == v1.size + 3}} = concat(v1, v2)
+  ()
 
-  le(1, 2)

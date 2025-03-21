@@ -12,7 +12,7 @@ import dotty.tools.dotc.core.Contexts.{ctx, Context}
 import dotty.tools.dotc.core.Decorators.{i, toTermName}
 import dotty.tools.dotc.core.StdNames.nme
 import dotty.tools.dotc.core.Symbols.{defn, Symbol}
-import dotty.tools.dotc.core.Types.{AndType, MethodType, OrType, Type, TypeProxy}
+import dotty.tools.dotc.core.Types.{AndType, ConstantType, MethodType, OrType, Type, TypeProxy}
 import dotty.tools.dotc.qualified_types.QualifierTracing.trace
 import dotty.tools.dotc.transform.BetaReduce
 
@@ -32,7 +32,7 @@ object QualifiedTypes:
       tp1 match
         case QualifiedType(parent1, qualifier1) =>
           QualifierSolver().implies(qualifier1, qualifier2)
-        case SingleAtom(tp1) =>
+        case SingleAtom(tp1: ConstantType) =>
           QualifierAlphaComparer().same(
             QualifierEvaluator.applyQualifierTo(qualifier2, tpd.singleton(tp1)),
             Literal(constTrue)

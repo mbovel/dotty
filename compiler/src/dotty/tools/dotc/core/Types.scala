@@ -57,7 +57,7 @@ object Types extends TypeUtils {
    *  The principal subclasses and sub-objects are as follows:
    *
    *  ```none
-   *  Type -+- ProxyType --+- NamedType ----+--- TypeRef
+   *  Type -+- TypeProxy --+- NamedType ----+--- TypeRef
    *        |              |                 \
    *        |              +- SingletonType-+-+- TermRef
    *        |              |                |

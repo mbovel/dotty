@@ -78,9 +78,13 @@ object NameOps {
     def isUnapplyName: Boolean = name == nme.unapply || name == nme.unapplySeq
     def isRightAssocOperatorName: Boolean = name.lastPart.last == ':'
 
-    def isOperatorName: Boolean = name match
-      case name: SimpleName => name.exists(isOperatorPart)
-      case _ => false
+    def isOperatorName: Boolean =
+
+      name match
+        case name: SimpleName => name.exists(isOperatorPart)
+        case _ => false
+
+
 
     /** Is name of a variable pattern? */
     def isVarPattern: Boolean =

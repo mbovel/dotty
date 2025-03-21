@@ -37,7 +37,7 @@ import dotty.tools.dotc.core.Mode.Type
 import dotty.tools.dotc.core.StdNames.nme
 import dotty.tools.dotc.core.Symbols.{defn, NoSymbol, Symbol}
 import dotty.tools.dotc.core.SymDenotations.given
-import dotty.tools.dotc.core.Types.{ConstantType, NoPrefix}
+import dotty.tools.dotc.core.Types.{ConstantType, TermRef, NoPrefix}
 import dotty.tools.dotc.transform.TreeExtractors.BinaryOp
 import dotty.tools.dotc.transform.patmat.{Empty as EmptySpace, SpaceEngine}
 import dotty.tools.dotc.inlines.InlineReducer
@@ -114,9 +114,9 @@ private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var un
           .orElse(treeTransformed)
       case Match(selector, cases) =>
         val selectorTransformed = transform(selector)
-        val res = InlineReducer(tree.span).reduceInlineMatch(selectorTransformed, selectorTransformed.tpe, cases, new Typer(0))
+        //val res = InlineReducer(tree.span).reduceInlineMatch(selectorTransformed, selectorTransformed.tpe, cases, new Typer(0))
         val res2 = reduceCases(selectorTransformed, cases)
-        println(i"res = $res,\n res2 = $res2")
+        //println(i"res = $res,\n res2 = $res2")
 
         res2.orElse(cpy.Match(tree)(selectorTransformed, cases.map(recur(_, args, false).asInstanceOf[CaseDef])))
       case Block(Nil, expr) =>
@@ -126,7 +126,7 @@ private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var un
 
   private def constFold(tree: Tree)(using Context): Tree =
     tree.tpe match
-      case tp: ConstantType => singleton(tp)
+      case SingleAtom(tp: (ConstantType)) => singleton(tp)
       case _                => EmptyTree
 
   private def reduceBinaryOp(tree: Tree)(using Context): Tree =

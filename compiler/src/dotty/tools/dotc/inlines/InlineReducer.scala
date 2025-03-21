@@ -299,6 +299,7 @@ class InlineReducer(span: Span)(using Context):
             }
           }
         case UnApply(unapp, _, pats) =>
+          println(i"unapp: $unapp, pats: $pats")
           unapp.tpe.widen match {
             case mt: MethodType if mt.paramInfos.length == 1 =>
 

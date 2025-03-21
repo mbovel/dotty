@@ -759,7 +759,6 @@ class Inliner(val call: tpd.Tree)(using Context):
       siz
 
     trace.force(i"inlining $call", inlining, show = true) {
-      throw new Error()
 
       // The normalized bindings collected in `bindingsBuf`
       bindingsBuf.mapInPlace { binding =>

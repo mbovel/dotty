@@ -1,4 +1,4 @@
-def foo(xxxx: Int): {v: Int with v > xxxx} = ???
+def foo(a: Int): {v: Int with v > a} = ???
 
 
 def main =

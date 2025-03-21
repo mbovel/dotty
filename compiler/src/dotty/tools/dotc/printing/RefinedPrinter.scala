@@ -466,10 +466,10 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
         val txt = tree.typeOpt match {
           case tp: TermRef if name != nme.WILDCARD =>
             toTextPrefixOf(tp) ~ withPos(selectionString(tp), tree.sourcePos)
-          case ConstantType(c) =>
-            toText(c)
-          case tp: SkolemType =>
-            toText(tp)
+          //case ConstantType(c) =>
+          //  toText(c)
+          //case tp: SkolemType =>
+          //  toText(tp)
           case _ =>
             toText(name)
         }
@@ -483,9 +483,13 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
         optDotPrefix(tree) ~ keywordStr("this") ~ idText(tree)
       case Super(qual: This, mix) =>
         optDotPrefix(qual) ~ keywordStr("super") ~ optText(mix)("[" ~ _ ~ "]")
-      //case BinaryOp(l, op, r) if op.isDeclaredInfix || op.name.isOperatorName =>
-      //  changePrec(parsing.precedence(op.name)):
-      //    toText(l) ~ " " ~ toText(op.name) ~ "(denot: " ~ toText(op.denot) ~ ") " ~ toText(r)
+      case BinaryOp(l, op, r) if op.isDeclaredInfix || (op.name.isOperatorName && !op.is(Synthetic)) =>
+        val isRightAssoc = op.name.endsWith(":")
+        val opPrec = parsing.precedence(op.name)
+        changePrec(opPrec):
+          val leftPrec = if isRightAssoc then opPrec + 1 else opPrec
+          val rightPrec = if !isRightAssoc then opPrec + 1 else opPrec
+          atPrec(leftPrec)(toText(l))  ~ " " ~ toText(op.name) ~ " " ~ atPrec(rightPrec)(toText(r))
       case app @ Apply(fun, args) =>
         if (fun.hasType && fun.symbol == defn.throwMethod)
           changePrec (GlobalPrec) {
