@@ -18,7 +18,7 @@ private[qualified_types] object QualifierNormalizer:
 
 
 /** A [[TreeMap]] that normalizes trees by applying algebraic simplifications
- *  and ordering operands.
+ *  and by ordering operands.
  *
  *  Entry point: [[QualifierNormalizer.normalize]].
  */

@@ -11,6 +11,8 @@ import dotty.tools.dotc.ast.tpd.{
   Apply,
   Bind,
   Block,
+  CaseClassApply,
+  CaseClassUnApply,
   CaseDef,
   DefDef,
   EmptyTree,
@@ -37,10 +39,10 @@ import dotty.tools.dotc.core.Mode.Type
 import dotty.tools.dotc.core.StdNames.nme
 import dotty.tools.dotc.core.Symbols.{defn, NoSymbol, Symbol}
 import dotty.tools.dotc.core.SymDenotations.given
-import dotty.tools.dotc.core.Types.{ConstantType, TermRef, NoPrefix}
+import dotty.tools.dotc.core.Types.{ConstantType, NoPrefix, TermRef}
+import dotty.tools.dotc.inlines.InlineReducer
 import dotty.tools.dotc.transform.TreeExtractors.BinaryOp
 import dotty.tools.dotc.transform.patmat.{Empty as EmptySpace, SpaceEngine}
-import dotty.tools.dotc.inlines.InlineReducer
 import dotty.tools.dotc.typer.Typer
 
 import QualifierTracing.trace
@@ -85,7 +87,8 @@ private[qualified_types] object QualifierEvaluator:
       case Block(Nil, expr)     => isSimple(expr)
       case _                    => false
 
-private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var unfoldCalls: Boolean = true) extends TreeMap:
+private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var unfoldCalls: Boolean = true)
+    extends TreeMap:
   import QualifierEvaluator.*
 
   def recur(tree: Tree, args: Map[Symbol, Tree] = args, unfoldCalls: Boolean = unfoldCalls)(using Context): Tree =
@@ -114,9 +117,9 @@ private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var un
           .orElse(treeTransformed)
       case Match(selector, cases) =>
         val selectorTransformed = transform(selector)
-        //val res = InlineReducer(tree.span).reduceInlineMatch(selectorTransformed, selectorTransformed.tpe, cases, new Typer(0))
+        // val res = InlineReducer(tree.span).reduceInlineMatch(selectorTransformed, selectorTransformed.tpe, cases, new Typer(0))
         val res2 = reduceCases(selectorTransformed, cases)
-        //println(i"res = $res,\n res2 = $res2")
+        // println(i"res = $res,\n res2 = $res2")
 
         res2.orElse(cpy.Match(tree)(selectorTransformed, cases.map(recur(_, args, false).asInstanceOf[CaseDef])))
       case Block(Nil, expr) =>
@@ -127,7 +130,7 @@ private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var un
   private def constFold(tree: Tree)(using Context): Tree =
     tree.tpe match
       case SingleAtom(tp: (ConstantType)) => singleton(tp)
-      case _                => EmptyTree
+      case _                              => EmptyTree
 
   private def reduceBinaryOp(tree: Tree)(using Context): Tree =
     val d = defn // Need a stable path to match on `defn` members
@@ -192,22 +195,16 @@ private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var un
       case Bind(name, pat) =>
         matchesRec(selector, pat, bindings.updated(pattern.symbol, selector))
 
-      case UnApply(fun, _, pats) =>
-        val sym = funPart(fun).symbol
-        val module = sym.owner.denot.companionModule
-        val clazz = sym.owner.denot.companionClass
-        if sym.name == nme.unapply && clazz.is(Flags.Case) && !hasCustomUnapply(module) then
-          stripTyped(selector) match
-            case Apply(fun, args)
-                if fun.symbol == getSyntheticApply(module) || fun.symbol.denot.isPrimaryConstructor =>
-              if args.length == pats.length then
-                args.zip(pats).map(matchesRec(_, _, bindings)).reduce(_ and _)
-              else
-                MatchResult.Disjoint
-            case _ =>
-              MatchResult.Unknown
-        else
-          MatchResult.Unknown
+      case CaseClassUnApply(classSym, pats) =>
+        stripTyped(selector) match
+          case CaseClassApply(`classSym`, args) =>
+            assert(
+              args.length == pats.length,
+              i"Expected methods apply and unapply of $classSym to have the same number of arguments"
+            )
+            args.zip(pats).map(matchesRec(_, _, bindings)).reduce(_ and _)
+          case _ =>
+            MatchResult.Unknown
 
       case Typed(unapply: UnApply, _) =>
         matchesRec(selector, unapply, bindings)

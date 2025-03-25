@@ -47,7 +47,7 @@ import reporting.*
 import Nullables.*
 import NullOpsDecorator.*
 import cc.{CheckCaptures, isRetainsLike}
-import qualified_types.{QualifiedType, QualifiedTypes}
+import qualified_types.{QualifiedTypes, QualifierContext}
 import config.Config
 import config.MigrationVersion
 import transform.CheckUnused.OriginalName
@@ -2286,8 +2286,9 @@ class Typer(@constructorOnly nestingLevel: Int = 0) extends Namer
 
     val pat1 = typedPattern(tree.pat, wideSelType)(using gadtCtx)
     caseRest(pat1)(
-      using Nullables.caseContext(sel, pat1)(
-        using gadtCtx.fresh.setNewScope))
+      using QualifierContext.caseContext(sel, pat1)(
+        using Nullables.caseContext(sel, pat1)(
+          using gadtCtx.fresh.setNewScope)))
   }
 
   def typedLabeled(tree: untpd.Labeled)(using Context): Labeled = {

@@ -886,6 +886,34 @@ trait TypedTreeInfo extends TreeInfo[Type] { self: Trees.Instance[Type] =>
         case _ => EmptyTree
     case _ => EmptyTree
 
+
+  object CaseClassApply:
+    def unapply(tree: Tree)(using Context): Option[(ClassSymbol, List[Tree])] =
+      tree match
+        case Apply(fun, args) =>
+          val funSym = funPart(fun).symbol
+          val objectSym = fun.symbol.owner.companionModule
+          val classSym = fun.symbol.owner.companionClass.asClass
+          if funSym.name == nme.apply && funSym.is(Flags.Synthetic) && classSym.is(Flags.Case) then
+            Some((classSym, args))
+          else
+            None
+        case _ => None
+
+  object CaseClassUnApply:
+    def unapply(tree: Tree)(using Context): Option[(ClassSymbol, List[Tree])] =
+      tree match
+        case UnApply(fun, Nil, args) =>
+          val funSym = funPart(fun).symbol
+          val objectSym = funSym.owner.companionModule
+          val classSym = funSym.owner.companionClass.asClass
+          if funSym.name == nme.unapply && funSym.is(Flags.Synthetic) && classSym.is(Flags.Case) then
+            Some((classSym, args))
+          else
+            None
+        case _ =>
+          None
+
   /** The variables defined by a pattern, in reverse order of their appearance. */
   def patVars(tree: Tree)(using Context): List[Symbol] = {
     val acc = new TreeAccumulator[List[Symbol]] { outer =>
