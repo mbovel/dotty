@@ -7,6 +7,7 @@ import dotty.tools.dotc.core.Decorators.i
 import dotty.tools.dotc.core.StdNames.nme
 import dotty.tools.dotc.core.Flags
 import dotty.tools.dotc.core.Types.{NamedType, TypeVar, Type, SingletonType, AppliedType, NoPrefix}
+import dotty.tools.dotc.config.Feature
 
 import QualifierTracing.trace
 
@@ -14,9 +15,9 @@ object QualifierContext:
   /** A key to be used in a context property that tracks the current qualifier context */
   private val key = new Property.Key[QualifierContext]
 
-  inline def caseContext(scrutinee: Tree, pattern: Tree)(using Context): Context =
+  def caseContext(scrutinee: Tree, pattern: Tree)(using Context): Context =
     val value = patternValue(pattern)
-    if value.isEmpty then
+    if !Feature.qualifiedTypesEnabled || value.isEmpty then
       ctx
     else
       val assumption = scrutinee.equal(value)

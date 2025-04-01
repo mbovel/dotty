@@ -29,6 +29,11 @@ private class QualifierNormalizer extends TreeMap:
       case Apply(method, _) =>
         method.symbol match
           case d.Int_+      => normalizeIntSum(tree)
+          case d.Int_-      =>
+            val (lhs, rhs) = tree match
+              case Apply(Select(lhs, _), List(rhs)) => (lhs, rhs)
+              case _ => throw new IllegalArgumentException("Unexpected tree passed to normalizeIntSum")
+            normalizeIntSum(lhs.select(d.Int_+).appliedTo(rhs.select(d.Int_*).appliedTo(Literal(Constant(-1)))))
           case d.Int_*      => normalizeIntProduct(tree)
           case d.Int_==     => normalizeEquality(tree)
           case d.Any_==     => normalizeEquality(tree)

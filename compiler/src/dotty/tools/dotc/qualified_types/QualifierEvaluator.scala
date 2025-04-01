@@ -28,6 +28,7 @@ import dotty.tools.dotc.ast.tpd.{
   Typed,
   UnApply,
   ValDef,
+  This,
   given
 }
 import dotty.tools.dotc.core.Atoms
@@ -78,13 +79,14 @@ private[qualified_types] object QualifierEvaluator:
 
   def isSimple(tree: Tree)(using Context): Boolean =
     tree match
-      case _: (Literal | Ident) => isIdempotentExpr(tree) && !tree.tpe.isRef(defn.UnitClass)
+      case _: (Literal | Ident) => /*isIdempotentExpr(tree) &&*/ !tree.tpe.isRef(defn.UnitClass)
       case Select(qual, _)      => isSimple(qual)
       case Apply(fn, args)      => isSimple(fn) && args.forall(isSimple)
       case TypeApply(fn, args)  => isSimple(fn)
       case SeqLiteral(elems, _) => elems.forall(isSimple)
       case Typed(expr, _)       => isSimple(expr)
       case Block(Nil, expr)     => isSimple(expr)
+      case This(_)            => true
       case _                    => false
 
 private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var unfoldCalls: Boolean = true)
@@ -246,6 +248,7 @@ private class QualifierEvaluator(var args: Map[Symbol, Tree] = Map.empty, var un
         println(i"Unfolded $tree as ${valDef.rhs}")
         return transform(valDef.rhs)
       case defDef: DefDef if unfoldCalls && isSimple(tree) =>
+        println(i"Unfold $tree as ${defDef.rhs}?")
         val argSyms = defDef.symbol.paramSymss.flatten
         val argTrees = allArguments(tree)
         if argSyms.length == argTrees.length then

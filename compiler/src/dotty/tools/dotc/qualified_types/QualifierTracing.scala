@@ -26,5 +26,5 @@ object QualifierTracing:
       res => removeLineBreaks(showOp(res))
     )(op)
 
-  def removeLineBreaks(s: String): String =
+  private def removeLineBreaks(s: String): String =
     s.replaceAll("""[\t ]*(\n[\t ]*)+""", " ")

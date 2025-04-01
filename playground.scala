@@ -18,7 +18,6 @@ def demo =
     case z2: y.type => f(z2)
     case _ => println("x")
 
-
   val v2: 42 = 42
   val v3: {it: Int with it == v2} = v2
   val v4: {it: Int with it == 42} = v3

@@ -12,7 +12,7 @@ import dotty.tools.dotc.core.Contexts.{ctx, Context}
 import dotty.tools.dotc.core.Decorators.{i, toTermName}
 import dotty.tools.dotc.core.StdNames.nme
 import dotty.tools.dotc.core.Symbols.{defn, Symbol}
-import dotty.tools.dotc.core.Types.{AndType, ConstantType, MethodType, OrType, Type, TypeProxy}
+import dotty.tools.dotc.core.Types.{AndType, ConstantType, MethodType, OrType, Type, TypeProxy, TermRef}
 import dotty.tools.dotc.qualified_types.QualifierTracing.trace
 import dotty.tools.dotc.transform.BetaReduce
 
@@ -28,12 +28,16 @@ object QualifiedTypes:
    *  additionally handle comparisons with [[SingletonType]]s.
    */
   def typeImplies(tp1: Type, qualifier2: Tree)(using Context): Boolean =
-    trace(i"typeImplies $tp1 $qualifier2"):
+    trace(i"typeImplies $tp1  -->  $qualifier2"):
       tp1 match
         case QualifiedType(parent1, qualifier1) =>
           QualifierSolver().implies(qualifier1, qualifier2)
-        case SingleAtom(tp1: ConstantType) =>
-          QualifierAlphaComparer().same(
+        case SingleAtom(tp1) =>
+          def tryUnderlying() = tp1 match
+            case tp1: TermRef =>
+              typeImplies(tp1.underlying, qualifier2)
+            case _ => false
+          tryUnderlying() || QualifierAlphaComparer().same(
             QualifierEvaluator.applyQualifierTo(qualifier2, tpd.singleton(tp1)),
             Literal(constTrue)
           )
@@ -54,12 +58,12 @@ object QualifiedTypes:
    *  Used by [[dotty.tools.dotc.core.Typer]].
    */
   def adapt(tree: Tree, pt: Type)(using Context): Tree =
-    if containsQualifier(pt) && QualifierEvaluator.isSimple(tree) then
-      trace(i"adapt $tree to $pt"):
+    trace(i"adapt $tree to $pt"):
+      if containsQualifier(pt) && QualifierEvaluator.isSimple(tree) then
         val selfifiedTp = QualifiedType(tree.tpe, selfify(tree))
         if selfifiedTp <:< pt then tree.withType(selfifiedTp) else EmptyTree
-    else
-      EmptyTree
+      else
+        EmptyTree
 
   private def containsQualifier(tp: Type)(using Context): Boolean =
     tp match

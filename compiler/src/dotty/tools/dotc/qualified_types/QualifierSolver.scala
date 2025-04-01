@@ -61,9 +61,9 @@ class QualifierSolver(using Context):
 
     impliesLeaf(
       QualifierEvaluator.evaluate(tree1),
-      QualifierEvaluator.evaluate(tree2, tree2ArgSym, Ident(tree1ArgSym.termRef)),
+      if tree1ArgSym == tree2ArgSym then QualifierEvaluator.evaluate(tree2)
+      else QualifierEvaluator.evaluate(tree2, tree2ArgSym, Ident(tree1ArgSym.termRef))
     )
-
 
   private def impliesLeaf(tree1: Tree, tree2: Tree): Boolean =
     trace(i"impliesLeaf $tree1 -> $tree2"):
