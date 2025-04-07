@@ -9,6 +9,7 @@ object SimpleExprs:
   /*
   private enum SimpleExpr:
     case Atom(tp: SingletonType)
+    case Var(index: Int)
     case TypeApply(fun: Tree, args: List[Type])
     case Apply(fun: Tree, args: List[SimpleExpr])
     case Select(qualifier: SimpleExpr, name: Name, signature: Signature)
