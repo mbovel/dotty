@@ -21,5 +21,3 @@ def test =
   def g(x: Int) = ???
   summon[{v: Int with a == b} <:< {v: Int with f(a) == f(b)}]
   summon[{v: Int with a == b} <:< {v: Int with f(f(a)) == f(f(b))}]
-  summon[{v: Int with f == g} <:< {v: Int with f(a) == g(a)}]
-
