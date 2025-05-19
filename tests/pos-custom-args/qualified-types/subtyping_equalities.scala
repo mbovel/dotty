@@ -1,4 +1,9 @@
-def test =
+def f(x: Int): Int = ???
+def g(x: Int): Int = ???
+def f2(x: Int, y: Int): Int = ???
+def g2(x: Int, y: Int): Int = ???
+
+def test: Unit =
   val a: Int = ???
   val b: Int = ???
   val c: Int = ???
@@ -17,7 +22,10 @@ def test =
   summon[{v: Int with a == b && c == d && b == d} <:< {v: Int with a == c}]
 
   // Equality is congruent over functions
-  def f(x: Int) = ???
-  def g(x: Int) = ???
   summon[{v: Int with a == b} <:< {v: Int with f(a) == f(b)}]
   summon[{v: Int with a == b} <:< {v: Int with f(f(a)) == f(f(b))}]
+  summon[{v: Int with c == f(a) && d == f(b) && a == b} <:< {v: Int with c == d}]
+  // the two first equalities in the premises are just used to test the behavior
+  // of the e-graph when `f(a)` and `f(b)` are inserted before `a == b`.
+  summon[{v: Int with c == f(a) && d == f(b) && a == b} <:< {v: Int with f(a) == f(b)}]
+  summon[{v: Int with c == f(a) && d == f(b) && a == b} <:< {v: Int with f(f(a)) == f(f(b))}]

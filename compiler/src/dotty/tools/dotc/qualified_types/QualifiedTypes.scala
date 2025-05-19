@@ -1,14 +1,31 @@
 package dotty.tools.dotc.qualified_types
 
 import dotty.tools.dotc.ast.tpd
-import dotty.tools.dotc.ast.tpd.{Apply, Block, EmptyTree, Ident, Lambda, Literal, Select, Tree,  This, TypeApply, Typed, SeqLiteral, given}
+import dotty.tools.dotc.ast.tpd.{
+  Apply,
+  Block,
+  EmptyTree,
+  Ident,
+  If,
+  Lambda,
+  Literal,
+  New,
+  Select,
+  SeqLiteral,
+  This,
+  Throw,
+  Tree,
+  TypeApply,
+  Typed,
+  given
+}
 import dotty.tools.dotc.core.Atoms
 import dotty.tools.dotc.core.Constants.Constant
 import dotty.tools.dotc.core.Contexts.{ctx, Context}
 import dotty.tools.dotc.core.Decorators.{i, toTermName}
 import dotty.tools.dotc.core.StdNames.nme
 import dotty.tools.dotc.core.Symbols.{defn, Symbol}
-import dotty.tools.dotc.core.Types.{AndType, ConstantType, MethodType, OrType, Type, TypeProxy, TermRef}
+import dotty.tools.dotc.core.Types.{AndType, ConstantType, MethodType, OrType, TermRef, Type, TypeProxy}
 import dotty.tools.dotc.qualified_types.QualifierTracing.trace
 import dotty.tools.dotc.transform.BetaReduce
 
@@ -39,7 +56,7 @@ object QualifiedTypes:
         typeImpliesImpl(tp11, qualifier2) && typeImpliesImpl(tp12, qualifier2)
       case _ =>
         false
-        //QualifierSolver().implies(truePredicate(), qualifier2)
+        // QualifierSolver().implies(truePredicate(), qualifier2)
 
   /** Try to adapt the tree to the given type `pt`
    *
@@ -50,9 +67,18 @@ object QualifiedTypes:
    */
   def adapt(tree: Tree, pt: Type)(using Context): Tree =
     trace(i"adapt $tree to $pt"):
-      if containsQualifier(pt) && isSimple(tree) then
-        val selfifiedTp = QualifiedType(tree.tpe, equalToPredicate(tree))
-        if selfifiedTp <:< pt then tree.withType(selfifiedTp) else EmptyTree
+      if containsQualifier(pt) then
+        if tree.tpe.hasAnnotation(defn.RuntimeCheckedAnnot) then
+          tpd.evalOnce(tree): e =>
+            If(
+              e.isInstance(pt),
+              e.asInstance(pt),
+              Throw(New(defn.IllegalArgumentExceptionType, List()))
+            )
+        else if isSimple(tree) then
+          val selfifiedTp = QualifiedType(tree.tpe, equalToPredicate(tree))
+          if selfifiedTp <:< pt then tree.cast(selfifiedTp) else EmptyTree
+        else EmptyTree
       else
         EmptyTree
 

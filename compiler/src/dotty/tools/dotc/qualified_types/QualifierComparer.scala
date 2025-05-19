@@ -90,10 +90,11 @@ private[qualified_types] object QualifierStructuralComparer extends QualifierCom
 
 private[qualified_types] final class QualifierAlphaComparer(using Context) extends QualifierComparer:
   override def iso(tree1: Tree, tree2: Tree): Boolean =
-    (tree1, tree2) match
-      case (closureDef(def1), closureDef(def2)) =>
-        val def2substituted = def2.rhs.subst(def2.symbol.paramSymss.flatten, def1.symbol.paramSymss.flatten)
-        val def2normalized = QualifierNormalizer.normalize(def2substituted)
-        iso(def1.rhs, def2normalized)
-      case _ =>
-        super.iso(tree1, tree2)
+    trace(i"iso $tree1 $tree2"):
+      (tree1, tree2) match
+        case (closureDef(def1), closureDef(def2)) =>
+          val def2substituted = def2.rhs.subst(def2.symbol.paramSymss.flatten, def1.symbol.paramSymss.flatten)
+          val def2normalized = QualifierNormalizer.normalize(def2substituted)
+          iso(def1.rhs, def2normalized)
+        case _ =>
+          super.iso(tree1, tree2)

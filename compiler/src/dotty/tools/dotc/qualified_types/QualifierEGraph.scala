@@ -5,6 +5,7 @@ import dotty.tools.dotc.transform.TreeExtractors.{BinaryOp}
 import dotty.tools.dotc.core.Constants.Constant
 import dotty.tools.dotc.core.Contexts.Context
 import dotty.tools.dotc.core.Decorators.i
+import dotty.tools.dotc.core.Names.Designator
 import dotty.tools.dotc.core.StdNames.nme
 import dotty.tools.dotc.core.Symbols.{defn,Symbol, NoSymbol}
 import dotty.tools.dotc.core.Types.{SingletonType, TermRef, ConstantType, Type, NoPrefix}
@@ -12,32 +13,37 @@ import dotty.tools.dotc.util.Spans.Span
 
 import scala.collection.mutable
 
+private enum ENode:
+  case Const(value: Constant)
+  case Ref(tp: TermRef)
+  case Object(clazz: Symbol, args: List[ENode])
+  case Select(qual: ENode, member: Symbol)
+  case App(fn: ENode, args: List[ENode])
+  case TypeApp(fn: ENode, args: List[Type])
+
+  override def toString(): String =
+    this match
+      case Const(value) => value.toString
+      case Ref(tp) => termRefToString(tp)
+      case Object(clazz, args) => s"#$clazz(${args.mkString(", ")})"
+      case Select(qual, member) => s"$qual..$member"
+      case App(fn, args) => s"$fn(${args.mkString(", ")})"
+      case TypeApp(fn, args) => s"$fn[${args.mkString(", ")}]"
+
+  private def designatorToString(d: Designator): String =
+    d match
+      case d: Symbol => d.lastKnownDenotation.name.toString
+      case _ => d.toString
+
+  private def termRefToString(tp: Type): String =
+    tp match
+      case tp: TermRef =>
+        val pre =  if tp.prefix == NoPrefix then "" else termRefToString(tp.prefix) + "."
+        pre + designatorToString(tp.designator)
+      case _ =>
+        tp.toString
+
 final class QualifierEGraph:
-  private enum ENode:
-    case Const(value: Constant)
-    case Ref(tp: TermRef)
-    case Object(clazz: Symbol, args: List[ENode])
-    case Select(qual: ENode, member: Symbol)
-    case App(fn: ENode, args: List[ENode])
-    case TypeApp(fn: ENode, args: List[Type])
-
-    override def toString(): String =
-      this match
-        case Const(value) => value.toString
-        case Ref(tp) =>
-          def termRefToString(tp: Type): String =
-            tp match
-              case tp: TermRef =>
-                if tp.prefix == NoPrefix then tp.designator.toString
-                else termRefToString(tp.prefix) + " . " + tp.designator
-              case _ =>
-                tp.toString
-          s"Ref(${termRefToString(tp)})"
-        case Object(clazz, args) => s"Object($clazz, $args)"
-        case Select(qual, member) => s"$qual.$member"
-        case App(fn, args) => s"$fn($args)"
-        case TypeApp(fn, args) => s"$fn[$args]"
-
   private val represententOf = mutable.Map.empty[ENode, ENode]
 
   private def representent(node: ENode): ENode =
@@ -51,7 +57,7 @@ final class QualifierEGraph:
   private val usedBy = mutable.Map.empty[ENode, mutable.Set[ENode]]
 
   private def uses(node: ENode): mutable.Set[ENode] =
-    usedBy.getOrElse(node, mutable.Set.empty)
+    usedBy.getOrElseUpdate(node, mutable.Set.empty)
 
   /** Map used for hash-consing nodes, keys and values are the same */
   private val index = mutable.Map.empty[ENode, ENode]
@@ -84,7 +90,7 @@ final class QualifierEGraph:
   private val toNodeCache = mutable.WeakHashMap.empty[Tree, Option[ENode]]
 
   private def toNode(tree: Tree)(using Context): Option[ENode] =
-    toNodeCache.getOrElseUpdate(tree, computeToNode(tree).map(unique))
+    toNodeCache.getOrElseUpdate(tree, computeToNode(tree).map(n => representent(unique(n))))
 
   private def computeToNode(tree: Tree)(using Context): Option[ENode] =
     tree match
@@ -183,12 +189,13 @@ final class QualifierEGraph:
     val (newRepr, oldRepr) = order(aRepr, bRepr)
     represententOf(oldRepr) = newRepr
     uses(newRepr) ++= uses(oldRepr)
+    val oldUses = uses(oldRepr)
     usedBy.remove(oldRepr)
 
     // Enqueue all nodes that use the oldRepr for repair
-    worklist.enqueueAll(uses(oldRepr))
+    worklist.enqueueAll(oldUses)
 
-  private def repair(): Unit =
+  def repair(): Unit =
     while !worklist.isEmpty do
       val head = worklist.dequeue()
       val headRepr = representent(head)

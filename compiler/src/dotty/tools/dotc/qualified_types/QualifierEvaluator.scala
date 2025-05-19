@@ -6,6 +6,7 @@ import dotty.tools.dotc.ast.tpd.{
   Apply,
   Block,
   ConstantTree,
+  isIdempotentExpr,
   EmptyTree,
   Literal,
   Match,
@@ -89,8 +90,7 @@ private class QualifierEvaluator(args: Map[Symbol, Tree]) extends TreeMap:
       case None => ()
 
     tree.symbol.defTree match
-      case valDef: ValDef if !valDef.symbol.is(Flags.Lazy) && QualifiedTypes.isSimple(valDef.rhs) =>
-        // TODO: also check purity.
+      case valDef: ValDef if !valDef.symbol.is(Flags.Lazy) && QualifiedTypes.isSimple(valDef.rhs) && isIdempotentExpr(valDef.rhs) =>
         transform(valDef.rhs)
       case _ =>
         tree

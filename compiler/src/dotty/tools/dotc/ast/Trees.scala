@@ -1654,6 +1654,7 @@ object Trees {
         paramss.mapConserve(transformParams)
 
       protected def transformMoreCases(tree: Tree)(using Context): Tree = {
+        println(s"TreeMap.transformMoreCases: ${tree.getClass} not handled")
         assert(ctx.reporter.errorsReported)
         tree
       }
