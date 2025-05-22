@@ -22,12 +22,13 @@ import dotty.tools.dotc.ast.tpd.{
 import dotty.tools.dotc.core.Atoms
 import dotty.tools.dotc.core.Constants.Constant
 import dotty.tools.dotc.core.Contexts.{ctx, Context}
-import dotty.tools.dotc.core.Decorators.{i, toTermName}
+import dotty.tools.dotc.core.Decorators.{i, em, toTermName}
 import dotty.tools.dotc.core.StdNames.nme
 import dotty.tools.dotc.core.Symbols.{defn, Symbol}
-import dotty.tools.dotc.core.Types.{AndType, ConstantType, MethodType, OrType, TermRef, Type, TypeProxy}
+import dotty.tools.dotc.core.Types.{AndType, ConstantType, SkolemType, ErrorType, MethodType, OrType, TermRef, Type, TypeProxy}
 import dotty.tools.dotc.qualified_types.QualifierTracing.trace
 import dotty.tools.dotc.transform.BetaReduce
+import dotty.tools.dotc.report
 
 object QualifiedTypes:
   /** Does the type `tp1` imply the qualifier `qualifier2`?
@@ -69,12 +70,15 @@ object QualifiedTypes:
     trace(i"adapt $tree to $pt"):
       if containsQualifier(pt) then
         if tree.tpe.hasAnnotation(defn.RuntimeCheckedAnnot) then
-          tpd.evalOnce(tree): e =>
-            If(
-              e.isInstance(pt),
-              e.asInstance(pt),
-              Throw(New(defn.IllegalArgumentExceptionType, List()))
-            )
+          if checkContainsSkolem(pt) then
+            tpd.evalOnce(tree): e =>
+              If(
+                e.isInstance(pt),
+                e.asInstance(pt),
+                Throw(New(defn.IllegalArgumentExceptionType, List()))
+              )
+          else
+            tree.withType(ErrorType(em""))
         else if isSimple(tree) then
           val selfifiedTp = QualifiedType(tree.tpe, equalToPredicate(tree))
           if selfifiedTp <:< pt then tree.cast(selfifiedTp) else EmptyTree
@@ -94,13 +98,26 @@ object QualifiedTypes:
       case This(_)              => true
       case _                    => false
 
-  private def containsQualifier(tp: Type)(using Context): Boolean =
+  def containsQualifier(tp: Type)(using Context): Boolean =
     tp match
       case QualifiedType(_, _) => true
       case tp: TypeProxy       => containsQualifier(tp.underlying)
       case AndType(tp1, tp2)   => containsQualifier(tp1) || containsQualifier(tp2)
       case OrType(tp1, tp2)    => containsQualifier(tp1) || containsQualifier(tp2)
       case _                   => false
+
+  def checkContainsSkolem(tp: Type)(using Context): Boolean =
+    var res = true
+    tp.foreachPart:
+      case QualifiedType(_, qualifier) =>
+        qualifier.foreachSubTree: subTree =>
+          subTree.tpe.foreachPart:
+            case tp: SkolemType =>
+              report.error(em"The qualified type $qualifier cannot be checked at runtime", qualifier.srcPos)
+              res = false
+            case _ => ()
+      case _ => ()
+    res
 
   private def equalToPredicate(tree: Tree)(using Context): Tree =
     Lambda(
