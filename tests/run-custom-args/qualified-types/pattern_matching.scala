@@ -7,6 +7,15 @@ def id[T](x: T): T =
   println("call id")
   x
 
+def rec(x: NonEmptyString): List[Char] =
+  val rest =
+    x.tail match
+      case xs: NonEmptyString => rec(xs)
+      case _ => Nil
+
+  x.head :: rest
+
+
 @main
 def Test =
   for v <- List[Any](-1, 1, 2, "", "Do it please", "do it already", false, null) do

@@ -21,6 +21,9 @@ def test: Unit =
   summon[{v: Int with a == b && c == d && b == d} <:< {v: Int with b == d}]
   summon[{v: Int with a == b && c == d && b == d} <:< {v: Int with a == c}]
 
+
+  // Check purity of functions? Not needed, but need to check for beta reduction.
+
   // Equality is congruent over functions
   summon[{v: Int with a == b} <:< {v: Int with f(a) == f(b)}]
   summon[{v: Int with a == b} <:< {v: Int with f(f(a)) == f(f(b))}]

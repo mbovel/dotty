@@ -1733,6 +1733,13 @@ object Parsers {
           functionRest(t :: Nil)
         case MATCH =>
           matchType(t)
+        case WITH if in.featureEnabled(Feature.qualifiedTypes) =>
+          if inQualifiedType then
+            t
+          else
+            in.nextToken()
+            val qualifier = postfixExpr()
+            QualifiedTypeTree(t, None, qualifier).withSpan(Span(t.span.start, qualifier.span.end))
         case FORSOME =>
           syntaxError(ExistentialTypesNoLongerSupported())
           t
@@ -1902,6 +1909,7 @@ object Parsers {
       if in.token == LPAREN then funParamClause() :: funParamClauses() else Nil
 
     /** InfixType ::= RefinedType {id [nl] RefinedType}
+     *             |  TODO RefinedType with ...
      *             |  RefinedType `^`   // under capture checking
      */
     def infixType(inContextBound: Boolean = false): Tree = infixTypeRest(inContextBound)(refinedType())
@@ -1958,13 +1966,7 @@ object Parsers {
     def withType(): Tree = withTypeRest(annotType())
 
     def withTypeRest(t: Tree): Tree =
-      if in.featureEnabled(Feature.qualifiedTypes) && in.token == WITH then
-        if inQualifiedType then t
-        else
-          in.nextToken()
-          val qualifier = postfixExpr()
-          QualifiedTypeTree(t, None, qualifier).withSpan(Span(t.span.start, qualifier.span.end))
-      else if in.token == WITH then
+      if in.token == WITH && !in.featureEnabled(Feature.qualifiedTypes) then
         val withOffset = in.offset
         in.nextToken()
         if in.token == LBRACE || in.token == INDENT then

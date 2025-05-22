@@ -27,7 +27,7 @@ import dotty.tools.dotc.core.StdNames.nme
 import dotty.tools.dotc.core.Symbols.{defn, Symbol}
 import dotty.tools.dotc.core.Types.{AndType, ConstantType, SkolemType, ErrorType, MethodType, OrType, TermRef, Type, TypeProxy}
 import dotty.tools.dotc.qualified_types.QualifierTracing.trace
-import dotty.tools.dotc.transform.BetaReduce
+
 import dotty.tools.dotc.report
 
 object QualifiedTypes:

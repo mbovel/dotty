@@ -6,3 +6,6 @@ def test: Unit =
   summon[1 <:< {v: Int with v > 0}]
   summon[1 <:< Pos]
   summon[x.type <:< {v: Int with v == x}]
+
+  // TODO: check the following:
+  // summon[x.type <:< {v: Int with v == 1}]

@@ -2,6 +2,9 @@ def f(x: Int): Int = ???
 case class IntBox(x: Int)
 case class Box[T](x: T)
 
+
+def f(x: Int, y: Int): {r: Int with r == x + y} = x + y
+
 def test: Unit =
   val x: Int = ???
   def g(x: Int): Int = ???
