@@ -8,11 +8,13 @@ import dotty.tools.dotc.core.Decorators.i
 import dotty.tools.dotc.core.Symbols.{defn, Symbol}
 import dotty.tools.dotc.core.Types.{ConstantType, TermRef}
 import dotty.tools.dotc.config.Printers
-import QualifierTracing.trace
+
+import dotty.tools.dotc.reporting.trace
+import dotty.tools.dotc.config.Printers
 
 private[qualified_types] object QualifierNormalizer:
   def normalize(tree: Tree)(using Context): Tree =
-    trace(i"normalize $tree"):
+    trace(i"normalize $tree", Printers.qualifiedTypes):
       QualifierNormalizer().transform(tree)
 
 /** A [[TreeMap]] that normalizes trees by applying algebraic simplifications

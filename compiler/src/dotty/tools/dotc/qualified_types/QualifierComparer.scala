@@ -8,7 +8,9 @@ import dotty.tools.dotc.core.Decorators.i
 import dotty.tools.dotc.core.Symbols.Symbol
 import dotty.tools.dotc.core.Types.{MethodType, TermRef, Type, TypeVar}
 import dotty.tools.dotc.core.Symbols.defn
-import dotty.tools.dotc.qualified_types.QualifierTracing.trace
+
+import dotty.tools.dotc.reporting.trace
+import dotty.tools.dotc.config.Printers
 
 private abstract class QualifierComparer:
   private def typeIso(tp1: Type, tp2: Type) =

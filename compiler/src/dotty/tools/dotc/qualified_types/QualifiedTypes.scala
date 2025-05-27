@@ -26,9 +26,10 @@ import dotty.tools.dotc.core.Decorators.{i, em, toTermName}
 import dotty.tools.dotc.core.StdNames.nme
 import dotty.tools.dotc.core.Symbols.{defn, Symbol}
 import dotty.tools.dotc.core.Types.{AndType, ConstantType, SkolemType, ErrorType, MethodType, OrType, TermRef, Type, TypeProxy}
-import dotty.tools.dotc.qualified_types.QualifierTracing.trace
 
 import dotty.tools.dotc.report
+import dotty.tools.dotc.reporting.trace
+import dotty.tools.dotc.config.Printers
 
 object QualifiedTypes:
   /** Does the type `tp1` imply the qualifier `qualifier2`?
@@ -39,25 +40,22 @@ object QualifiedTypes:
    *  additionally handle comparisons with [[SingletonType]]s.
    */
   def typeImplies(tp1: Type, qualifier2: Tree)(using Context): Boolean =
-    trace(i"typeImplies $tp1  -->  $qualifier2"):
-      typeImpliesImpl(tp1, qualifier2)
-
-  private def typeImpliesImpl(tp1: Type, qualifier2: Tree)(using Context): Boolean =
-    tp1 match
-      case QualifiedType(parent1, qualifier1) =>
-        QualifierSolver().implies(qualifier1, qualifier2)
-      case tp1: (ConstantType | TermRef) =>
-        QualifierSolver().implies(equalToPredicate(tpd.singleton(tp1)), qualifier2)
-        || typeImpliesImpl(tp1.underlying, qualifier2)
-      case tp1: TypeProxy =>
-        typeImpliesImpl(tp1.underlying, qualifier2)
-      case AndType(tp11, tp12) =>
-        typeImpliesImpl(tp11, qualifier2) || typeImpliesImpl(tp12, qualifier2)
-      case OrType(tp11, tp12) =>
-        typeImpliesImpl(tp11, qualifier2) && typeImpliesImpl(tp12, qualifier2)
-      case _ =>
-        false
-        // QualifierSolver().implies(truePredicate(), qualifier2)
+    trace(i"typeImplies $tp1  -->  $qualifier2", Printers.qualifiedTypes):
+      tp1 match
+        case QualifiedType(parent1, qualifier1) =>
+          QualifierSolver().implies(qualifier1, qualifier2)
+        case tp1: (ConstantType | TermRef) =>
+          QualifierSolver().implies(equalToPredicate(tpd.singleton(tp1)), qualifier2)
+          || typeImplies(tp1.underlying, qualifier2)
+        case tp1: TypeProxy =>
+          typeImplies(tp1.underlying, qualifier2)
+        case AndType(tp11, tp12) =>
+          typeImplies(tp11, qualifier2) || typeImplies(tp12, qualifier2)
+        case OrType(tp11, tp12) =>
+          typeImplies(tp11, qualifier2) && typeImplies(tp12, qualifier2)
+        case _ =>
+          false
+          // QualifierSolver().implies(truePredicate(), qualifier2)
 
   /** Try to adapt the tree to the given type `pt`
    *
@@ -67,7 +65,7 @@ object QualifiedTypes:
    *  Used by [[dotty.tools.dotc.core.Typer]].
    */
   def adapt(tree: Tree, pt: Type)(using Context): Tree =
-    trace(i"adapt $tree to $pt"):
+    trace(i"adapt $tree to $pt", Printers.qualifiedTypes):
       if containsQualifier(pt) then
         if tree.tpe.hasAnnotation(defn.RuntimeCheckedAnnot) then
           if checkContainsSkolem(pt) then

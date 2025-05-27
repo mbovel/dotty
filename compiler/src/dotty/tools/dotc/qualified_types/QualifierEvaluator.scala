@@ -31,7 +31,9 @@ import dotty.tools.dotc.transform.TreeExtractors.BinaryOp
 import dotty.tools.dotc.transform.patmat.{Empty as EmptySpace, SpaceEngine}
 import dotty.tools.dotc.typer.Typer
 
-import QualifierTracing.trace
+
+import dotty.tools.dotc.reporting.trace
+import dotty.tools.dotc.config.Printers
 
 private[qualified_types] object QualifierEvaluator:
   /** Reduces a tree by constant folding, simplification and unfolding of simple
@@ -43,7 +45,7 @@ private[qualified_types] object QualifierEvaluator:
    *  non-constant expressions.
    */
   def evaluate(tree: Tree, args: Map[Symbol, Tree] = Map.empty)(using Context): Tree =
-    trace(i"evaluate $tree"):
+    trace(i"evaluate $tree", Printers.qualifiedTypes):
       QualifierEvaluator(args).transform(tree)
 
 private class QualifierEvaluator(args: Map[Symbol, Tree]) extends TreeMap:

@@ -9,7 +9,9 @@ import dotty.tools.dotc.core.Decorators.i
 import dotty.tools.dotc.core.Symbols.{defn, NoSymbol, Symbol}
 import dotty.tools.dotc.core.Types.{TermRef}
 import dotty.tools.dotc.transform.BetaReduce
-import QualifierTracing.trace
+
+import dotty.tools.dotc.reporting.trace
+import dotty.tools.dotc.config.Printers
 
 class QualifierSolver(using Context):
   private val litTrue = Literal(Constant(true))
@@ -18,7 +20,7 @@ class QualifierSolver(using Context):
   val d = defn // Need a stable path to match on `defn` members
 
   def implies(tree1: Tree, tree2: Tree) =
-    trace(i"implies $tree1 -> $tree2"):
+    trace.force(i"implies $tree1 -> $tree2", Printers.qualifiedTypes):
       (tree1, tree2) match
         case (closureDef(defDef1), closureDef(defDef2)) =>
           val tree1ArgSym = defDef1.symbol.paramSymss.head.head
@@ -108,7 +110,7 @@ class QualifierSolver(using Context):
     QualifierAlphaComparer().iso(tree1Normalized, tree2Normalized)
 
   private def topLevelEqualities(tree: Tree): List[(Tree, Tree)] =
-    trace(i"topLevelEqualities $tree"):
+    trace(i"topLevelEqualities $tree", Printers.qualifiedTypes):
       topLevelEqualitiesImpl(tree)
 
   private def topLevelEqualitiesImpl(tree: Tree): List[(Tree, Tree)] =
@@ -123,7 +125,7 @@ class QualifierSolver(using Context):
         Nil
 
   private def rewriteEquivalences(tree1: Tree, tree2: Tree, eqs: List[(Tree, Tree)]): (Tree, Tree) =
-    trace(i"rewriteEquivalences $tree1, $tree2, $eqs"):
+    trace(i"rewriteEquivalences $tree1, $tree2, $eqs", Printers.qualifiedTypes):
       val egraph = QualifierEGraph()
       for (lhs, rhs) <- eqs do
         egraph.union(lhs, rhs)

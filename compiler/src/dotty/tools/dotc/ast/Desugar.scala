@@ -214,7 +214,9 @@ object desugar {
   def valDef(vdef0: ValDef)(using Context): Tree =
     val vdef @ ValDef(_, tpt, rhs) = vdef0
     val valName = normalizeName(vdef, tpt).asTermName
-    val tpt1 = DesugarQualifiedTypesMap(valName).transform(tpt)
+    val tpt1 =
+      if Feature.qualifiedTypesEnabled then DesugarQualifiedTypesMap(valName).transform(tpt)
+      else tpt
     var mods1 = vdef.mods
 
     val vdef1 = cpy.ValDef(vdef)(name = valName, tpt = tpt1).withMods(mods1)
@@ -233,6 +235,14 @@ object desugar {
       Thicket(vdef1, setter)
     else vdef1
   end valDef
+
+  def caseDef(cdef: CaseDef)(using Context): CaseDef =
+    if Feature.qualifiedTypesEnabled then
+      val CaseDef(pat, guard, body) = cdef
+      val pat1 = DesugarQualifiedTypesInPatternMap().transform(pat)
+      cpy.CaseDef(cdef)(pat1, guard, body)
+    else
+      cdef
 
   def mapParamss(paramss: List[ParamClause])
                 (mapTypeParam: TypeDef => TypeDef)
@@ -2476,6 +2486,14 @@ object desugar {
           cpy.TypeApply(tree)(transform(fn), args)
         case AppliedTypeTree(fn, args) =>
           cpy.AppliedTypeTree(tree)(transform(fn), args)
+        case _ =>
+          super.transform(tree)
+
+  private class DesugarQualifiedTypesInPatternMap extends UntypedTreeMap:
+    override def transform(tree: Tree)(using Context): Tree =
+      tree match
+        case Typed(ident @ Ident(name: TermName), tpt) =>
+          cpy.Typed(tree)(ident, DesugarQualifiedTypesMap(name).transform(tpt))
         case _ =>
           super.transform(tree)
 
