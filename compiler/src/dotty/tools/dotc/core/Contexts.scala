@@ -148,6 +148,7 @@ object Contexts {
     def gadt: GadtConstraint = gadtState.gadt
     def gadtState: GadtState
     def searchHistory: SearchHistory
+    def matchHistory: MatchHistory
     def source: SourceFile
 
     /** A map in which more contextual properties can be stored
@@ -599,6 +600,9 @@ object Contexts {
     private var _searchHistory: SearchHistory = uninitialized
     final def searchHistory: SearchHistory = _searchHistory
 
+    private var _matchHistory: MatchHistory = uninitialized
+    final def matchHistory: MatchHistory = _matchHistory
+
     private var _source: SourceFile = uninitialized
     final def source: SourceFile = _source
 
@@ -621,6 +625,7 @@ object Contexts {
       _scope = origin.scope
       _gadtState = origin.gadtState
       _searchHistory = origin.searchHistory
+      _matchHistory = origin.matchHistory
       _source = origin.source
       _moreProperties = origin.moreProperties
       _store = origin.store
@@ -686,6 +691,11 @@ object Contexts {
     def setSearchHistory(searchHistory: SearchHistory): this.type =
       util.Stats.record("Context.setSearchHistory")
       this._searchHistory = searchHistory
+      this
+
+    def setMatchHistory(matchHistory: MatchHistory): this.type =
+      util.Stats.record("Context.setMatchHistory")
+      this._matchHistory = matchHistory
       this
 
     def setSource(source: SourceFile): this.type =
@@ -776,6 +786,7 @@ object Contexts {
           .updated(compilationUnitLoc, NoCompilationUnit)
           .updated(profilerLoc, Profiler.NoOp)
       c._searchHistory = new SearchRoot
+      c._matchHistory = -1
       c._gadtState = GadtState(GadtConstraint.empty)
       c
   end FreshContext

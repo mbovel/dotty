@@ -5324,6 +5324,14 @@ object Types extends TypeUtils {
         if !isUpToDate then setReductionContext()
         !isUpToDate
 
+      def nestedContext(): Context =
+        if ctx.matchHistory == -1 then ctx.fresh.setMatchHistory(10)
+        else ctx.fresh.setMatchHistory(ctx.matchHistory - 1)
+
+      println(ctx.matchHistory)
+      if ctx.matchHistory == 0 then
+        throw TypeError(em"exceeded maximum recursion depth when reducing match type $this")
+
       record("MatchType.reduce called")
       if !Config.cacheMatchReduced
           || myReduced == null
@@ -5336,6 +5344,7 @@ object Types extends TypeUtils {
         try
           myReduced = trace(i"reduce match type $this $hashCode", matchTypes, show = true):
             withMode(Mode.Type):
+              given Context = nestedContext()
               TypeComparer.reduceMatchWith: cmp =>
                 cmp.matchCases(scrutinee.normalized, cases.map(MatchTypeCaseSpec.analyze))
         catch case ex: Throwable =>
