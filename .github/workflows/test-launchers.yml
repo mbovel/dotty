@@ -1,7 +1,5 @@
 name: Test CLI Launchers on all the platforms
-on:
-  pull_request:
-  workflow_dispatch:
+on: [workflow_dispatch] # Disabled on fork
 
 jobs:
   linux-x86_64:

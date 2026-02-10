@@ -1,9 +1,6 @@
 name: Add to backporting project
 
-on:
-  push:
-    branches:
-      - main
+on: [workflow_dispatch] # Disabled on fork
 
 jobs:
   add-to-backporting-project:

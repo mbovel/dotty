@@ -1,10 +1,7 @@
 name: Nightly Release of Scala 3
 run-name: Nightly Release of Scala 3 (${{ github.sha }})
 
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 3 * * *'  # Every day at 3 AM
+on: [workflow_dispatch] # Disabled on fork
 
 jobs:
   stdlib-tests:

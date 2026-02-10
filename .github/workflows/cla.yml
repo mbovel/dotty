@@ -1,8 +1,6 @@
 name: Scala CLA
-on:
-  pull_request:
-    branches-ignore:
-      - 'language-reference-stable'
+on: [workflow_dispatch] # Disabled on fork
+
 jobs:
   check:
     runs-on: ubuntu-latest

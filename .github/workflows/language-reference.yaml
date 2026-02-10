@@ -1,13 +1,6 @@
 name: Language reference documentation
 
-on:
-  push:
-    branches:
-      - 'language-reference-stable'
-  pull_request:
-    branches:
-      - 'language-reference-stable'
-  workflow_dispatch:
+on: [workflow_dispatch] # Disabled on fork
 
 permissions:
   contents: read

@@ -1,8 +1,6 @@
 name: Update Dependency Graph
-on:
-  push:
-    branches:
-      - main # default branch of the project
+on: [workflow_dispatch] # Disabled on fork
+
 jobs:
   dependency-graph:
     name: Update Dependency Graph

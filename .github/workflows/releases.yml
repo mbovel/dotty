@@ -12,13 +12,7 @@
 name: Official release of Scala
 run-name: Official release of Scala ${{ inputs.version }}
 
-on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'The version to officially release'
-        required: true
-        type: string
+on: [workflow_dispatch] # Disabled on fork
 
 jobs:
   # TODO: ADD JOB TO SWITCH THE GITHUB RELEASE FROM DRAFT TO LATEST
