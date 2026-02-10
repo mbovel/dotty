@@ -1,0 +1,33 @@
+name: LARA Release to GitHub Packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      NEWNIGHTLY: "yes"
+      NIGHTLYBUILD: "yes"
+      MAVEN_REPOSITORY_URL: https://maven.pkg.github.com/epfl-lara/dotty
+      MAVEN_REPOSITORY_REALM: GitHub Package Registry
+      MAVEN_REPOSITORY_HOST: maven.pkg.github.com
+      MAVEN_REPOSITORY_USER: ${{ github.actor }}
+      MAVEN_REPOSITORY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'adopt'
+          java-version: 17
+          cache: 'sbt'
+      - uses: sbt/setup-sbt@v1
+      - name: Get version string
+        run: |
+          ver=$(./project/scripts/sbt "print scala3-compiler-bootstrapped/version" | tail -n1)
+          echo "Publishing version: $ver"
+      - name: Publish to GitHub Packages
+        run: sbt scala3-bootstrapped/publish
