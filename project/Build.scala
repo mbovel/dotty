@@ -154,7 +154,7 @@ object Build {
   }
 
   val homepageUrl = "https://scala-lang.org/"
-  val dottyOrganization = "org.scala-lang"
+  val dottyOrganization = "ch.epfl.lara"
   val dottyGithubUrl = "https://github.com/scala/scala3"
   val dottyGithubRawUserContentUrl = "https://raw.githubusercontent.com/scala/scala3"
 
@@ -1276,6 +1276,7 @@ object Build {
     .settings(
       name          := "scala-library-sjs",
       organization  := "org.scala-js",
+      publish / skip := true,
       // This is very tricky here since this is a Scala 3 project, but to be able to smoothly
       // migrate the ecosystem, we need to be able to evict the Scala 2 library from the classpath.
       // The problem is that the Scala 2 library for Scala.js has a _2.13 in the module's name, so we need
