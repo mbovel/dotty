@@ -26,9 +26,39 @@ jobs:
           gpg_private_key: ${{ secrets.SONATYPE_PGP_KEY }}
           passphrase: ${{ secrets.SONATYPE_PGP_PASSPHRASE }}
       - name: Get version string
+        id: version
         run: |
           ver=$(./project/scripts/sbt "print scala3-compiler-bootstrapped/version" | tail -n1)
           echo "Publishing version: $ver"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ver="${{ steps.version.outputs.version }}"
+          date=$(echo "$ver" | grep -oP '\d{8}')
+          last_commit=$(git log --oneline --format='%h %s' | grep -v '\[fork-only\]' | head -n1)
+
+          # Build release notes
+          notes="Date: ${date}"
+          notes="${notes}\nLast commit: ${last_commit}"
+
+          # Try to show changes since previous release
+          prev_tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+          if [ -n "$prev_tag" ]; then
+            prev_date=$(echo "$prev_tag" | grep -oP '\d{8}')
+            if [ -n "$prev_date" ]; then
+              # Filter by committer date (updated on rebase, matches GitHub display)
+              changes=$(git log --format='%cd %h %s' --date=format:'%Y%m%d' | awk -v d="$prev_date" '$1 > d' | sed 's/^[0-9]* //' | grep -v '\[fork-only\]')
+              if [ -n "$changes" ]; then
+                notes="${notes}\n\nChanges since ${prev_tag}:\n\`\`\`\n${changes}\n\`\`\`"
+              fi
+            fi
+          fi
+
+          gh release create "v${ver}" \
+            --title "${ver}" \
+            --notes "$(printf "${notes}")"
       - name: Sign and stage artifacts locally
         run: sbt scala3-bootstrapped/publishSigned
       - name: Upload and release to Maven Central
