@@ -26,7 +26,7 @@ class Extractor(implicit protected val ctx: Context) extends LeonExtractor with 
   protected def freshQualVar(env: TemplateEnv, inParam: Boolean, ascriptionOpt: Option[DottyTree],
                              originalTp: DottyType, pos: Position): Qualifier.Var =
   {
-    val id          = FreshIdentifier(FreshQualifierPrefix, nextQualVarNum, LeonUntyped)
+    val id          = FreshIdentifier.forceId(FreshQualifierPrefix, nextQualVarNum, LeonUntyped)
     val qualVar     = Qualifier.Var(id)
     nextQualVarNum += 1
 

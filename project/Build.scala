@@ -66,9 +66,7 @@ object DottyBuild extends Build {
       unmanagedSourceDirectories in Compile := Seq((scalaSource in Compile).value),
       unmanagedSourceDirectories in Test := Seq((scalaSource in Test).value),
 
-      libraryDependencies ++= Seq("com.regblanc" %% "scala-smtlib" % "0.2"),
-
-      unmanagedJars in Compile += baseDirectory.value / "lib/leon_2.11-3.0.jar",
+      unmanagedJars in Compile ++= (baseDirectory.value / "lib" * "*.jar").classpath,
 
       // set system in/out for repl
       connectInput in run := true,

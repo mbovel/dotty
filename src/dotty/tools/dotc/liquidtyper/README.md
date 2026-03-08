@@ -8,10 +8,10 @@ the proof obligations using an SMT solver.
 Be aware that LiquidTyper is currently under active development and in an experimental state.
 There are, however, several examples that demonstrate the extension of Scala's capabilities already supported.
 To run them,
-* First, obtain a packaged copy of [Leon](https://github.com/epfl-lara/leon) by cloning the project
-    and running `sbt package` in its root,
-* Get a copy of *this* Dotty branch,
-* Move the `leon_2.11-3.0.jar` produced in step one to the `lib/` sub-directory of the Dotty root,
+* Switch to Java 8 (required by sbt 0.13): `eval "$(cs java --jvm 8 --env)"`
+* Make sure that [Z3](https://github.com/Z3Prover/z3) is available on the $PATH of your system,
 * Compile Dotty (`sbt compile`),
-* Make sure that [Z3](https://github.com/Z3Prover/z3) is available on the $PATH of your system, and finally
 * Run the tests using `sbt testOnly *liquidtyper*`.
+
+The `lib/` directory already contains pre-built jars for
+[Leon](https://github.com/epfl-lara/leon) and its `scala-smtlib` dependency.
