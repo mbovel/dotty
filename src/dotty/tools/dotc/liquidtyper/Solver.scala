@@ -273,7 +273,7 @@ object Solver {
             boundIds: Set[Identifier],
             unboundIds: Set[Identifier],
             classDefs: Seq[LeonExtractor.ClassDef]): Solver = {
-    val reporter = new DefaultReporter(Set[DebugSection](DebugSectionSolver))
+    val reporter = new DefaultReporter(Set[DebugSection]())
     val lctx = LeonContext(
       reporter = reporter,
       interruptManager = new InterruptManager(reporter)
