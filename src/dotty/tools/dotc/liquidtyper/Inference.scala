@@ -439,8 +439,8 @@ class PreciseInference(xtorInfo: ExtractionInfo, idTemplateTyp: Identifier => QT
         qualMap(id) = Qualifier.True
         trivialized = id :: trivialized
       }
-      if (trivialized.nonEmpty)
-        ctx.warning(s"Assigned trivial qualifier to qualifier variables ${trivialized.reverse.mkString(", ")}")
+      //if (trivialized.nonEmpty)
+      //  ctx.warning(s"Assigned trivial qualifier to qualifier variables ${trivialized.reverse.mkString(", ")}")
     }
 
     // Add back constraints for qualifiers we didn't infer precisely
@@ -457,8 +457,8 @@ class PreciseInference(xtorInfo: ExtractionInfo, idTemplateTyp: Identifier => QT
       val freeVars  = qualMap(id).freeVars(qualMap.toMap)
       if (!(freeVars subsetOf validVars))
       {
-        ctx.warning(s"Precise qualifier for qualifier var $id would not eliminate all parameters, falling back to " +
-          s"True\n\t(${qualMap(id).show}, free variables: $freeVars, valid variables: $validVars")
+        //ctx.warning(s"Precise qualifier for qualifier var $id would not eliminate all parameters, falling back to " +
+        //  s"True\n\t(${qualMap(id).show}, free variables: $freeVars, valid variables: $validVars")
 //        ltypr.println(s"qualMap($id) = ${qualMap(id)} // free vars: ${qualMap(id).freeVars} " +
 //          s"// available bindings: $availableBindings")
         qualMap(id) = Qualifier.True
