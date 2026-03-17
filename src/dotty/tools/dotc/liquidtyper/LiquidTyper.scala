@@ -71,10 +71,10 @@ class LiquidTyper extends Phase with IdentityDenotTransformer {
 
 
     ctx.debugLiquidTyping = Some(typing)
-    ctx.echo(s"result of $unit after liquid template type assignment:\n\u001B[1m")
-    ctx.echo(unit.tpdTree.show(ctx))
+//    ctx.echo(s"result of $unit after liquid template type assignment:\n\u001B[1m")
+//    ctx.echo(unit.tpdTree.show(ctx))
 //    getProgramTrees(unit).foreach(t => ctx.echo(t.show(ctx)))
-    ctx.echo("\u001B[21m")
+//    ctx.echo("\u001B[21m")
 
     val constraintsBase = new ConstraintGenerator(typing).apply(NoConstraints, tree)
 
