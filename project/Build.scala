@@ -638,10 +638,75 @@ object Build {
   }
 
   // ==============================================================================================
+  // ============================================ ROOT ============================================
+  // ==============================================================================================
+
+  // All projects except root, used to forward tasks like clean.
+  lazy val allProjects: Seq[Project] = Seq(
+    `scala3-interfaces`,
+    `scala3-nonbootstrapped`,
+    `scala3-bootstrapped`,
+    `scala3-compiler-nonbootstrapped`,
+    `scala3-compiler-bootstrapped`,
+    `scala3-sbt-bridge-nonbootstrapped`,
+    `scala3-sbt-bridge-bootstrapped`,
+    `scala-library-nonbootstrapped`,
+    `scala-library-bootstrapped`,
+    `scala3-library-nonbootstrapped`,
+    `scala3-library-bootstrapped`,
+    `scala-library-sjs`,
+    `scala3-library-sjs`,
+    `tasty-core-nonbootstrapped`,
+    `tasty-core-bootstrapped`,
+    `scala3-staging`,
+    `scala3-tasty-inspector`,
+    `scala3-repl`,
+    `scala2-library`,
+    scaladoc,
+    `scaladoc-testcases`,
+    `scaladoc-js-common`,
+    `scaladoc-js-main`,
+    `scaladoc-js-contributors`,
+    `scala3-presentation-compiler`,
+    `scala3-presentation-compiler-testcases`,
+    `scala3-language-server`,
+    sjsSandbox,
+    sjsJUnitTests,
+    sjsCompilerTests,
+    `community-build`,
+    dist,
+    `dist-mac-x86_64`,
+    `dist-mac-aarch64`,
+    `dist-win-x86_64`,
+    `dist-linux-x86_64`,
+    `dist-linux-aarch64`,
+  )
+
+  lazy val root = project.in(file("."))
+    .settings(
+      scalaVersion := referenceVersion,
+      // Nothing to be published
+      publish / skip := true,
+      Compile / publishArtifact := false,
+      Test / publishArtifact := false,
+      // Forward to scala3-nonbootstrapped
+      Compile / compile := (`scala3-nonbootstrapped` / Compile / compile).value,
+      Test / compile := (`scala3-nonbootstrapped` / Test / compile).value,
+      scalac := (`scala3-nonbootstrapped` / scalac).evaluated,
+      testCompilation := (`scala3-nonbootstrapped` / testCompilation).evaluated,
+      Test / test := (`scala3-nonbootstrapped` / Test / test).value,
+      Test / testOnly := (`scala3-nonbootstrapped` / Test / testOnly).evaluated,
+      // Clean all projects
+      // Inspired from the Scala.js build:
+      // https://github.com/scala-js/scala-js/blob/c4e7f43932551aabb573c925147e3841ac3ca4be/project/Build.scala#L1006
+      clean := clean.dependsOn(allProjects.map(_ / clean): _*).value,
+    )
+
+  // ==============================================================================================
   // ================================= NON-BOOTSTRAPPED PROJECTS ==================================
   // ==============================================================================================
 
-  lazy val `scala3-nonbootstrapped` = project.in(file("."))
+  lazy val `scala3-nonbootstrapped` = project
     .aggregate(`scala3-interfaces`, `scala3-library-nonbootstrapped` , `scala-library-nonbootstrapped`,
       `tasty-core-nonbootstrapped`, `scala3-compiler-nonbootstrapped`, `scala3-sbt-bridge-nonbootstrapped`)
     .settings(
@@ -654,7 +719,7 @@ object Build {
       // Nothing to be published by this project
       publish / skip := true,
       // Project specific target folder. sbt doesn't like having two projects using the same target folder
-      target := target.value / "scala3-nonbootstrapped",
+      target := (ThisBuild / baseDirectory).value / "target" / "scala3-nonbootstrapped",
       scalac := Def.inputTaskDyn {
         val log = streams.value.log
         val externalDeps = (`scala3-compiler-nonbootstrapped` / Runtime / externalDependencyClasspath).value

@@ -1,3 +1,6 @@
+// Root project
+val root = Build.root
+
 // Aggregate projects
 val `scala3-nonbootstrapped` = Build.`scala3-nonbootstrapped`
 val `scala3-bootstrapped` = Build.`scala3-bootstrapped`
